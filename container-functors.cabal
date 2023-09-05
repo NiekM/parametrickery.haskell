@@ -1,0 +1,86 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.35.2.
+--
+-- see: https://github.com/sol/hpack
+
+name:           container-functors
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/githubuser/container-functors#readme>
+homepage:       https://github.com/githubuser/container-functors#readme
+bug-reports:    https://github.com/githubuser/container-functors/issues
+author:         Author name here
+maintainer:     example@example.com
+copyright:      2023 Author name here
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/githubuser/container-functors
+
+library
+  exposed-modules:
+      Container
+      Dependent
+      Lib
+      Map
+      SMT
+      Symbolic
+      Types
+      Unsafe
+  other-modules:
+      Paths_container_functors
+  hs-source-dirs:
+      src
+  default-extensions:
+      GHC2021
+      BlockArguments
+      LambdaCase
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , sbv
+  default-language: Haskell2010
+
+executable containers-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_container_functors
+  hs-source-dirs:
+      app
+  default-extensions:
+      GHC2021
+      BlockArguments
+      LambdaCase
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , container-functors
+    , containers
+    , sbv
+  default-language: Haskell2010
+
+test-suite containers-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_container_functors
+  hs-source-dirs:
+      test
+  default-extensions:
+      GHC2021
+      BlockArguments
+      LambdaCase
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , container-functors
+    , containers
+    , sbv
+  default-language: Haskell2010
