@@ -27,9 +27,8 @@ library
   exposed-modules:
       Container
       Dependent
-      Lib
+      Examples
       Map
-      SMT
       Symbolic
       Types
       Unsafe
