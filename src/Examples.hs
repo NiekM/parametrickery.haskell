@@ -112,3 +112,15 @@ revProof = do
   -- makeRev @Integer "123" [1,2,3]
   -- makeRev @Bool "TF" [True, False]
   -- makeRev @Bool "T" [True]
+
+revFold :: Symbolic ()
+revFold = do
+  f <- symbolicMorphism "u" "g"
+
+  let
+    makeRev :: SymVal a => String -> [a] -> Symbolic ()
+    makeRev s xs = makeFoldr @Identity @[] @(Const ())
+      (Const ()) (Identity <$> xs) [] (reverse xs) f ("rev_" <> s)
+
+  makeRev @Integer "4567" [4,5,6,7]
+  makeRev @Bool "TF" [True, False]
