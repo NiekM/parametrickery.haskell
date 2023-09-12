@@ -1,6 +1,7 @@
 module Symbolic
   ( symbolicContainer, symbolicMorphism
   , makeFoldr, makeMap
+  , makeMinFoldr
   ) where
 
 import Data.SBV hiding (rotate)
@@ -45,7 +46,7 @@ symbolicContainer s p = do
   constrain $ refine @(Shape f) undefined shape
   let position = sym p
   return $ SExtension shape position
-  
+
 -- Create a symbolic variable for the extension of a container morphism, given a
 -- name for its shape morphism and position morphism.
 symbolicMorphism :: forall f g. (SContainer f, SContainer g)
@@ -89,7 +90,7 @@ unifyExtension (SExtension s p) (SExtension t q) = do
 
 -- Constrain a symbolic morphism using an input-output example.
 constrainExample :: SMorphism f g -> SExtension f a -> SExtension g a -> Symbolic ()
-constrainExample f i o = unifyExtension (apply f i) o
+constrainExample f i = unifyExtension (apply f i)
 
 -- * Combinators
 
@@ -134,3 +135,42 @@ makeMap ctx xs ys f s = do
     b <- symbolicContainer (s <> "_a_s_" <> show i) (s <> "_a_p_" <> show i)
     constrainExtension b y
     constrainExample f (pair c a) b
+
+-- * Minimal results
+
+type MContainer f = (SContainer f, Metric (RawShape f), Metric (RawPosition f))
+
+minimalContainer :: forall f a. (MContainer f, HasKind a)
+  => String -> String -> Symbolic (SExtension f a)
+minimalContainer s p = do
+  shape <- symbolic s
+  minimize ("minimize_" <> s) shape
+  constrain $ refine @(Shape f) undefined shape
+  let position = sym p
+  return $ SExtension shape position
+
+makeMinFoldr :: (MContainer f, MContainer g, MContainer h, SymVal a)
+  => h a -> [f a] -> g a -> g a -> SMorphism (Product h (Product f g)) g
+  -> String -> Symbolic ()
+makeMinFoldr ctx xs e o f s = do
+
+  as <- forM (zip [0 :: Int ..] (reverse xs)) \(i, x) -> do
+    a <- minimalContainer (s <> "_a_s_" <> show i) (s <> "_a_p_" <> show i)
+
+    constrainExtension a x
+    return a
+
+  bs <- forM [0 .. length xs] \i -> do
+    minimalContainer (s <> "_b_s_" <> show i) (s <> "_b_p_" <> show i)
+
+  c <- minimalContainer (s <> "_c_s") (s <> "_c_p")
+  constrainExtension c ctx
+
+  case (bs, reverse bs) of
+    (b0 : _, bn : _) -> do
+      constrainExtension b0 e
+      constrainExtension bn o
+    _ -> return ()
+
+  forM_ (zip (zip as bs) (tail bs)) \((a, b), b') -> do
+    constrainExample f (pair c (pair a b)) b'

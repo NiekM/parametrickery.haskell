@@ -124,3 +124,21 @@ revFold = do
 
   makeRev @Integer "4567" [4,5,6,7]
   makeRev @Bool "TF" [True, False]
+
+-- This works as expected when calling
+-- >>> optimize Lexicographic revMinFold
+-- Only shapes are minimized
+revMinFold :: Symbolic ()
+revMinFold = do
+  f <- symbolicMorphism "u" "g"
+
+  let
+    makeRev :: SymVal a => String -> [a] -> Symbolic ()
+    makeRev s xs = makeMinFoldr @Identity @[] @(Const ())
+      (Const ()) (Identity <$> xs) [] (reverse xs) f ("rev_" <> s)
+
+  makeRev @Integer "4567" [4,5,6,7]
+  makeRev @Bool "TF" [True, False]
+
+-- TODO: can we use getModelDictionary and getModelUIFuns to extract the values
+-- from the minimized result to synthesize a solution?

@@ -44,7 +44,7 @@ library
   build-depends:
       base >=4.7 && <5
     , containers
-    , sbv
+    , sbv >=10.2
   default-language: Haskell2010
 
 executable containers-exe
@@ -62,7 +62,7 @@ executable containers-exe
       base >=4.7 && <5
     , container-functors
     , containers
-    , sbv
+    , sbv >=10.2
   default-language: Haskell2010
 
 test-suite containers-test
@@ -81,5 +81,5 @@ test-suite containers-test
       base >=4.7 && <5
     , container-functors
     , containers
-    , sbv
+    , sbv >=10.2
   default-language: Haskell2010
