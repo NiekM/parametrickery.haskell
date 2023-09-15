@@ -9,6 +9,8 @@ import Data.Functor.Const
 
 import Symbolic
 
+-- tail as foldr can be refuted with two input lists of different lengths with
+-- unique elements.
 tailProof :: Symbolic ()
 tailProof = do
   f <- symbolicMorphism "u" "g"
@@ -24,11 +26,27 @@ tailProof = do
   makeTail @Bool "TF" [True, False]
   -- makeTail @Bool "T" [True]
 
+-- init as foldr can only be refuted with a singleton list as input.
+initProof :: Symbolic ()
+initProof = do
+  f <- symbolicMorphism "u" "g"
+
+  let
+    makeInit :: SymVal a => String -> [a] -> Symbolic ()
+    makeInit s xs = makeFoldr @Identity @[] @(Const ())
+      (Const ()) (Identity <$> xs) [] (init xs) f ("init_" <> s)
+
+  -- makeInit @Integer "45678" [4,5,6,7,8]
+  makeInit @Integer "4567" [4,5,6,7]
+  makeInit @Integer "123" [1,2,3]
+  makeInit @Bool "TF" [True, False]
+  -- makeInit @Bool "T" [True]
+
 rotate :: [a] -> [a]
 rotate [] = []
 rotate (x:xs) = foldr (\y r -> y:r) [x] xs
 
--- Maybe rotate can be a fold? Or it is too hard to prove
+-- rotate as foldr is possible.
 rotateProof :: Symbolic ()
 rotateProof = do
   f <- symbolicMorphism "u" "g"
@@ -42,7 +60,7 @@ rotateProof = do
   makeRotate @Bool "TF" [True, False]
   makeRotate @Bool "T" [True]
 
--- -- Conclusion
+-- Conclusion
 rotate_ :: [a] -> [a]
 rotate_ = foldr f []
   where
@@ -56,6 +74,7 @@ rotate_ = foldr f []
     g a Nothing = Just ([], a)
     g a (Just (xs, x)) = Just (a:xs, x)
 
+-- drop as foldr can be refuted, as it generalizes tail.
 dropProof :: Symbolic ()
 dropProof = do
   f <- symbolicMorphism "u" "g"
@@ -71,6 +90,23 @@ dropProof = do
   -- makeDrop @Bool "1_TF" 1 [True, False]
   -- makeDrop @Bool "1_T" 1 [True]
 
+-- take as foldr is possible: foldr (\x r -> take n (x:r)) [].
+takeProof :: Symbolic ()
+takeProof = do
+  f <- symbolicMorphism "u" "g"
+
+  let
+    makeTake :: SymVal a => String -> Int -> [a] -> Symbolic ()
+    makeTake s n xs = makeFoldr @Identity @[] @(Const Natural)
+      (fromIntegral n) (Identity <$> xs) [] (take n xs) f ("take_" <> s)
+
+  makeTake @Integer "2_4567" 2 [4,5,6,7]
+  -- makeTake @Integer "1_123" 1 [1,2,3]
+  makeTake @Integer "2_123" 2 [1,2,3]
+  makeTake @Bool "1_TF" 1 [True, False]
+  makeTake @Bool "1_T" 1 [True]
+
+-- intersperse as foldr is possible.
 intersperseProof :: Symbolic ()
 intersperseProof = do
   f <- symbolicMorphism "u" "g"
@@ -142,3 +178,6 @@ revMinFold = do
 
 -- TODO: can we use getModelDictionary and getModelUIFuns to extract the values
 -- from the minimized result to synthesize a solution?
+
+-- TODO: using the Query monad, we can incrementally add constraints, for
+-- example to perform synthesis search.

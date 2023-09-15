@@ -26,11 +26,9 @@ source-repository head
 library
   exposed-modules:
       Container
-      Dependent
       Examples
       Map
       Symbolic
-      Types
       Unsafe
   other-modules:
       Paths_container_functors
