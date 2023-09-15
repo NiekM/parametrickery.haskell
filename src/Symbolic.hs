@@ -1,6 +1,7 @@
 module Symbolic
   ( symbolicContainer, symbolicMorphism
   , makeFoldr, makeMap
+  , makeConcatMap
   , makeMinFoldr
   ) where
 
@@ -16,13 +17,17 @@ import Container
 
 import Data.Proxy
 
+import Debug.Trace
+
 type SShape f = SBV (RawShape f)
 
 type SPosition f = SBV (RawPosition f)
 
 data SExtension f a where
-  SExtension :: Container f
-    => SShape f -> (SPosition f -> SBV a) -> SExtension f a
+  SExtension :: Container f =>
+    { sShape :: SShape f
+    , sPosition :: SPosition f -> SBV a
+    } -> SExtension f a
 
 data SMorphism f g where
   SMorphism :: (Container f, Container g)
@@ -131,6 +136,34 @@ makeMap ctx xs ys f s = do
     b <- symbolicContainer (s <> "_a_s_" <> show i) (s <> "_a_p_" <> show i)
     constrainExtension b y
     constrainExample f (pair c a) b
+
+-- Seems to behave as expected. Can we add context? And composed containers?
+-- This is an example of how we can combine propagation with translation.
+makeConcatMap :: forall f a. (Container f, SymVal a)
+  => [f a] -> [a] -> SMorphism f []
+  -> String -> Symbolic ()
+makeConcatMap xs ys f s = do
+
+  bs <- forM (zip [0 :: Int ..] xs) \(i, x) -> do
+    a <- symbolicContainer (s <> "_a_s_" <> show i) (s <> "_a_p_" <> show i)
+    constrainExtension a x
+    b <- symbolicContainer @[] @a (s <> "_b_s_" <> show i) (s <> "_b_p_" <> show i)
+    constrainExample f a b
+    return b
+
+  o <- symbolicContainer @[] @a (s <> "_o_s") (s <> "_o_p")
+  constrainExtension o ys
+
+  -- This code checks whether concatenating the lists returned by f results in
+  -- the output list o.
+  -- First we check if their total length is correct.
+  constrain $ sum (sShape <$> bs) .== sShape o
+  -- Then we check if the position functions match up (after shifting them the
+  -- appropriate amounts.)
+  let is = scanl (\x y -> x + sShape y) 0 bs
+  forM_ (zip is bs) \(i, SExtension n p) -> do
+    constrain \(Forall x) -> do
+      depend @[] Proxy n x .=> p x .== sPosition o (x + i)
 
 -- * Minimal results
 

@@ -90,6 +90,27 @@ dropProof = do
   -- makeDrop @Bool "1_TF" 1 [True, False]
   -- makeDrop @Bool "1_T" 1 [True]
 
+remove :: Int -> [a] -> [a]
+remove _ [] = []
+remove 0 (_:xs) = xs
+remove n (x:xs) = x : remove (n - 1) xs
+
+-- remove as foldr can be refuted, as it generalizes tail.
+removeProof :: Symbolic ()
+removeProof = do
+  f <- symbolicMorphism "u" "g"
+
+  let
+    makeRemove :: SymVal a => String -> Int -> [a] -> Symbolic ()
+    makeRemove s n xs = makeFoldr @Identity @[] @(Const Natural)
+      (fromIntegral n) (Identity <$> xs) [] (remove n xs) f ("remove_" <> s)
+
+  makeRemove @Integer "2_4567" 2 [4,5,6,7]
+  -- makeRemove @Integer "1_123" 1 [1,2,3]
+  makeRemove @Integer "2_123" 2 [1,2,3]
+  -- makeRemove @Bool "1_TF" 1 [True, False]
+  -- makeRemove @Bool "1_T" 1 [True]
+
 -- take as foldr is possible: foldr (\x r -> take n (x:r)) [].
 takeProof :: Symbolic ()
 takeProof = do
@@ -160,6 +181,18 @@ revFold = do
 
   makeRev @Integer "4567" [4,5,6,7]
   makeRev @Bool "TF" [True, False]
+
+-- Behaves as expected, u always returns 2! And all intermediate lists have length 2
+dupliProof :: Symbolic ()
+dupliProof = do
+
+  f <- symbolicMorphism "u" "g"
+
+  let
+    makeDupli :: SymVal a => String -> [a] -> Symbolic ()
+    makeDupli s xs = makeConcatMap @Identity (Identity <$> xs) (concatMap (\x -> [x,x]) xs) f ("dupli_" <> s)
+
+  makeDupli @Integer "123" [1,2,3]
 
 -- This works as expected when calling
 -- >>> optimize Lexicographic revMinFold

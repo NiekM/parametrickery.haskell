@@ -15,6 +15,7 @@ import Data.Functor.Identity
 import Data.Functor.Const
 import Data.Functor.Product
 import Data.Functor.Sum
+import Data.Functor.Compose
 import Unsafe
 
 import Data.SBV

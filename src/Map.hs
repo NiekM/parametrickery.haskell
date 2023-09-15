@@ -32,4 +32,4 @@ uncurry :: (Ord k1, Ord k2) => Map k1 (Map k2 v) -> Map (k1, k2) v
 uncurry = unions . mapWithKey \k -> mapKeysMonotonic (k,)
 
 curry :: (Ord k1, Ord k2) => Map (k1, k2) v -> Map k1 (Map k2 v)
-curry = mapKeysWith union fst . mapWithKey \(_, k) a -> singleton k a
+curry = mapKeysWith union fst . mapWithKey \(_, k) -> singleton k
