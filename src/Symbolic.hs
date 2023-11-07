@@ -13,23 +13,20 @@ import Data.Map qualified as Map
 import Control.Monad
 
 import Data.Functor.Product
--- import Data.Functor.Const
 
 import Container
+import Dependent
 
 import Data.Proxy
 
--- import Debug.Trace
-
-type SShape f = SBV (RawShape f)
-
-type SPosition f = SBV (RawPosition f)
+type SShape f = SBV (Raw (Shape f))
+type SPosition f = SBV (Raw (Position f))
 
 data SExtension f a where
-  SExtension :: Container f =>
-    { sShape :: SShape f
-    , sPosition :: SPosition f -> SBV a
-    } -> SExtension f a
+  SExtension :: Container f
+    => SShape f
+    -> (SPosition f -> SBV a)
+    -> SExtension f a
 
 data SMorphism f g where
   SMorphism :: (Container f, Container g)
@@ -46,7 +43,7 @@ symbolicContainer :: forall f a. (Container f, HasKind a)
   => String -> String -> Symbolic (SExtension f a)
 symbolicContainer s p = do
   sh <- symbolic s
-  constrain $ refine @f Proxy sh
+  constrain $ ref @(Shape f) Proxy sh
   let pos = sym p
   return $ SExtension sh pos
 
@@ -58,11 +55,11 @@ symbolicMorphism u g = do
   let sh = sym u
   let pos = sym g
   constrain \(Forall s) ->
-    refine @f Proxy s .=> refine @g Proxy (sh s)
+    ref @(Shape f) Proxy s .=> ref @(Shape g) Proxy (sh s)
   constrain \(Forall s) (Forall x) ->
-    refine @f Proxy s
-    .&& depend @g Proxy (sh s) x
-    .=> depend @f Proxy s (pos s x)
+    ref @(Shape f) Proxy s
+    .&& dep @(Position g) Proxy (sh s) x
+    .=> dep @(Position f) Proxy s (pos s x)
   return $ SMorphism sh pos
 
 -- Apply a symbolic morphism to a symbolic container.
@@ -80,16 +77,16 @@ pair (SExtension s p) (SExtension t q) =
 constrainExtension :: SymVal a => SExtension f a -> f a -> Symbolic ()
 constrainExtension (SExtension s p) c = do
   let Extension s' p' = toContainer c
-  constrain $ s .== literal (rawShape s')
+  constrain $ s .== literal (raw s')
   forM_ (Map.assocs p') \(k, v) -> do
-    constrain $ p (literal (rawPosition k)) .== literal v
+    constrain $ p (literal (raw k)) .== literal v
 
 -- Unify two symbolic container extensions.
 unifyExtension :: forall f a. SExtension f a -> SExtension f a -> Symbolic ()
 unifyExtension (SExtension s p) (SExtension t q) = do
   constrain $ s .== t
   constrain \(Forall x) -> do
-    depend @f Proxy s x .=> p x .== q x
+    dep @(Position f) Proxy s x .=> p x .== q x
 
 -- Constrain a symbolic morphism using an input-output example.
 constrainExample :: SMorphism f g -> SExtension f a -> SExtension g a -> Symbolic ()
@@ -172,6 +169,12 @@ makeMap ctx xs ys f s = do
     constrainExtension b y
     constrainExample f (pair c a) b
 
+sShape :: SExtension f a -> SShape f
+sShape (SExtension s _) = s
+
+sPosition :: SExtension f a -> SPosition f -> SBV a
+sPosition (SExtension _ p) = p
+
 -- Seems to behave as expected. Can we add context? And composed containers?
 -- This is an example of how we can combine propagation with translation.
 makeConcatMap :: forall f a. (Container f, SymVal a)
@@ -198,7 +201,7 @@ makeConcatMap xs ys f s = do
   let is = scanl (\x y -> x + sShape y) 0 bs
   forM_ (zip is bs) \(i, SExtension n p) -> do
     constrain \(Forall x) -> do
-      depend @[] Proxy n x .=> p x .== sPosition o (x + i)
+      dep @(Position []) Proxy n x .=> p x .== sPosition o (x + i)
 
 -- makeFilter :: forall f a. (Container f, SymVal a)
 --   => [f a] -> [f a] -> SMorphism f (Const Bool)
@@ -236,14 +239,14 @@ makeConcatMap xs ys f s = do
 
 -- * Minimal results
 
-type MContainer f = (Container f, Metric (RawShape f), Metric (RawPosition f))
+type MContainer f = (Container f, Metric (Raw (Shape f)), Metric (Raw (Position f)))
 
 minimalContainer :: forall f a. (MContainer f, HasKind a)
   => String -> String -> Symbolic (SExtension f a)
 minimalContainer s p = do
   sh <- symbolic s
   minimize ("minimize_" <> s) sh
-  constrain $ refine @f Proxy sh
+  constrain $ ref @(Shape f) Proxy sh
   let pos = sym p
   return $ SExtension sh pos
 

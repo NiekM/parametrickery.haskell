@@ -39,6 +39,7 @@ default-extensions:
 - BlockArguments
 - ConstraintKinds
 - DerivingStrategies
+- DerivingVia
 - EmptyDataDeriving
 - FlexibleContexts
 - FlexibleInstances
@@ -52,6 +53,7 @@ default-extensions:
 - TupleSections
 - TypeApplications
 - TypeFamilies
+- TypeOperators
 - UndecidableInstances
 
 library:
