@@ -36,9 +36,23 @@ ghc-options:
 - -Wredundant-constraints
 
 default-extensions:
-- GHC2021
 - BlockArguments
+- ConstraintKinds
+- DerivingStrategies
+- EmptyDataDeriving
+- FlexibleContexts
+- FlexibleInstances
+- GADTs
+- GeneralizedNewtypeDeriving
+- ImportQualifiedPost
+- ImportQualifiedPost
 - LambdaCase
+- ScopedTypeVariables
+- StandaloneDeriving
+- TupleSections
+- TypeApplications
+- TypeFamilies
+- UndecidableInstances
 
 library:
   source-dirs: src

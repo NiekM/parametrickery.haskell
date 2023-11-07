@@ -26,6 +26,23 @@ tailProof = do
   makeTail @Bool "TF" [True, False]
   -- makeTail @Bool "T" [True]
 
+-- tail as foldr can be refuted with two input lists of different lengths with
+-- unique elements.
+tailProofE :: Symbolic ()
+tailProofE = do
+  f <- symbolicMorphism "u_f" "g_f"
+  e <- symbolicMorphism "u_e" "g_e"
+
+  let
+    makeTail :: SymVal a => String -> [a] -> Symbolic ()
+    makeTail s xs = makeFoldrE (Const ()) (Const ()) (Identity <$> xs) e (tail xs) f ("tail_" <> s)
+
+  -- makeTail @Integer "45678" [4,5,6,7,8]
+  makeTail @Integer "4567" [4,5,6,7]
+  -- makeTail @Integer "123" [1,2,3]
+  makeTail @Bool "TF" [True, False]
+  -- makeTail @Bool "T" [True]
+
 -- init as foldr can only be refuted with a singleton list as input.
 initProof :: Symbolic ()
 initProof = do
@@ -40,11 +57,107 @@ initProof = do
   makeInit @Integer "4567" [4,5,6,7]
   makeInit @Integer "123" [1,2,3]
   makeInit @Bool "TF" [True, False]
-  -- makeInit @Bool "T" [True]
+  makeInit @Bool "T" [True]
+
+unsnoc :: [a] -> Maybe ([a], a)
+unsnoc = foldr f Nothing where
+  f a Nothing = Just ([], a)
+  f a (Just (xs, x)) = Just (a:xs, x)
+
+-- Swap the first and last element of a list.
+switch :: [a] -> [a]
+switch [] = []
+switch (x:xs) = case unsnoc xs of
+  Nothing -> [x]
+  Just (ys, y) -> y : ys ++ [x]
+
+-- switch is possible, since it can distinguish the length of the output list.
+switchProof :: Symbolic ()
+switchProof = do
+  f <- symbolicMorphism "u" "g"
+
+  let
+    makeSwitch :: SymVal a => String -> [a] -> Symbolic ()
+    makeSwitch s xs = makeFoldr @Identity @[] @(Const ())
+      (Const ()) (Identity <$> xs) [] (switch xs) f ("switch_" <> s)
+
+  makeSwitch @Integer "4567" [4,5,6,7]
+  makeSwitch @Integer "123" [1,2,3]
+  makeSwitch @Bool "TF" [True, False]
+  makeSwitch @Bool "T" [True]
+
+shiftl :: Int -> [a] -> [a]
+shiftl n xs = zs ++ ys
+  where
+    m = n `mod` length xs
+    (ys, zs) = splitAt m xs
+
+-- shift is possible, since it can match the output list against the input int.
+shiftlProof :: Symbolic ()
+shiftlProof = do
+  f <- symbolicMorphism "u" "g"
+
+  let
+    make :: SymVal a => String -> Int -> [a] -> Symbolic ()
+    make s n xs = makeFoldr @Identity @[] @(Const Int)
+      (Const n) (Identity <$> xs) [] (shiftl n xs) f ("shift_" <> show n <> "_" <> s)
+
+  make @Integer "4567" 1 [4,5,6,7]
+  make @Integer "123" 1 [1,2,3]
+  make @Bool "TF" 1 [True, False]
+  make @Bool "T" 1 [True]
+
+  make @Integer "4567" 2 [4,5,6,7]
+  make @Integer "123" 2 [1,2,3]
+  make @Bool "FT" 2 [False, True]
+  make @Bool "T" 2 [True]
+
+alternate :: [a] -> [a]
+alternate (x:y:ys) = y:x:alternate ys
+alternate xs = xs
+
+-- Apparently alternate is also possible...
+altProof :: Symbolic ()
+altProof = do
+  f <- symbolicMorphism "u" "g"
+
+  let
+    make :: SymVal a => String -> [a] -> Symbolic ()
+    make s xs = makeFoldr @Identity @[] @(Const ())
+      (Const ()) (Identity <$> xs) [] (alternate xs) f ("alternate_" <> s)
+
+  make @Integer "4567" [4,5,6,7]
+  make @Integer "123" [1,2,3]
+  make @Bool "TF" [True, False]
+  make @Bool "T" [True]
 
 rotate :: [a] -> [a]
 rotate [] = []
-rotate (x:xs) = foldr (\y r -> y:r) [x] xs
+rotate (x:xs) = foldr (:) [x] xs
+
+-- append cannot be defined as a fold over the right argument!
+appendWrong :: Symbolic ()
+appendWrong = do
+  f <- symbolicMorphism "u" "g"
+
+  let
+    makeAppend :: SymVal a => String -> [a] -> [a] -> Symbolic ()
+    makeAppend s xs ys = makeFoldr @Identity @[] @(Const ())
+      (Const ()) (Identity <$> ys) xs (xs ++ ys) f ("append_" <> s)
+
+  makeAppend @Integer "1_2" [1] [2]
+  makeAppend @Integer "e_12" [] [1,2]
+  makeAppend @Integer "e_1" [] [1]
+
+  -- makeAppend @Integer "123_4" [1,2,3] [4]
+  -- makeAppend @Integer "12_34" [1,2] [3,4]
+  -- makeAppend @Integer "12_3" [1,2] [3]
+
+  -- makeAppend @Integer "123_4567" [1,2,3] [4,5,6,7]
+  -- makeAppend @Integer "123_456" [1,2,3] [4,5,6]
+  -- makeAppend @Integer "123_45" [1,2,3] [4,5]
+  -- makeAppend @Integer "12_3456" [1,2] [3,4,5,6]
+  -- makeAppend @Integer "12_345" [1,2] [3,4,5]
 
 -- rotate as foldr is possible.
 rotateProof :: Symbolic ()
@@ -62,17 +175,10 @@ rotateProof = do
 
 -- Conclusion
 rotate_ :: [a] -> [a]
-rotate_ = foldr f []
-  where
-    f x xs = case unsnoc xs of
-      Nothing -> [x]
-      Just (ys, y) -> y:ys ++ [x]
-
-    unsnoc :: [a] -> Maybe ([a], a)
-    unsnoc = foldr g Nothing 
-
-    g a Nothing = Just ([], a)
-    g a (Just (xs, x)) = Just (a:xs, x)
+rotate_ = foldr f [] where
+  f x xs = case unsnoc xs of
+    Nothing -> [x]
+    Just (ys, y) -> y:ys ++ [x]
 
 -- drop as foldr can be refuted, as it generalizes tail.
 dropProof :: Symbolic ()

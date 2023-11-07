@@ -1,4 +1,4 @@
-{-# LANGUAGE GHC2021, TypeFamilies, UndecidableInstances #-}
+{-# LANGUAGE DerivingVia #-}
 
 module Container (Container(..), Extension(..)) where
 
@@ -15,7 +15,7 @@ import Data.Functor.Identity
 import Data.Functor.Const
 import Data.Functor.Product
 import Data.Functor.Sum
-import Data.Functor.Compose
+-- import Data.Functor.Compose
 import Unsafe
 
 import Data.SBV
@@ -94,10 +94,19 @@ class SymVal (Raw a) => Refined a where
   raw :: a -> Raw a
   refineRaw :: Proxy a -> SBV (Raw a) -> SBool
 
-instance Refined () where
-  type Raw () = Integer
-  raw _ = 0
-  refineRaw Proxy n = n .== 0
+newtype Bound a = Bound a
+  deriving newtype (Enum)
+
+instance (Enum a, Bounded a) => Refined (Bound a) where
+  type Raw (Bound a) = Integer
+  raw = toInteger . fromEnum
+  refineRaw Proxy n = n .>= minVal .&& n .<= maxVal
+    where
+      minVal = fromIntegral $ fromEnum (minBound :: a)
+      maxVal = fromIntegral $ fromEnum (maxBound :: a)
+
+deriving via Bound () instance Refined ()
+deriving via Bound Int instance Refined Int
 
 instance Refined Natural where
   type Raw Natural = Integer

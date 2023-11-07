@@ -2,6 +2,7 @@ module Symbolic
   ( symbolicContainer, symbolicMorphism
   , makeFoldr, makeMap
   , makeConcatMap
+  , makeFoldrE
   , makeMinFoldr
   ) where
 
@@ -12,12 +13,13 @@ import Data.Map qualified as Map
 import Control.Monad
 
 import Data.Functor.Product
+-- import Data.Functor.Const
 
 import Container
 
 import Data.Proxy
 
-import Debug.Trace
+-- import Debug.Trace
 
 type SShape f = SBV (RawShape f)
 
@@ -43,25 +45,25 @@ data SMorphism f g where
 symbolicContainer :: forall f a. (Container f, HasKind a)
   => String -> String -> Symbolic (SExtension f a)
 symbolicContainer s p = do
-  shape <- symbolic s
-  constrain $ refine @f Proxy shape
-  let position = sym p
-  return $ SExtension shape position
+  sh <- symbolic s
+  constrain $ refine @f Proxy sh
+  let pos = sym p
+  return $ SExtension sh pos
 
 -- Create a symbolic variable for the extension of a container morphism, given a
 -- name for its shape morphism and position morphism.
 symbolicMorphism :: forall f g. (Container f, Container g)
   => String -> String -> Symbolic (SMorphism f g)
 symbolicMorphism u g = do
-  let shape = sym u
-  let position = sym g
+  let sh = sym u
+  let pos = sym g
   constrain \(Forall s) ->
-    refine @f Proxy s .=> refine @g Proxy (shape s)
+    refine @f Proxy s .=> refine @g Proxy (sh s)
   constrain \(Forall s) (Forall x) ->
     refine @f Proxy s
-    .&& depend @g Proxy (shape s) x
-    .=> depend @f Proxy s (position s x)
-  return $ SMorphism shape position
+    .&& depend @g Proxy (sh s) x
+    .=> depend @f Proxy s (pos s x)
+  return $ SMorphism sh pos
 
 -- Apply a symbolic morphism to a symbolic container.
 apply :: SMorphism f g -> SExtension f a -> SExtension g a
@@ -120,6 +122,39 @@ makeFoldr ctx xs e o f s = do
   forM_ (zip (zip as bs) (tail bs)) \((a, b), b') -> do
     constrainExample f (pair c (pair a b)) b'
 
+-- A version of foldr that keeps both input arguments symbolic.
+-- It seems to work correctly, but perhaps there should be two different contexts?
+makeFoldrE :: (Container f, Container g, Container h, Container j, SymVal a)
+  => h a -> j a -> [f a] -> SMorphism j g -> g a -> SMorphism (Product h (Product f g)) g
+  -> String -> Symbolic ()
+makeFoldrE ctx_f ctx_e xs e o f s = do
+
+  as <- forM (zip [0 :: Int ..] (reverse xs)) \(i, x) -> do
+    a <- symbolicContainer (s <> "_a_s_" <> show i) (s <> "_a_p_" <> show i)
+    constrainExtension a x
+    return a
+
+  bs <- forM [0 .. length xs] \i -> do
+    symbolicContainer (s <> "_b_s_" <> show i) (s <> "_b_p_" <> show i)
+
+  c <- symbolicContainer (s <> "_c_s") (s <> "_c_p")
+  constrainExtension c ctx_f
+
+  d <- symbolicContainer (s <> "_d_s") (s <> "_d_p")
+  constrainExtension d ctx_e
+
+  e' <- symbolicContainer (s <> "_e_s") (s <> "_e_p")
+  constrainExample e d e'
+
+  case (bs, reverse bs) of
+    (b0 : _, bn : _) -> do
+      unifyExtension b0 e'
+      constrainExtension bn o
+    _ -> return ()
+
+  forM_ (zip (zip as bs) (tail bs)) \((a, b), b') -> do
+    constrainExample f (pair c (pair a b)) b'
+
 makeMap :: (Container f, Container g, Container h, SymVal a)
   => h a -> [f a] -> [g a] -> SMorphism (Product h f) g
   -> String -> Symbolic ()
@@ -165,6 +200,40 @@ makeConcatMap xs ys f s = do
     constrain \(Forall x) -> do
       depend @[] Proxy n x .=> p x .== sPosition o (x + i)
 
+-- makeFilter :: forall f a. (Container f, SymVal a)
+--   => [f a] -> [f a] -> SMorphism f (Const Bool)
+--   -> String -> Symbolic ()
+-- makeFilter xs ys f s = do
+
+--   as <- forM (zip [0 :: Int ..] xs) \(i, x) -> do
+--     a <- symbolicContainer (s <> "_a_s_" <> show i) (s <> "_a_p_" <> show i)
+--     constrainExtension a x
+--     return a
+
+--   -- _
+--   -- TODO: figure out how this would work
+
+--   bs <- forM (zip [0 :: Int ..] xs) \(i, x) -> do
+--     a <- symbolicContainer (s <> "_a_s_" <> show i) (s <> "_a_p_" <> show i)
+--     constrainExtension a x
+--     b <- symbolicContainer @[] @a (s <> "_b_s_" <> show i) (s <> "_b_p_" <> show i)
+--     constrainExample f a b
+--     return b
+
+--   o <- symbolicContainer @[] @a (s <> "_o_s") (s <> "_o_p")
+--   constrainExtension o ys
+
+--   -- This code checks whether concatenating the lists returned by f results in
+--   -- the output list o.
+--   -- First we check if their total length is correct.
+--   constrain $ sum (sShape <$> bs) .== sShape o
+--   -- Then we check if the position functions match up (after shifting them the
+--   -- appropriate amounts.)
+--   let is = scanl (\x y -> x + sShape y) 0 bs
+--   forM_ (zip is bs) \(i, SExtension n p) -> do
+--     constrain \(Forall x) -> do
+--       depend @[] Proxy n x .=> p x .== sPosition o (x + i)
+
 -- * Minimal results
 
 type MContainer f = (Container f, Metric (RawShape f), Metric (RawPosition f))
@@ -172,11 +241,11 @@ type MContainer f = (Container f, Metric (RawShape f), Metric (RawPosition f))
 minimalContainer :: forall f a. (MContainer f, HasKind a)
   => String -> String -> Symbolic (SExtension f a)
 minimalContainer s p = do
-  shape <- symbolic s
-  minimize ("minimize_" <> s) shape
-  constrain $ refine @f Proxy shape
-  let position = sym p
-  return $ SExtension shape position
+  sh <- symbolic s
+  minimize ("minimize_" <> s) sh
+  constrain $ refine @f Proxy sh
+  let pos = sym p
+  return $ SExtension sh pos
 
 makeMinFoldr :: (MContainer f, MContainer g, MContainer h, SymVal a)
   => h a -> [f a] -> g a -> g a -> SMorphism (Product h (Product f g)) g
