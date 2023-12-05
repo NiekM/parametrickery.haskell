@@ -301,7 +301,7 @@ dupliProof = do
   make @Integer "123" [1,2,3]
 
 -- This works as expected when calling
--- >>> optimize Lexicographic revMinFold
+-- >> optimize Lexicographic revMinFold
 -- Only shapes are minimized
 revMinFold :: Symbolic ()
 revMinFold = do
@@ -320,3 +320,15 @@ revMinFold = do
 
 -- TODO: using the Query monad, we can incrementally add constraints, for
 -- example to perform synthesis search.
+
+
+
+-- From Data.SBV:
+
+-- modelUIFuns :: [(String, (SBVType, Either String ([([CV], CV)], CV)))]
+--   ^ Mapping of uninterpreted functions to association lists in the model.
+--     Note that an uninterpreted constant (function of arity 0) will be stored
+--     in the 'modelAssocs' field. Left is used when the function returned is too
+--     difficult for SBV to figure out what it means
+
+-- Apparently the results are too difficult to convert back to real values...

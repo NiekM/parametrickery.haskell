@@ -14,7 +14,7 @@ import Data.Functor.Identity
 import Data.Functor.Const
 import Data.Functor.Product
 import Data.Functor.Sum
-import Unsafe
+import Unsafe qualified
 
 import Dependent
 
@@ -31,7 +31,7 @@ data Extension f a = Extension
   , position :: Map (Position f) a
   }
 
-deriving instance (Show (Shape f), Show (Position f), Show a) => Show (Extension f a)  
+deriving instance (Show (Shape f), Show (Position f), Show a) => Show (Extension f a)
 
 -- | Container instances
 
@@ -50,7 +50,7 @@ instance Container Identity where
   type Position Identity = K () ()
 
   toContainer = Extension () . Map.singleton (K ()) . runIdentity
-  fromContainer = Identity . lookupError (K ()) . position
+  fromContainer = Identity . Unsafe.lookupError (K ()) . position
 
 instance Ref k => Container (Const k) where
   type Shape (Const k) = k
@@ -65,14 +65,14 @@ instance (Container f, Container g) => Container (Product f g) where
 
   toContainer (Pair x y) = Extension
     { shape = (s, t)
-    , position = Map.mapKeysMonotonic OR $
+    , position = Unsafe.coerceKeysMonotonic $
       Map.mapKeysMonotonic Left p <> Map.mapKeysMonotonic Right q
     } where
       Extension s p = toContainer x
       Extension t q = toContainer y
   fromContainer (Extension (s, t) pq) = Pair x y
     where
-      (p, q) = Map.splitEither $ Map.mapKeysMonotonic unOR pq
+      (p, q) = Map.splitEither $ Unsafe.coerceKeysMonotonic pq
       x = fromContainer (Extension s p)
       y = fromContainer (Extension t q)
 
@@ -89,6 +89,6 @@ instance (Container f, Container g) => Container (Sum f g) where
       in Extension (Right t) (Map.mapKeysMonotonic (XOR . Right) q)
   fromContainer = \case
     Extension (Left s) p -> InL $ fromContainer $ Extension s $
-      Map.mapKeysMonotonic (stripLeft . unXOR) p
+      Map.mapKeysMonotonic (Unsafe.stripLeft . unXOR) p
     Extension (Right t) q -> InR $ fromContainer $ Extension t $
-      Map.mapKeysMonotonic (stripRight . unXOR) q
+      Map.mapKeysMonotonic (Unsafe.stripRight . unXOR) q
