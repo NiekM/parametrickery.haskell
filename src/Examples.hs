@@ -9,6 +9,9 @@ import Data.Functor.Const
 
 import Symbolic
 
+safeTail :: [a] -> [a]
+safeTail = drop 1
+
 -- tail as foldr can be refuted with two input lists of different lengths with
 -- unique elements.
 tailProof :: Symbolic ()
@@ -18,7 +21,7 @@ tailProof = do
   let
     make :: SymVal a => String -> [a] -> Symbolic ()
     make s xs = makeFoldr @Identity @[] @(Const ())
-      (Const ()) (Identity <$> xs) [] (tail xs) f ("tail_" <> s)
+      (Const ()) (Identity <$> xs) [] (safeTail xs) f ("tail_" <> s)
 
   -- make @Integer "45678" [4,5,6,7,8]
   make @Integer "4567" [4,5,6,7]
@@ -53,7 +56,7 @@ tailProofE = do
 
   let
     make :: SymVal a => String -> [a] -> Symbolic ()
-    make s xs = makeFoldrE (Const ()) (Const ()) (Identity <$> xs) e (tail xs) f ("tail_" <> s)
+    make s xs = makeFoldrE (Const ()) (Const ()) (Identity <$> xs) e (safeTail xs) f ("tail_" <> s)
 
   -- make @Integer "45678" [4,5,6,7,8]
   make @Integer "4567" [4,5,6,7]
