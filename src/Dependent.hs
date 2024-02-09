@@ -26,8 +26,9 @@ instance Enum a => HasRaw (Bound a) where
   type Raw (Bound a) = Integer
   raw = toInteger . fromEnum
 
-deriving via Bound () instance HasRaw ()
-deriving via Bound Int instance HasRaw Int
+deriving via Bound ()      instance HasRaw ()
+deriving via Bound Bool    instance HasRaw Bool
+deriving via Bound Int     instance HasRaw Int
 deriving via Bound Natural instance HasRaw Natural
 
 instance HasRaw Void where
@@ -56,8 +57,9 @@ instance (Enum a, Bounded a) => Ref (Bound a) where
       minVal = fromIntegral $ fromEnum (minBound :: a)
       maxVal = fromIntegral $ fromEnum (maxBound :: a)
 
-deriving via Bound () instance Ref ()
-deriving via Bound Int instance Ref Int
+deriving via Bound ()   instance Ref ()
+deriving via Bound Bool instance Ref Bool
+deriving via Bound Int  instance Ref Int
 
 instance Ref Void where
   ref Proxy _ = sFalse
@@ -91,6 +93,14 @@ newtype Fin = Fin { unFin :: Natural }
 instance Dep Fin where
   type Arg Fin = Natural
   dep Proxy n x = x .>= 0 .&& x .< n
+
+data May = May
+  deriving stock (Eq, Ord, Show, Enum)
+  deriving HasRaw via Bound May
+
+instance Dep May where
+  type Arg May = Bool
+  dep Proxy m x = m .== 1 .&& x .== 0
 
 newtype OR a b = OR { unOR :: Either a b}
   deriving newtype (Eq, Ord, HasRaw)

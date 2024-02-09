@@ -11,6 +11,7 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 
 import Data.List (genericLength)
+import Data.Maybe (isJust)
 import Data.Void
 import Data.Functor.Identity
 import Data.Functor.Const
@@ -46,6 +47,16 @@ instance Container [] where
     , position = Map.fromList (zip [0..] xs)
     }
   fromContainer = Map.elems . position
+
+instance Container Maybe where
+  type Shape Maybe = Bool
+  type Position Maybe = May
+
+  toContainer x = Extension
+    { shape = isJust x
+    , position = maybe Map.empty (Map.singleton May) x
+    }
+  fromContainer = Map.lookup May . position
 
 instance Container Identity where
   type Shape Identity = ()
