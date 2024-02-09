@@ -99,28 +99,34 @@ makeFoldr :: (Container f, Container g, Container h, SymVal a)
   -> String -> Symbolic ()
 makeFoldr ctx xs e o f s = do
 
+  -- For each input, create a symbolic container that is constrained to that input.
   as <- forM (zip [0 :: Int ..] (reverse xs)) \(i, x) -> do
     a <- symbolicContainer (s <> "_a_s_" <> show i) (s <> "_a_p_" <> show i)
     constrainExtension a x
     return a
 
+  -- Create a symbolic container for each of the intermediate results.
   bs <- forM [0 .. length xs] \i -> do
     symbolicContainer (s <> "_b_s_" <> show i) (s <> "_b_p_" <> show i)
 
+  -- Create a symbolic container constrained to the context.
   c <- symbolicContainer (s <> "_c_s") (s <> "_c_p")
   constrainExtension c ctx
 
   case (bs, reverse bs) of
-    (b0 : _, bn : _) -> do
+    (b0 : bs', bn : _) -> do
+      -- Constrain the first intermediate result to the base case.
       constrainExtension b0 e
+      -- Constrain the last intermediate result to the output.
       constrainExtension bn o
+
+      -- Constrain f such that, for each i, f (ctx, a_i, b_i) == b_i+1
+      forM_ (zip3 as bs bs') \(a, b, b') -> do
+        constrainExample f (pair c (pair a b)) b'
+
     _ -> return ()
 
-  forM_ (zip (zip as bs) (tail bs)) \((a, b), b') -> do
-    constrainExample f (pair c (pair a b)) b'
-
 -- A version of foldr that keeps both input arguments symbolic.
--- It seems to work correctly, but perhaps there should be two different contexts?
 makeFoldrE :: (Container f, Container g, Container h, Container j, SymVal a)
   => h a -> j a -> [f a] -> SMorphism j g -> g a -> SMorphism (Product h (Product f g)) g
   -> String -> Symbolic ()
@@ -144,13 +150,14 @@ makeFoldrE ctx_f ctx_e xs e o f s = do
   constrainExample e d e'
 
   case (bs, reverse bs) of
-    (b0 : _, bn : _) -> do
+    (b0 : bs', bn : _) -> do
       unifyExtension b0 e'
       constrainExtension bn o
-    _ -> return ()
 
-  forM_ (zip (zip as bs) (tail bs)) \((a, b), b') -> do
-    constrainExample f (pair c (pair a b)) b'
+      forM_ (zip3 as bs bs') \(a, b, b') -> do
+        constrainExample f (pair c (pair a b)) b'
+
+    _ -> return ()
 
 makeMap :: (Container f, Container g, Container h, SymVal a)
   => h a -> [f a] -> [g a] -> SMorphism (Product h f) g
@@ -268,10 +275,11 @@ makeMinFoldr ctx xs e o f s = do
   constrainExtension c ctx
 
   case (bs, reverse bs) of
-    (b0 : _, bn : _) -> do
+    (b0 : bs', bn : _) -> do
       constrainExtension b0 e
       constrainExtension bn o
-    _ -> return ()
 
-  forM_ (zip (zip as bs) (tail bs)) \((a, b), b') -> do
-    constrainExample f (pair c (pair a b)) b'
+      forM_ (zip3 as bs bs') \(a, b, b') -> do
+        constrainExample f (pair c (pair a b)) b'
+
+    _ -> return ()
