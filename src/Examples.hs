@@ -26,6 +26,24 @@ tailProof = do
   make @Bool "TF" [True, False]
   -- makeTail @Bool "T" [True]
 
+last :: [a] -> Maybe a
+last = foldr (\x -> maybe (Just x) Just) Nothing
+
+lastProof :: Symbolic ()
+lastProof = do
+  f <- symbolicMorphism "u" "g"
+
+  let
+    make :: SymVal a => String -> [a] -> Symbolic ()
+    make s xs = makeFoldr @Identity @Maybe @(Const ())
+      (Const ()) (Identity <$> xs) Nothing (Examples.last xs) f ("last_" <> s)
+
+  -- make @Integer "2_4567" 2 [4,5,6,7]
+  -- make @Integer "1_123" 1 [1,2,3]
+  -- make @Integer "2_123" 2 [1,2,3]
+  make @Bool "TF" [True, False]
+  make @Bool "T" [True]
+
 -- tail as foldr can be refuted with two input lists of different lengths with
 -- unique elements.
 tailProofE :: Symbolic ()
@@ -240,6 +258,28 @@ removeProof = do
   make @Integer "2_123" 2 [1,2,3]
   -- make @Bool "1_TF" 1 [True, False]
   -- make @Bool "1_T" 1 [True]
+
+index :: Natural -> [a] -> Maybe a
+index _ [] = Nothing
+index 0 (x:_) = Just x
+index n (_:xs) = index (n - 1) xs
+
+indexProof :: Symbolic ()
+indexProof = do
+  f <- symbolicMorphism "u" "g"
+
+  let
+    make :: SymVal a => String -> Natural -> [a] -> Symbolic ()
+    make s n xs = makeFoldr @Identity @Maybe @(Const Natural)
+      (fromIntegral n) (Identity <$> xs) Nothing (index n xs) f ("index_" <> s)
+
+  make @Integer "2_4567" 2 [4,5,6,7]
+  -- make @Integer "1_123" 1 [1,2,3]
+  -- make @Integer "2_123" 2 [1,2,3]
+  -- make @Bool "1_TF" 1 [True, False]
+  -- make @Bool "0_TF" 0 [True, False]
+  -- make @Bool "1_T" 1 [True]
+  -- make @Bool "0_T" 0 [True]
 
 -- take as foldr is possible: foldr (\x r -> take n (x:r)) [].
 takeProof :: Symbolic ()
