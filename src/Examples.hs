@@ -87,12 +87,13 @@ switchProof = do
   make @Bool "T" [True]
 
 shiftl :: Int -> [a] -> [a]
+shiftl _ [] = []
 shiftl n xs = zs ++ ys
   where
     m = n `mod` length xs
     (ys, zs) = splitAt m xs
 
--- shift is possible, since it can match the output list against the input int.
+-- shift is possible, since it can match the output list against the input int. also reversible!
 shiftlProof :: Symbolic ()
 shiftlProof = do
   f <- symbolicMorphism "u" "g"
@@ -131,6 +132,29 @@ altProof = do
   make @Bool "TF" [True, False]
   make @Bool "T" [True]
 
+-- any reversible function is a fold!
+alternate_ :: [a] -> [a]
+alternate_ = foldr f [] where
+  f x r = alternate (x:alternate r)
+
+shiftl_ :: Int -> [a] -> [a]
+shiftl_ n = foldr f [] where
+  f x r = shiftl n (x:shiftl (-n) r)
+
+switch_ :: [a] -> [a]
+switch_ = foldr f [] where
+  f x r = switch (x:switch r)
+
+intersperse_ :: a -> [a] -> [a]
+intersperse_ x = foldr f [] where
+  f y r = intersperse x (y:outersperse r)
+
+outersperse :: [a] -> [a]
+outersperse [] = []
+outersperse [x] = [x]
+outersperse (x:_:xs) = x:outersperse xs
+
+-- specific case of shiftl
 rotate :: [a] -> [a]
 rotate [] = []
 rotate (x:xs) = foldr (:) [x] xs
@@ -233,6 +257,11 @@ takeProof = do
   make @Bool "1_TF" 1 [True, False]
   make @Bool "1_T" 1 [True]
 
+-- any idempotent function is a fold!
+take_ :: Int -> [a] -> [a]
+take_ n = foldr f [] where
+  f x r = take n (x:r)
+
 -- intersperse as foldr is possible.
 intersperseProof :: Symbolic ()
 intersperseProof = do
@@ -254,8 +283,8 @@ intersperseProof = do
   make @Integer "0_4" 0 [4]
 
 -- Conclusion
-intersperse_ :: a -> [a] -> [a]
-intersperse_ x = foldr f []
+intersperse__ :: a -> [a] -> [a]
+intersperse__ x = foldr f []
   where
     f y [] = [y]
     f y (z:zs) = y:x:z:zs
@@ -269,7 +298,7 @@ revProof = do
     make s xs = makeMap @Identity @Identity @[]
       xs (Identity <$> xs) (Identity <$> reverse xs) f ("rev_" <> s)
 
-  -- make @Integer "palyndrome" [1,2,3,2,1]
+  -- make @Integer "palindrome" [1,2,3,2,1]
   make @Integer "45678" [4,5,6,7,8]
   -- make @Integer "4567" [4,5,6,7]
   -- make @Integer "123" [1,2,3]

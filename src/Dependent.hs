@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module Dependent (module Dependent) where
 
 import Data.Void

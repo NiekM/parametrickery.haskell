@@ -1,4 +1,7 @@
-module Main (main) where
+module Main where
+
+import qualified Symbolic
 
 main :: IO ()
-main = interact id
+main = do
+  putStrLn "Hello, Haskell!"

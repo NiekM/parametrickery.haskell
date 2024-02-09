@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module Container (Container(..), Extension(..)) where
 
 import Data.Kind
