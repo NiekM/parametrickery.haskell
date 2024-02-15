@@ -94,6 +94,17 @@ constrainExample f i = unifyExtension (apply f i)
 
 -- * Combinators
 
+-- TODO: why is it so hard to define makeFoldr in terms of makeFoldrE?
+-- makeFoldr :: (Container f, Container g, Container h, SymVal a)
+--   => h a -> [f a] -> g a -> g a -> SMorphism (Product h (Product f g)) g
+--   -> String -> Symbolic ()
+-- makeFoldr ctx xs e o f s = do
+
+--   e' <- symbolicMorphism "u_e" "g_e"
+--   constrainExtension (apply e' (SExtension 0 _)) e
+
+--   makeFoldrE @_ @_ @_ @(Const ()) ctx (Const ()) xs e' o f s
+
 makeFoldr :: (Container f, Container g, Container h, SymVal a)
   => h a -> [f a] -> g a -> g a -> SMorphism (Product h (Product f g)) g
   -> String -> Symbolic ()
