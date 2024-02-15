@@ -126,4 +126,8 @@ test-suite parametrickery-test
   -- Test dependencies.
   build-depends:
     base ^>=4.19.0.0,
+    sbv,
+    hspec,
+    containers,
+    QuickCheck,
     parametrickery

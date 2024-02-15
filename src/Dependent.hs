@@ -30,6 +30,7 @@ deriving via Bound ()      instance HasRaw ()
 deriving via Bound Bool    instance HasRaw Bool
 deriving via Bound Int     instance HasRaw Int
 deriving via Bound Natural instance HasRaw Natural
+deriving via Bound Char    instance HasRaw Char
 
 instance HasRaw Void where
   type Raw Void = Integer
@@ -60,6 +61,7 @@ instance (Enum a, Bounded a) => Ref (Bound a) where
 deriving via Bound ()   instance Ref ()
 deriving via Bound Bool instance Ref Bool
 deriving via Bound Int  instance Ref Int
+deriving via Bound Char instance Ref Char
 
 instance Ref Void where
   ref Proxy _ = sFalse
@@ -102,7 +104,7 @@ instance Dep May where
   type Arg May = Bool
   dep Proxy m x = m .== 1 .&& x .== 0
 
-newtype OR a b = OR { unOR :: Either a b}
+newtype OR a b = OR { unOR :: Either a b }
   deriving newtype (Eq, Ord, HasRaw)
 
 instance (Dep a, Dep b) => (Dep (OR a b)) where
@@ -110,7 +112,7 @@ instance (Dep a, Dep b) => (Dep (OR a b)) where
   dep Proxy t = let (x, y) = SBV.untuple t in
    SBV.either (dep @a Proxy x) (dep @b Proxy y)
 
-newtype XOR a b = XOR { unXOR :: Either a b}
+newtype XOR a b = XOR { unXOR :: Either a b }
   deriving newtype (Eq, Ord, HasRaw)
 
 instance (Dep a, Dep b) => (Dep (XOR a b)) where
@@ -119,3 +121,20 @@ instance (Dep a, Dep b) => (Dep (XOR a b)) where
     (\l -> SBV.either (dep @a Proxy l) (const sFalse) d)
     (\r -> SBV.either (const sFalse) (dep @b Proxy r) d)
     e
+
+-- Tests
+
+-- TODO: can we test HasRaw, Ref, and Dep for correctness?
+-- 
+-- - We can test that values returned by "ref . raw" evaluate to True. (see testRef)
+-- - We can test that an arbitrary raw value x evaluates to True only if there
+-- exists a value y such that `raw y == x`? A bit difficult to check...
+-- - Should we add unraw to HasRaw and check the inverse?
+-- - Is there any way to test Dep?? I guess Dep has no laws
+--
+
+-- TODO: This should return Prop or Laws, and perhaps use ShowType or smth
+refLaws :: forall a. Ref a => a -> Bool
+refLaws x = case unliteral (ref (Proxy @a) $ literal $ raw x) of
+  Nothing -> error "Something went wrong: somehow not a literal"
+  Just b -> b
