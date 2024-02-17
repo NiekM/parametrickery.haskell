@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DefaultSignatures #-}
 
 module Dependent (module Dependent) where
 
@@ -22,6 +23,10 @@ class HasRaw a where
   type Raw a :: Type
   raw :: a -> Raw a
 
+  type Raw a = a
+  default raw :: (Raw a ~ a) => a -> Raw a
+  raw = id
+
 instance Enum a => HasRaw (Bound a) where
   type Raw (Bound a) = Integer
   raw = toInteger . fromEnum
@@ -30,7 +35,8 @@ deriving via Bound ()      instance HasRaw ()
 deriving via Bound Bool    instance HasRaw Bool
 deriving via Bound Int     instance HasRaw Int
 deriving via Bound Natural instance HasRaw Natural
-deriving via Bound Char    instance HasRaw Char
+
+instance HasRaw Char
 
 instance HasRaw Void where
   type Raw Void = Integer
@@ -49,6 +55,9 @@ instance (HasRaw a, HasRaw b) => HasRaw (Either a b) where
 class (HasRaw a, SymVal (Raw a)) => Ref a where
   ref :: Proxy a -> SBV (Raw a) -> SBool
 
+  default ref :: (a ~ Raw a) => Proxy a -> SBV (Raw a) -> SBool
+  ref _ _ = sTrue
+
 newtype Bound a = Bound a
   deriving newtype (Enum)
 
@@ -61,7 +70,8 @@ instance (Enum a, Bounded a) => Ref (Bound a) where
 deriving via Bound ()   instance Ref ()
 deriving via Bound Bool instance Ref Bool
 deriving via Bound Int  instance Ref Int
-deriving via Bound Char instance Ref Char
+
+instance Ref Char
 
 instance Ref Void where
   ref Proxy _ = sFalse
