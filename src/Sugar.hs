@@ -10,15 +10,13 @@ import Data.Functor.Sum
 import Data.Functor.Compose
 import Data.Coerce
 
-type One = Const ()
-
 type family Coated f a where
-  Coated Identity        a = a
-  Coated (Const k)       a = k
-  Coated (Product f g)   a = (Coated f a, Coated g a)
-  Coated (Sum     f g)   a = Either (Coated f a) (Coated g a)
-  Coated (Compose f g)   a = Coated f (Coated g a)
-  Coated f               a = f a
+  Coated Identity      a = a
+  Coated (Const k)     a = k
+  Coated (Product f g) a = (Coated f a, Coated g a)
+  Coated (Sum     f g) a = Either (Coated f a) (Coated g a)
+  Coated (Compose f g) a = Coated f (Coated g a)
+  Coated f             a = f a
 
 class Sugar f where
   sugar   ::        f a -> Coated f a

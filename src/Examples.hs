@@ -1,3 +1,8 @@
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeAbstractions #-}
+
 module Examples (module Examples) where
 
 import Data.SBV (ConstraintSet, SymVal)
@@ -6,6 +11,8 @@ import Data.List (intersperse)
 
 import Data.Functor.Identity
 import Data.Functor.Const
+import Data.Functor.Product
+import Data.Functor.Compose
 
 import Control.Monad
 import Data.Monoid (Last(..), getLast)
@@ -13,6 +20,9 @@ import Data.Monoid (Last(..), getLast)
 import Dependent
 import Symbolic
 import Container
+import Sugar
+
+-- NOTE: for some reason, using Char for the monomorphic inputs causes z3 to diverge!??
 
 -- TODO: can we somehow combine Bench and Bench2?
 
@@ -39,14 +49,14 @@ foldrBasic (Bench name reference inputs) = do
 -- can be refuted with two input lists of different lengths with unique elements.
 tailBench :: Bench []
 tailBench = Bench "tail" safeTail
-  [ int [4,5,6,7]
+  [ Any "4567"
   , Any [True, False]
   ]
 
--- last is not a fold
+-- last is a fold
 lastBench :: Bench []
 lastBench = Bench "last" safeLast
-  [ int [4,5,6,7]
+  [ Any "4567"
   , Any [True, False]
   ]
 
@@ -54,9 +64,9 @@ lastBench = Bench "last" safeLast
 -- refuted with a singleton list as input.
 -- TODO: what about the base case?
 initBench :: Bench []
-initBench = Bench "init" init
-  [ int [4,5,6,7]
-  , int [1,2,3]
+initBench = Bench "init" safeInit
+  [ Any "4567"
+  , Any "123"
   , Any [True, False]
   , Any [True]
   ]
@@ -64,8 +74,8 @@ initBench = Bench "init" init
 -- rotate is a fold (invertible)
 switchBench :: Bench []
 switchBench = Bench "switch" switch
-  [ int [4,5,6,7]
-  , int [1,2,3]
+  [ Any @Integer [4,5,6,7]
+  , Any @Integer [1,2,3]
   , Any [True, False]
   , Any [True]
   ]
@@ -73,8 +83,8 @@ switchBench = Bench "switch" switch
 -- alternate is a fold (invertible)
 alternateBench :: Bench []
 alternateBench = Bench "alternate" alternate
-  [ int [4,5,6,7]
-  , int [1,2,3]
+  [ Any "4567"
+  , Any "123"
   , Any [True, False]
   , Any [True]
   ]
@@ -82,18 +92,193 @@ alternateBench = Bench "alternate" alternate
 -- rotate is a fold (invertible)
 reverseBench :: Bench []
 reverseBench = Bench "reverse" reverse
-  [ int [4,5,6,7]
+  [ Any "4567"
   , Any "hello"
   ]
 
 -- rotate is a fold (invertible/special case of shift)
 rotateBench :: Bench []
 rotateBench = Bench "rotate" rotate
-  [ int [4,5,6,7]
-  , int [1,2,3]
+  [ Any "4567"
+  , Any "123"
   , Any [True, False]
   , Any [True]
   ]
+
+-- shift is a fold (invertible)
+-- _shiftBench :: Bench (Product (Const Int) [])
+-- _shiftBench = Bench "shift" _
+--   []
+-- _shiftBench = Bench2 "shift" shiftl
+  -- [ Any2 1 [4 :: Integer,5,6,7]
+  -- , Any2 1 [1 :: Integer,2,3]
+  -- , Any2 1 [True, False]
+  -- , Any2 1 [True]
+  -- , Any2 2 [4 :: Integer,5,6,7]
+  -- , Any2 2 [1 :: Integer,2,3]
+  -- , Any2 2 [True, False]
+  -- , Any2 2 [True]
+  -- ]
+
+-- data Input_ c f where
+--   Input_ :: SymVal a => c -> f a -> Input_ c f
+
+-- data Bench_ c f = forall g. Container g => Bench_
+--   { _name  :: String
+--   , _model :: forall a. c -> f a -> g a
+--   , _input :: [Input_ c f]
+--   }
+
+-- -- TODO: change to Bench_ _ (Compose [] f) or something
+-- checkFold :: Ref c => Bench_ c [] -> ConstraintSet
+-- checkFold (Bench_ name model input) = do
+--   f <- symbolicMorphism "u" "g"
+
+--   forM_ (zip input [0 :: Int ..]) \(Input_ x xs, i) ->
+--     makeFoldr (Const x) (Identity <$> xs) (model x []) (model x xs) f (name <> "_" <> show i)
+
+-- type Input0 = Input_ ()
+-- type Bench0 = Bench_ ()
+
+-- pattern Input0 :: () => SymVal a => f a -> Input0 f
+-- pattern Input0 x = Input_ () x
+
+-- foo :: (forall a. () -> f a -> g a) -> forall a. f a -> g a
+-- foo f = f ()
+
+-- pattern Bench0 :: () => Container g => String -> (forall a. f a -> g a) -> [Input0 f] -> Bench0 f
+-- pattern Bench0 n m i <- Bench_ n (foo -> m) i
+--   where Bench0 n m i = Bench_ n (const m) i
+
+-- -- last is a fold
+-- lastBench_ :: Bench0 []
+-- lastBench_ = Bench0 "last" safeLast
+--   [ Input0 "4567"
+--   , Input0 [True, False]
+--   ]
+
+-- TODO: have FoldBench contain inputs and outputs, and add function fromModel.
+-- Even better, create a typeclass with fromModel as a class method.
+-- data FoldInput f where
+--   FoldInput :: SymVal a => [f a] -> FoldInput f
+-- data FoldBench = forall f g. (Container f, Container g) => FoldBench
+--   { name'   :: String
+--   , model'  :: forall a. [f a] -> g a
+--   , inputs' :: [FoldInput f]
+--   }
+
+-- -- Corresponding to the pipeline in Fig. 5 of the paper:
+-- -- ∃𝑝. ( ∀𝑎. 𝑝 : [𝐹 𝑎] → 𝐺 𝑎 ) ∧ ( ∃𝑓. 𝑝 = foldr 𝑓 𝑦0 ) ∧ ( 𝑝 [𝑥_𝑛−1 · · ·𝑥_0] ≡ 𝑦_𝑛 )
+-- checkFoldBench :: FoldBench -> ConstraintSet
+-- checkFoldBench (FoldBench name model inputs) = do
+--   f <- symbolicMorphism "u" "g"
+
+--   forM_ (zip inputs [0 :: Int ..]) \(FoldInput xs, i) ->
+--     makeFoldr (Const ()) xs (model []) (model xs) f (name <> "_" <> show i)
+
+-- type FoldInput' = FoldInput Identity
+
+-- foldInput' :: forall a. SymVal a => [a] -> FoldInput'
+-- foldInput' = FoldInput @a . coerce
+
+-- foldBench' :: Container g => String -> (forall a. [a] -> g a) -> [FoldInput'] -> FoldBench
+-- foldBench' name model inputs = FoldBench name (model . coerce) inputs
+
+-- -- last is a fold
+-- lastBench' :: FoldBench
+-- lastBench' = foldBench' "last" safeLast
+--   [ foldInput' "4567"
+--   , foldInput' [True, False]
+--   ]
+
+
+-- makeFoldr :: (Container f, Container g, Container h, SymVal a)
+--   => h a -> [f a] -> g a -> g a -> SMorphism (Product h (Product f g)) g
+--   -> String -> Symbolic ()
+
+data Mono f where
+  Mono :: SymVal a => f a -> Mono f
+
+data FoldBench = forall f g. (Container f, Container g) => FoldBench
+  { base :: forall a. g a
+  -- TODO: add an extra product for additional arguments?
+  , examples :: [Mono (Product (Compose [] f) g)]
+  }
+
+-- Corresponding to the pipeline in Fig. 5 of the paper:
+-- ∃𝑝. ( ∀𝑎. 𝑝 : [𝐹 𝑎] → 𝐺 𝑎 ) ∧ ( ∃𝑓. 𝑝 = foldr 𝑓 𝑦0 ) ∧ ( 𝑝 [𝑥_𝑛−1 · · ·𝑥_0] ≡ 𝑦_𝑛 )
+checkFoldBench :: FoldBench -> ConstraintSet
+checkFoldBench (FoldBench base io) = do
+  f <- symbolicMorphism "u" "g"
+
+  forM_ (zip io [0 :: Int ..]) \(Mono (Pair xs y), i) ->
+    makeFoldr (Const ()) (getCompose xs) base y f ("f_" <> show i)
+
+fromModel :: (Container f, Container g) => (forall a. [f a] -> g a) -> [Mono (Compose [] f)] -> FoldBench
+fromModel f = FoldBench (f []) . map \(Mono @a xs) -> Mono @a (Pair xs (f (getCompose xs)))
+
+fromModel' :: (Container g) => (forall a. [a] -> g a) -> [Mono []] -> FoldBench
+fromModel' f = fromModel @Identity (f . map sugar) . map \(Mono @a xs) -> Mono @a (desugar xs)
+
+-- tail is not a fold
+-- can be refuted with two input lists of different lengths with unique elements.
+tailBench' :: FoldBench
+tailBench' = fromModel' safeTail
+  [ Mono @Integer [4,5,6,7]
+  , Mono [True, False]
+  ]
+
+-- last is a fold
+lastBench' :: FoldBench
+lastBench' = fromModel' safeLast
+  [ Mono @Integer [4,5,6,7]
+  , Mono [True, False]
+  ]
+
+-- init is not a fold
+-- refuted with a singleton list as input.
+initBench' :: FoldBench
+initBench' = fromModel' safeInit
+  [ Mono @Integer [4,5,6,7]
+  , Mono @Integer [1,2,3]
+  , Mono [True, False]
+  , Mono [True]
+  ]
+
+-- rotate is a fold (invertible)
+switchBench' :: FoldBench
+switchBench' = fromModel' switch
+  [ Mono @Integer [4,5,6,7]
+  , Mono @Integer [1,2,3]
+  , Mono [True, False]
+  , Mono [True]
+  ]
+
+-- alternate is a fold (invertible)
+alternateBench' :: FoldBench
+alternateBench' = fromModel' alternate
+  [ Mono @Integer [4,5,6,7]
+  , Mono @Integer [1,2,3]
+  , Mono [True, False]
+  , Mono [True]
+  ]
+
+-- rotate is a fold (invertible)
+reverseBench' :: FoldBench
+reverseBench' = fromModel' reverse
+  [ Mono @Integer [4,5,6,7]
+  , Mono @Integer [1,2,3]
+  ]
+
+-- rotate is a fold (invertible/special case of shift)
+rotateBench' :: FoldBench
+rotateBench' = fromModel' rotate
+  [ Mono @Integer [4,5,6,7]
+  , Mono @Integer [1,2,3]
+  , Mono [True, False]
+  , Mono [True]
+  ]
+
 
 data Input2 i f where
   Any2 :: SymVal a => i -> f a -> Input2 i f
@@ -186,14 +371,14 @@ takeBench = Bench2 "take" take
 -- TODO: 
 -- > do we have more benchmarks? do they fit this schema?
 -- > actually have a reference of type [f a] -> [g a]?
-data MapBench = MapBench String (forall a. [a] -> [a]) [Input []]
+-- data MapBench = MapBench String (forall a. [a] -> [a]) [Input []]
 
-mapBasic :: MapBench -> ConstraintSet
-mapBasic (MapBench name reference inputs) = do
-  f <- symbolicMorphism "u" "g"
+-- mapBasic :: MapBench -> ConstraintSet
+-- mapBasic (MapBench name reference inputs) = do
+--   f <- symbolicMorphism "u" "g"
 
-  forM_ (zip inputs [0 :: Int ..]) \(Any xs, i) ->
-    makeMap xs (Identity <$> xs) (Identity <$> reference xs) f (name <> "_" <> show i)
+--   forM_ (zip inputs [0 :: Int ..]) \(Any xs, i) ->
+--     makeMap xs (Identity <$> xs) (Identity <$> reference xs) f (name <> "_" <> show i)
 
 
 
@@ -211,6 +396,10 @@ mapBasic (MapBench name reference inputs) = do
 
 safeTail :: [a] -> [a]
 safeTail = drop 1
+
+safeInit :: [a] -> [a]
+safeInit [] = []
+safeInit xs = init xs
 
 safeLast :: [a] -> Maybe a
 safeLast = getLast . foldMap (Last . Just)
@@ -297,22 +486,22 @@ take_ n = foldr f [] where
 
 -- tail as foldr can be refuted with two input lists of different lengths with
 -- unique elements.
-tailProofE :: ConstraintSet
-tailProofE = do
-  f <- symbolicMorphism "u_f" "g_f"
-  e <- symbolicMorphism "u_e" "g_e"
+-- tailProofE :: ConstraintSet
+-- tailProofE = do
+--   f <- symbolicMorphism "u_f" "g_f"
+--   e <- symbolicMorphism "u_e" "g_e"
 
-  let
-    make :: SymVal a => String -> [a] -> ConstraintSet
-    make s xs = makeFoldrE (Const ()) (Const ()) (Identity <$> xs) e (safeTail xs) f ("tail_" <> s)
+--   let
+--     make :: SymVal a => String -> [a] -> ConstraintSet
+--     make s xs = makeFoldrE (Const ()) (Const ()) (Identity <$> xs) e (safeTail xs) f ("tail_" <> s)
 
-    makes :: [Input []] -> ConstraintSet
-    makes = zipWithM_ (\i (Any x) -> make (show i) x) [0 :: Int ..]
+--     makes :: [Input []] -> ConstraintSet
+--     makes = zipWithM_ (\i (Any x) -> make (show i) x) [0 :: Int ..]
 
-  makes
-    [ int [4,5,6,7]
-    , Any [True, False]
-    ]
+--   makes
+--     [ int [4,5,6,7]
+--     , Any [True, False]
+--     ]
 
 -- append cannot be defined as a fold over the right argument!
 appendWrong :: ConstraintSet
