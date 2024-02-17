@@ -61,7 +61,7 @@ library
   exposed-modules:  Container, Dependent, Examples, Symbolic
 
   -- Modules included in this library but not exported.
-  other-modules:    Map, Unsafe
+  other-modules:    Map, Unsafe, Sugar
 
   -- LANGUAGE extensions used by modules in this package.
   default-extensions: BlockArguments, DerivingStrategies, DerivingVia, TypeFamilies, LambdaCase
