@@ -39,7 +39,7 @@ data FoldBench = forall f g h. (Container f, Container g, Container h) => FoldBe
 
 -- Corresponding to the pipeline in Fig. 5 of the paper:
 -- TODO: the paper is missing the additional parameter H a
--- ∃𝑝. ( ∀𝑎. 𝑝 : [𝐹 𝑎] → 𝐺 𝑎 ) ∧ ( ∃𝑓. 𝑝 = foldr 𝑓 𝑦0 ) ∧ ( 𝑝 [𝑥_𝑛−1 · · ·𝑥_0] ≡ 𝑦_𝑛 )
+-- ∃𝑝. ( ∀𝑎. 𝑝 : [𝐹 𝑎] → 𝐺 𝑎 ) ∧ ( ∃𝑓. 𝑝 = foldr 𝑓 𝑦0 ) ∧ ( 𝑝 [𝑥_𝑛−1 ··· 𝑥_0] ≡ 𝑦_𝑛 )
 checkFoldBench :: FoldBench -> ConstraintSet
 checkFoldBench (FoldBench base io) = do
   f <- symbolicMorphism "u" "g"
@@ -120,10 +120,26 @@ indexBench' = fromModel1 index withNum
 takeBench' :: FoldBench
 takeBench' = fromModel1 take withNum
 
+------ :: h a -> [a] -> g a ------
 
+fromModel2 :: (Container h, Container g) => (forall a. h a -> [a] -> g a) -> [Mono (Product h [])] -> FoldBench
+fromModel2 f = FoldBench @Identity (\x -> f x []) . map
+  \(Mono @a (Pair x xs)) -> Mono @a (Pair (Pair x (coerce xs)) (f x xs))
 
+list2Inputs :: [Mono (Product [] [])]
+list2Inputs =
+  [ Mono @Integer $ Pair [1] [2]
+  , Mono @Integer $ Pair [] [1,2]
+  , Mono @Integer $ Pair [] [1]
+  ]
 
+-- TODO: is FoldBench generic enough to describe "wrong" append?
 
+appendBench' :: FoldBench
+appendBench' = fromModel2 append list2Inputs
+
+prependBench' :: FoldBench
+prependBench' = fromModel2 prepend list2Inputs
 
 
 
@@ -200,6 +216,11 @@ index _ [] = Nothing
 index 0 (x:_) = Just x
 index n (_:xs) = index (n - 1) xs
 
+append :: [a] -> [a] -> [a]
+append xs ys = xs ++ ys
+
+prepend :: [a] -> [a] -> [a]
+prepend xs ys = ys ++ xs
 
 
 
