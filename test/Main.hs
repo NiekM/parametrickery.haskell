@@ -1,7 +1,8 @@
 {-# LANGUAGE BlockArguments #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Main (main) where
 
-import Dependent
 import Test.QuickCheck
 import Numeric.Natural
 import Test.Hspec
@@ -10,12 +11,28 @@ import Test.Hspec.QuickCheck
 import qualified Data.Set as Set
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Functor.Identity
+import Data.Functor.Const
+import Data.Functor.Product
+import Data.Functor.Sum
+
+import Dependent
+import Data.Container
 
 instance Arbitrary Natural where
   arbitrary = natural
 
 natural :: Gen Natural
 natural = fromInteger . getNonNegative <$> arbitrary
+
+instance (Arbitrary1 f, Arbitrary1 g) => Arbitrary1 (Sum f g) where
+  liftArbitrary arb = oneof [InL <$> liftArbitrary arb, InR <$> liftArbitrary arb]
+  liftShrink shr (InL x) = [ InL x' | x' <- liftShrink shr x]
+  liftShrink shr (InR y) = [ InR y' | y' <- liftShrink shr y]
+
+instance (Arbitrary1 f, Arbitrary1 g, Arbitrary a) => Arbitrary (Sum f g a) where
+  arbitrary = liftArbitrary arbitrary
+  shrink = liftShrink shrink
 
 -- TODO: how to easily test for many different types?
 -- TODO: use approach inspired by quickcheck-classes library
@@ -26,17 +43,16 @@ natural = fromInteger . getNonNegative <$> arbitrary
 
 main :: IO ()
 main = hspec do
-  describe "raw" do
-    describe "@()"               . injective $ raw @()
-    describe "@Bool"             . injective $ raw @Bool
-    describe "@Int"              . injective $ raw @Int
-    describe "@Char"             . injective $ raw @Char
-    describe "@Natural"          . injective $ raw @Natural
-    describe "@(Int, Int)"       . injective $ raw @(Int, Int)
-    describe "@(Either Int Int)" . injective $ raw @(Either Int Int)
-  -- TODO: also check HasRaw instances of dependent arguments.
+  describe "encode" do
+    describe "@()"               . injective $ encode @()
+    describe "@Bool"             . injective $ encode @Bool
+    describe "@Int"              . injective $ encode @Int
+    describe "@Char"             . injective $ encode @Char
+    describe "@Natural"          . injective $ encode @Natural
+    describe "@(Int, Int)"       . injective $ encode @(Int, Int)
+    describe "@(Either Int Int)" . injective $ encode @(Either Int Int)
 
-  describe "ref holds on raw values" do
+  describe "ref holds on encoded values" do
     prop "@()"               $ refLaws @()
     prop "@Bool"             $ refLaws @Bool
     prop "@Int"              $ refLaws @Int
@@ -45,7 +61,22 @@ main = hspec do
     prop "@(Int, Int)"       $ refLaws @(Int, Int)
     prop "@(Either Int Int)" $ refLaws @(Either Int Int)
 
-  describe "(`div` 2)" $ injective @Int \x -> abs (20 - x)
+  describe "container laws" do
+    describe "roundtrip" do
+      prop "@[]"       $ containerRoundTrip @[] @Int
+      prop "@Maybe"    $ containerRoundTrip @Maybe @Int
+      prop "@Identity" $ containerRoundTrip @Identity @Int
+      prop "@Const"    $ containerRoundTrip @(Const Int) @Int
+      prop "@Product"  $ containerRoundTrip @(Product [] Maybe) @Int
+      prop "@Sum"      $ containerRoundTrip @(Sum [] Maybe) @Int
+
+    describe "dependencies" do
+      prop "@[]"       $ containerDependencies @[] @Int
+      prop "@Maybe"    $ containerDependencies @Maybe @Int
+      prop "@Identity" $ containerDependencies @Identity @Int
+      prop "@Const"    $ containerDependencies @(Const Int) @Int
+      prop "@Product"  $ containerDependencies @(Product [] Maybe) @Int
+      prop "@Sum"      $ containerDependencies @(Sum [] Maybe) @Int
 
 --- Injectivity ---
 
@@ -61,17 +92,19 @@ injective :: (Arbitrary a, Ord a, Ord b, Show a, Show b) => (a -> b) -> Spec
 injective f = beforeAll (genVec 300) do
   it "is injective" $ \xs -> checkInjective f xs mempty
 
-checkInjective :: (Eq a, Ord b, Show a, Show b) => (a -> b) -> [a] -> Map b a -> Expectation
+checkInjective :: (Eq a, Ord b, Show a, Show b) =>
+  (a -> b) -> [a] -> Map b a -> Expectation
 checkInjective _ [] _ = asExpected
-checkInjective f (x:xs) m = case Map.insertLookupWithKey (const const) (f x) x m of
-  (Just y, _) | x /= y -> expectationFailure $ unwords
-    [ "the inputs"
-    , show x, "and", show y
-    , "should return unique values but they both return"
-    , show (f x)
-    , show xs
-    ]
-  (_, m') -> checkInjective f xs m'
+checkInjective f (x:xs) m =
+  case Map.insertLookupWithKey (const const) (f x) x m of
+    (Just y, _) | x /= y -> expectationFailure $ unwords
+      [ "the inputs"
+      , show x, "and", show y
+      , "should return unique values but they both return"
+      , show (f x)
+      , show xs
+      ]
+    (_, m') -> checkInjective f xs m'
 
 -- As opposed to the more natural but inefficient:
 --

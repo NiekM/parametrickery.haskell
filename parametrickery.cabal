@@ -58,13 +58,32 @@ library
   import:           warnings
 
   -- Modules exported by the library.
-  exposed-modules:  Container, Dependent, Examples, Symbolic
+  exposed-modules:
+      Data.Container
+    , Dependent
+    , Bench
+    , Symbolic
+    , PaperBench
 
   -- Modules included in this library but not exported.
-  other-modules:    Map, Unsafe
+  other-modules:
+      Map
+    , Unsafe
+    , Base
+    , Data.Container.Core
+    , Data.Container.Specialized
+    , Data.Container.Properties
+    , Data.SBV.Encode
+    , Data.SBV.Refine
+    , Data.SBV.Depend
 
   -- LANGUAGE extensions used by modules in this package.
-  default-extensions: BlockArguments, DerivingStrategies, DerivingVia, TypeFamilies, LambdaCase
+  default-extensions:
+      BlockArguments
+    , DerivingStrategies
+    , DerivingVia
+    , TypeFamilies
+    , LambdaCase
 
   -- Other library packages from which modules are imported.
   build-depends:    base ^>=4.19.0.0
@@ -93,6 +112,7 @@ executable parametrickery
   -- Other library packages from which modules are imported.
   build-depends:
     base ^>=4.19.0.0,
+    sbv,
     parametrickery
 
   -- Directories containing source files.

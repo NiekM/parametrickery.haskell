@@ -4,6 +4,7 @@ module Symbolic
   , makeConcatMap
   , makeFoldrE
   , makeMinFoldr
+  , check
   ) where
 
 import Data.SBV hiding (rotate)
@@ -12,15 +13,15 @@ import Data.SBV.Tuple qualified as SBV
 import Data.Map qualified as Map
 import Control.Monad
 
-import Data.Functor.Product
+import Base
 
-import Container
-import Dependent
+import Data.Container
+import Data.SBV.Encode
+import Data.SBV.Depend (Dep(dep))
+import Data.SBV.Refine (Ref(ref))
 
-import Data.Proxy
-
-type SShape f = SBV (Raw (Shape f))
-type SPosition f = SBV (Raw (Position f))
+type SShape    f = SBV (Sym (Shape f))
+type SPosition f = SBV (Sym (Position f))
 
 data SExtension f a where
   SExtension :: Container f
@@ -54,11 +55,12 @@ symbolicMorphism :: forall f g. (Container f, Container g)
 symbolicMorphism u g = do
   let sh = sym u
   let pos = sym g
+  -- Foreach correct input s to sh, the output should also be correct.
   constrain \(Forall s) ->
     ref @(Shape f) Proxy s .=> ref @(Shape g) Proxy (sh s)
+  -- Foreach correct input s and x, the output should also be correct.
   constrain \(Forall s) (Forall x) ->
-    ref @(Shape f) Proxy s
-    .&& dep @(Position g) Proxy (sh s) x
+    (ref @(Shape f) Proxy s .&& dep @(Position g) Proxy (sh s) x)
     .=> dep @(Position f) Proxy s (pos s x)
   return $ SMorphism sh pos
 
@@ -74,22 +76,23 @@ pair (SExtension s p) (SExtension t q) =
 
 -- Constrain a symbolic container extension to be equal to a concrete container
 -- extension.
-constrainExtension :: SymVal a => SExtension f a -> f a -> Symbolic ()
+constrainExtension :: SymVal a => SExtension f a -> f a -> ConstraintSet
 constrainExtension (SExtension s p) c = do
   let Extension s' p' = toContainer c
-  constrain $ s .== literal (raw s')
+  constrain $ s .== literal (encode s')
   forM_ (Map.assocs p') \(k, v) -> do
-    constrain $ p (literal (raw k)) .== literal v
+    constrain $ p (literal (encode k)) .== literal v
 
 -- Unify two symbolic container extensions.
-unifyExtension :: forall f a. SExtension f a -> SExtension f a -> Symbolic ()
+unifyExtension :: forall f a. SExtension f a -> SExtension f a -> ConstraintSet
 unifyExtension (SExtension s p) (SExtension t q) = do
   constrain $ s .== t
   constrain \(Forall x) -> do
     dep @(Position f) Proxy s x .=> p x .== q x
 
 -- Constrain a symbolic morphism using an input-output example.
-constrainExample :: SMorphism f g -> SExtension f a -> SExtension g a -> Symbolic ()
+constrainExample :: SMorphism f g -> SExtension f a -> SExtension g a
+  -> ConstraintSet
 constrainExample f i = unifyExtension (apply f i)
 
 -- * Combinators
@@ -97,7 +100,7 @@ constrainExample f i = unifyExtension (apply f i)
 -- TODO: why is it so hard to define makeFoldr in terms of makeFoldrE?
 -- makeFoldr :: (Container f, Container g, Container h, SymVal a)
 --   => h a -> [f a] -> g a -> g a -> SMorphism (Product h (Product f g)) g
---   -> String -> Symbolic ()
+--   -> String -> ConstraintSet
 -- makeFoldr ctx xs e o f s = do
 
 --   e' <- symbolicMorphism "u_e" "g_e"
@@ -105,9 +108,41 @@ constrainExample f i = unifyExtension (apply f i)
 
 --   makeFoldrE @_ @_ @_ @(Const ()) ctx (Const ()) xs e' o f s
 
+--
+-- Perhaps the problem is not with having unknown shapes, but rather just that
+-- the constraints put on quantified values are too difficult to figure out that
+-- they are finitary.
+--
+-- NOTE: this should never take too long! since every example has a fixed shape,
+-- there should be a finite number of positions, which we can simply enumerate, right?
+-- This should make the solver much easier, perhaps we can generate a custom datatype
+-- that enumerates all possible positions given a specific shape? This should work for
+-- both map and shape-complete foldr! Alternatively, this can just be an integer
+-- with some constraints. That way, we do not have to figure out `u`, as it
+-- follows from the input-outputs, but rather just find a valid `g`.
+--
+-- For example: Just [1,2,3] -> Just [1]
+--          u : Just 3 -> Just 1
+--          g : Fin 1 -> Fin 3
+--  constraint: g (0) == 0
+--
+-- Alternative: introduce one variable for each position?
+--
+-- It seems that this ignores type inhabitation. Is that okay?
+--
+check :: (Container f, Container g, SymVal a) => [(f a, g a)] -> ConstraintSet
+check xs = do
+  f <- symbolicMorphism "u" "g"
+  forM_ (zip [0 :: Int ..] xs) \(n, (i, o)) -> do
+    c <- symbolicContainer ("s_" <> show n) ("p_" <> show n)
+    constrainExtension c i
+    d <- symbolicContainer ("t_" <> show n) ("q_" <> show n)
+    constrainExtension d o
+    constrainExample f c d
+
 makeFoldr :: (Container f, Container g, Container h, SymVal a)
   => h a -> [f a] -> g a -> g a -> SMorphism (Product h (Product f g)) g
-  -> String -> Symbolic ()
+  -> String -> ConstraintSet
 makeFoldr ctx xs e o f s = do
 
   -- For each input, create a symbolic container that is constrained to that input.
@@ -140,7 +175,7 @@ makeFoldr ctx xs e o f s = do
 -- A version of foldr that keeps both input arguments symbolic.
 makeFoldrE :: (Container f, Container g, Container h, Container j, SymVal a)
   => h a -> j a -> [f a] -> SMorphism j g -> g a -> SMorphism (Product h (Product f g)) g
-  -> String -> Symbolic ()
+  -> String -> ConstraintSet
 makeFoldrE ctx_f ctx_e xs e o f s = do
 
   as <- forM (zip [0 :: Int ..] (reverse xs)) \(i, x) -> do
@@ -172,7 +207,7 @@ makeFoldrE ctx_f ctx_e xs e o f s = do
 
 makeMap :: (Container f, Container g, Container h, SymVal a)
   => h a -> [f a] -> [g a] -> SMorphism (Product h f) g
-  -> String -> Symbolic ()
+  -> String -> ConstraintSet
 makeMap ctx xs ys f s = do
 
   when (length xs /= length ys) $ constrain sFalse
@@ -197,7 +232,7 @@ sPosition (SExtension _ p) = p
 -- This is an example of how we can combine propagation with translation.
 makeConcatMap :: forall f a. (Container f, SymVal a)
   => [f a] -> [a] -> SMorphism f []
-  -> String -> Symbolic ()
+  -> String -> ConstraintSet
 makeConcatMap xs ys f s = do
 
   bs <- forM (zip [0 :: Int ..] xs) \(i, x) -> do
@@ -223,7 +258,7 @@ makeConcatMap xs ys f s = do
 
 -- makeFilter :: forall f a. (Container f, SymVal a)
 --   => [f a] -> [f a] -> SMorphism f (Const Bool)
---   -> String -> Symbolic ()
+--   -> String -> ConstraintSet
 -- makeFilter xs ys f s = do
 
 --   as <- forM (zip [0 :: Int ..] xs) \(i, x) -> do
@@ -257,7 +292,8 @@ makeConcatMap xs ys f s = do
 
 -- * Minimal results
 
-type MContainer f = (Container f, Metric (Raw (Shape f)), Metric (Raw (Position f)))
+type MContainer f =
+  (Container f, Metric (Sym (Shape f)), Metric (Sym (Position f)))
 
 minimalContainer :: forall f a. (MContainer f, HasKind a)
   => String -> String -> Symbolic (SExtension f a)
@@ -270,7 +306,7 @@ minimalContainer s p = do
 
 makeMinFoldr :: (MContainer f, MContainer g, MContainer h, SymVal a)
   => h a -> [f a] -> g a -> g a -> SMorphism (Product h (Product f g)) g
-  -> String -> Symbolic ()
+  -> String -> ConstraintSet
 makeMinFoldr ctx xs e o f s = do
 
   as <- forM (zip [0 :: Int ..] (reverse xs)) \(i, x) -> do
