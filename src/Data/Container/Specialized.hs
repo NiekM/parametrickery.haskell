@@ -17,7 +17,7 @@ import Data.SBV.Tuple qualified as SBV
 
 import Data.Container.Core
 import Data.SBV.Encode
-import Dependent
+import Data.SBV.Depend
 
 -- | OptList
 

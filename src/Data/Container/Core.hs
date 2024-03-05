@@ -1,6 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 
-module Data.Container.Core (Container(..), Extension(..)) where
+module Data.Container.Core (Container(..), Extension(..), Fin(..)) where
 
 import Data.Map qualified as Map
 import Data.List (genericLength)
@@ -10,8 +10,9 @@ import Data.SBV
 import Data.SBV.Tuple  qualified as SBV
 import Data.SBV.Either qualified as SBV
 
+import Data.SBV.Depend
+
 import Base
-import Dependent
 import Map qualified
 import Unsafe qualified
 
@@ -38,6 +39,13 @@ deriving instance Each Ord  f a => Ord  (Extension f a)
 deriving instance Each Show f a => Show (Extension f a)
 
 -- | Identity
+
+newtype K k a = K a
+  deriving newtype (Show, Eq, Ord, Enum, Num, Encode)
+
+instance (Ref k, Ref a) => Dep (K k a) where
+  type Arg (K k a) = k
+  dep Proxy _ x = ref @a Proxy x
 
 instance Container Identity where
   type Shape    Identity = ()
@@ -113,6 +121,13 @@ instance (Container f, Container g) => Container (Sum f g) where
       Map.mapKeysMonotonic (Unsafe.stripRight . unXOR) q
 
 -- | List
+
+newtype Fin = Fin Natural
+  deriving newtype (Eq, Ord, Enum, Show, Num, Encode)
+
+instance Dep Fin where
+  type Arg Fin = Natural
+  dep Proxy n x = x .>= 0 .&& x .< n
 
 instance Container [] where
   type Shape    [] = Natural

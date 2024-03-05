@@ -6,7 +6,7 @@ module Data.Container.Properties
 import Data.Map qualified as Map
 
 import Data.Container.Core (Extension(..), Container(..))
-import Dependent (refHolds, depHolds)
+import Data.SBV.Depend (refHolds, depHolds)
 
 containerRoundTrip :: forall f a. (Container f, Eq (f a)) => f a -> Bool
 containerRoundTrip x = x == fromContainer (toContainer x)

@@ -33,10 +33,3 @@ uncurry = unions . mapWithKey \k -> mapKeysMonotonic (k,)
 
 curry :: (Ord k1, Ord k2) => Map (k1, k2) v -> Map k1 (Map k2 v)
 curry = mapKeysWith union fst . mapWithKey \(_, k) -> singleton k
-
--- Why does this not work? :(
--- You would think that Map k1 v and Map k2 v have the same runtime representation.
--- I guess this relies on the Ord constraints of k1 and k2, which should be equivalent.
--- It would be nice if we could benefit from knowing they are the same.
--- coerceKeysMonotonic :: Coercible k1 k2 => Map k1 v -> Map k2 v
--- coerceKeysMonotonic = coerce

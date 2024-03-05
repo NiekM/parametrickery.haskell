@@ -1,6 +1,10 @@
 {-# LANGUAGE DefaultSignatures #-}
 
-module Data.SBV.Refine where
+module Data.SBV.Refine
+  ( module Data.SBV.Encode
+  , Ref(..)
+  , refHolds
+  ) where
 
 import Data.SBV
 import Data.SBV.Tuple qualified as SBV
@@ -38,3 +42,11 @@ instance (Ref a, Ref b) => Ref (Either a b) where
 
 instance Ref a => Ref (Maybe a) where
   ref Proxy x = SBV.maybe sTrue (ref @a Proxy) x
+
+-- | Properties
+
+-- TODO: This should return Prop or Laws, and perhaps use ShowType or smth
+refHolds :: forall a. Ref a => a -> Bool
+refHolds x = case unliteral (ref (Proxy @a) $ literal $ encode x) of
+  Nothing -> error "Something went wrong: somehow not a literal"
+  Just b -> b

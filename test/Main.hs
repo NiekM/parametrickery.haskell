@@ -16,7 +16,7 @@ import Data.Functor.Const
 import Data.Functor.Product
 import Data.Functor.Sum
 
-import Dependent
+import Data.SBV.Depend
 import Data.Container
 
 instance Arbitrary Natural where
@@ -53,13 +53,13 @@ main = hspec do
     describe "@(Either Int Int)" . injective $ encode @(Either Int Int)
 
   describe "ref holds on encoded values" do
-    prop "@()"               $ refLaws @()
-    prop "@Bool"             $ refLaws @Bool
-    prop "@Int"              $ refLaws @Int
-    prop "@Char"             $ refLaws @Char
-    prop "@Natural"          $ refLaws @Natural
-    prop "@(Int, Int)"       $ refLaws @(Int, Int)
-    prop "@(Either Int Int)" $ refLaws @(Either Int Int)
+    prop "@()"               $ refHolds @()
+    prop "@Bool"             $ refHolds @Bool
+    prop "@Int"              $ refHolds @Int
+    prop "@Char"             $ refHolds @Char
+    prop "@Natural"          $ refHolds @Natural
+    prop "@(Int, Int)"       $ refHolds @(Int, Int)
+    prop "@(Either Int Int)" $ refHolds @(Either Int Int)
 
   describe "container laws" do
     describe "roundtrip" do

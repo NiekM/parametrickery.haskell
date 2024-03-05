@@ -60,7 +60,7 @@ library
   -- Modules exported by the library.
   exposed-modules:
       Data.Container
-    , Dependent
+    , Data.SBV.Depend
     , Bench
     , Symbolic
     , PaperBench
@@ -75,7 +75,6 @@ library
     , Data.Container.Properties
     , Data.SBV.Encode
     , Data.SBV.Refine
-    , Data.SBV.Depend
 
   -- LANGUAGE extensions used by modules in this package.
   default-extensions:
