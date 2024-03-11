@@ -10,14 +10,14 @@ module Data.Container.Specialized
 
 import Data.Map qualified as Map
 import Data.List (genericLength)
-import Data.Proxy (Proxy(..))
-import Numeric.Natural (Natural)
 
 import Data.SBV.Tuple qualified as SBV
 
 import Data.Container.Core
 import Data.SBV.Encode
 import Data.SBV.Depend
+
+import Base
 
 -- | OptList
 
@@ -105,7 +105,8 @@ newtype Dup a = Dup { unDup :: (a, a) }
 
 instance Container Dup where
   type Shape    Dup = ()
-  type Position Dup = Bool
+  type Position Dup = Const Bool ()
 
-  toContainer (Dup (x, y)) = Extension () $ Map.fromList [(False, x), (True, y)]
-  fromContainer (Extension _ p) = Dup (p Map.! False, p Map.! True)
+  toContainer (Dup (x, y)) = Extension () $
+    Map.fromList [(Const False, x), (Const True, y)]
+  fromContainer (Extension _ p) = Dup (p Map.! Const False, p Map.! Const True)

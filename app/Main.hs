@@ -5,8 +5,9 @@ module Main where
 import Data.SBV
 import Data.SBV.Control
 import Control.Monad
+import Control.Exception
 
-import Bench (FoldBench, checkFoldBench)
+import Pipeline
 import PaperBench
 
 settings :: SMTConfig
@@ -16,17 +17,25 @@ settings = defaultSMTCfg
   , timing = PrintTiming
   }
 
-checkAll :: [(String, FoldBench)] -> IO ()
+checkOne :: FoldInputs -> IO (Either SomeException Bool)
+checkOne = try . isSatisfiableWith settings . checkFoldr
+
+checkAll :: [(String, FoldInputs)] -> IO ()
 checkAll xs = forM_ xs \(name, bench) -> do
   let name' = take width $ name ++ ':' : repeat ' '
-  s <- isSatisfiableWith settings (checkFoldBench bench)
-  putStrLn $ name' ++ if s then "Satisfiable" else "Unsatisfiable"
+  s <- checkOne bench
+  putStrLn $ name' ++ case s of
+    Left  _     -> "Timeout"
+    Right False -> "Unsatisfiable"
+    Right True  -> "Satisfiable"
+  return ()
   where width = 2 + maximum (map (length . fst) xs)
 
 main :: IO ()
 main = do
+  let runs = 10 :: Int
+
   putStrLn "------ Shape complete ------"
-  replicateM_ 10 do checkAll preludeBenches
+  replicateM_ runs do checkAll preludeBenches
   putStrLn "------ Shape incomplete ------"
-  -- We remove unzip because it times out
-  replicateM_ 10 do checkAll (filter ((/= "unzip") . fst) incompleteBenches)
+  replicateM_ runs do checkAll incompleteBenches

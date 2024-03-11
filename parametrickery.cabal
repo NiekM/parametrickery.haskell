@@ -60,9 +60,9 @@ library
   -- Modules exported by the library.
   exposed-modules:
       Data.Container
+    , Data.Mono
     , Data.SBV.Depend
-    , Bench
-    , Symbolic
+    , Pipeline
     , PaperBench
 
   -- Modules included in this library but not exported.
@@ -75,6 +75,7 @@ library
     , Data.Container.Properties
     , Data.SBV.Encode
     , Data.SBV.Refine
+    , Data.SBV.Container
 
   -- LANGUAGE extensions used by modules in this package.
   default-extensions:
@@ -85,9 +86,11 @@ library
     , LambdaCase
 
   -- Other library packages from which modules are imported.
-  build-depends:    base ^>=4.19.0.0
-                  , containers
-                  , sbv
+  build-depends:
+      base ^>=4.19.0.0
+    , containers
+    , mtl
+    , sbv
 
   -- Directories containing source files.
   hs-source-dirs:   src

@@ -3,8 +3,9 @@
 module Data.SBV.Encode where
 
 import Data.Bifunctor
+import Data.Int (Int64)
 
-import Data.SBV (Int64, SymVal)
+import Data.SBV (SymVal)
 
 import Base
 
