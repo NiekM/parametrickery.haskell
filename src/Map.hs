@@ -1,10 +1,21 @@
-module Map (splitEither, uncurry, curry) where
+module Map
+  ( splitEither
+  , uncurry, curry
+  , lookupDefault
+  , unionsWithA
+  , fromListWith'
+  , mapKeysMaybe
+  ) where
 
 import Prelude hiding (uncurry, curry)
 
-import Data.Map
+import Data.List.NonEmpty (NonEmpty)
+import Data.Maybe (fromMaybe, isJust)
+import Data.Map as Map
 import Data.Map.Internal
 import Utils.Containers.Internal.StrictPair
+
+import Unsafe qualified
 
 _mapEitherWithKey :: (k -> a -> Either b c) -> Map k a -> (Map k b, Map k c)
 _mapEitherWithKey f0 t0 = toPair $ go f0 t0
@@ -33,3 +44,18 @@ uncurry = unions . mapWithKey \k -> mapKeysMonotonic (k,)
 
 curry :: (Ord k1, Ord k2) => Map (k1, k2) v -> Map k1 (Map k2 v)
 curry = mapKeysWith union fst . mapWithKey \(_, k) -> singleton k
+
+unionsWithA :: (Applicative m, Functor f, Foldable f, Ord k) =>
+  (NonEmpty a -> m b) -> f (Map k a) -> m (Map k b)
+unionsWithA f = traverse f . unionsWith (<>) . fmap (fmap pure)
+
+fromListWith' :: Ord k => (NonEmpty a -> b) -> [(k, a)] -> Map k b
+fromListWith' f = fmap f . unionsWith (<>)
+  . fmap \(k, v) -> singleton k (pure v)
+
+lookupDefault :: Ord k => k -> v -> Map k v -> v
+lookupDefault k d = fromMaybe d . Map.lookup k
+
+mapKeysMaybe :: Ord k2 => (k1 -> Maybe k2) -> Map k1 v -> Map k2 v
+mapKeysMaybe f = mapKeysMonotonic Unsafe.stripJust
+  . filterWithKey (\k _ -> isJust k) . mapKeys f

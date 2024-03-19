@@ -4,7 +4,12 @@ module Data.Mono where
 
 -- TODO: Find a better name
 
-data Mono c f where
+import Base
+
+class    Trivial t where
+instance Trivial t
+
+data Mono (c :: Type -> Constraint) f where
   Mono :: forall a c f. c a => f a -> Mono c f
 
 mapMono :: (forall a. c a => f a -> g a) -> Mono c f -> Mono c g

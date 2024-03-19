@@ -24,8 +24,8 @@ data FoldInputs = forall c d f g.
   (Container c, Container d, Container f, Container g) =>
   FoldInputs [Mono SymVal (FoldInput c d f g)]
 
-checkFoldr :: FoldInputs -> ConstraintSet
-checkFoldr (FoldInputs examples) = freshEnvironment do
+foldr :: FoldInputs -> ConstraintSet
+foldr (FoldInputs examples) = freshEnvironment do
 
   f <- symMorphism
   e <- symMorphism
