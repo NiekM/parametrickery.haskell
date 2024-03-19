@@ -67,16 +67,17 @@ library
 
   -- Modules included in this library but not exported.
   other-modules:
-      Map
-    , Unsafe
-    , Base
+      Base
+    , Constraint
     , Data.Container.Core
     , Data.Container.Foldable
-    , Data.Container.Specialized
     , Data.Container.Properties
+    , Data.Container.Specialized
+    , Data.SBV.Container
     , Data.SBV.Encode
     , Data.SBV.Refine
-    , Data.SBV.Container
+    , Map
+    , Unsafe
 
   -- LANGUAGE extensions used by modules in this package.
   default-extensions:

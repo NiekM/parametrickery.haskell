@@ -6,9 +6,6 @@ module Data.Mono where
 
 import Base
 
-class    Trivial t where
-instance Trivial t
-
 data Mono (c :: Type -> Constraint) f where
   Mono :: forall a c f. c a => f a -> Mono c f
 
