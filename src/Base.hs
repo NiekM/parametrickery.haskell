@@ -1,5 +1,6 @@
 module Base
-  ( module Data.Kind
+  ( module GHC.TypeLits
+  , module Data.Kind
   , module Data.Function
   , module Data.Functor
   , module Data.Bifunctor
@@ -18,6 +19,8 @@ module Base
   , module Data.List
   , module Data.List.NonEmpty
   ) where
+
+import GHC.TypeLits (Symbol)
 
 import Data.Kind (Type, Constraint)
 import Data.Function ((&))

@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Data.Container.Specialized
   ( OptList(..)
@@ -13,6 +14,7 @@ import Data.List (genericLength)
 
 import Data.SBV.Tuple qualified as SBV
 
+import Data.Dup
 import Data.Container.Core
 import Data.SBV.Encode
 import Data.SBV.Depend
@@ -98,10 +100,6 @@ instance Container PairList where
       pairup _ = error "Mismatching pairs"
 
 -- | Dup
-
-newtype Dup a = Dup { unDup :: (a, a) }
-  deriving newtype (Eq, Ord)
-  deriving stock (Show, Functor)
 
 instance Container Dup where
   type Shape    Dup = ()

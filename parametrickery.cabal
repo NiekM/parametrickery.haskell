@@ -73,6 +73,8 @@ library
     , Data.Container.Foldable
     , Data.Container.Properties
     , Data.Container.Specialized
+    , Data.Dup
+    , Data.Functor.Context
     , Data.SBV.Container
     , Data.SBV.Encode
     , Data.SBV.Refine
@@ -93,6 +95,7 @@ library
     , containers
     , mtl
     , sbv
+    , type-level-sets
 
   -- Directories containing source files.
   hs-source-dirs:   src
