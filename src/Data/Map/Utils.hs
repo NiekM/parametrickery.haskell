@@ -1,10 +1,11 @@
-module Map
+module Data.Map.Utils
   ( splitEither
   , uncurry, curry
   , lookupDefault
   , unionsWithA
   , fromListWith'
   , mapKeysMaybe
+  , inverse
   ) where
 
 import Prelude hiding (uncurry, curry)
@@ -13,6 +14,8 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Map as Map
 import Data.Map.Internal
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Utils.Containers.Internal.StrictPair
 
 import Unsafe qualified
@@ -59,3 +62,8 @@ lookupDefault k d = fromMaybe d . Map.lookup k
 mapKeysMaybe :: Ord k2 => (k1 -> Maybe k2) -> Map k1 v -> Map k2 v
 mapKeysMaybe f = mapKeysMonotonic Unsafe.stripJust
   . filterWithKey (\k _ -> isJust k) . mapKeys f
+
+inverse :: (Ord k, Ord v) => Map k v -> Map v (Set k)
+inverse = unionsWith (<>)
+  . fmap (\(k, v) -> Map.singleton v (Set.singleton k))
+  . Map.toList

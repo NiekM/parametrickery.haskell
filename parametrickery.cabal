@@ -78,16 +78,23 @@ library
     , Data.SBV.Container
     , Data.SBV.Encode
     , Data.SBV.Refine
-    , Map
+    , Data.Map.Utils
+    , Data.Map.Multi
+    , Pretty
     , Unsafe
 
   -- LANGUAGE extensions used by modules in this package.
   default-extensions:
       BlockArguments
+    , DataKinds
+    , DefaultSignatures
     , DerivingStrategies
     , DerivingVia
-    , TypeFamilies
     , LambdaCase
+    , PatternSynonyms
+    , TypeAbstractions
+    , TypeFamilies
+    , ViewPatterns
 
   -- Other library packages from which modules are imported.
   build-depends:

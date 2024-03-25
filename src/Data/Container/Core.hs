@@ -13,7 +13,7 @@ import Data.SBV.Either qualified as SBV
 import Data.SBV.Depend
 
 import Base
-import Map qualified
+import Data.Map.Utils qualified as Map
 import Unsafe qualified
 
 type Dependent a b = (Ref a, Dep b, Arg b ~ a)
