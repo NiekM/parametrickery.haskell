@@ -40,10 +40,15 @@ type Example f g = Mono Ord (Product f g)
 pattern Example :: () => forall a. Ord a => f a -> g a -> Example f g
 pattern Example input output = Mono (Pair input output)
 
-type Shape f = f ()
+data Blank = Blank
+  deriving stock (Eq, Ord)
+
+instance Show Blank where show _ = "·"
+
+type Shape f = f Blank
 
 shape :: Functor f => f a -> Shape f
-shape = (() <$)
+shape = (Blank <$)
 
 type Positions = Map Natural 
 
@@ -125,15 +130,14 @@ type FoldrAlg ctx f g =
 
 -- TODO: use some monad with MonadWriter (for missing inputs) and MonadError
 -- (for unrealizability)
-foldrSketch :: (All Container [Context ctx, f, g], MonadError Conflict m)
-  => FoldrEx ctx f g -> m (FoldrAlg ctx f g)
-foldrSketch m = Map.toList m & merge . fst . partitionWith
+foldrSketch :: All Container [Context ctx, f, g] =>
+  FoldrEx ctx f g -> FoldrRes ctx f g
+foldrSketch m = Map.toList m & uncurry FoldrRes . first merge . partitionWith
   \(s, (t, p)) -> case s of
     Pair ctx (Compose []) ->
       Left $ Map.singleton (Pair ctx (InR (Const ()))) (t, p)
     Pair ctx (Compose (x:xs)) ->
       case Map.lookup (Pair ctx (Compose xs)) m of
-        -- TODO: don't just throw away these results
         Nothing     -> Right . Pair ctx $ Compose xs
         Just (u, q) -> Left $ Map.singleton (Pair ctx (InL (Pair x u)))
           (t, Multi.compose (remap ctx x q) p)
@@ -156,15 +160,19 @@ foldrSketch m = Map.toList m & merge . fst . partitionWith
             then k
             else k + fromIntegral (length hd)
 
+-- TODO: this is exactly where we would add options for restricting the context
+-- of the arguments to foldr
 data FoldrBench = forall ctx f g.
   [Container, Pretty] ** [Context ctx, f, g] => FoldrBench
   { name :: String
   , examples :: [Example (FoldrIn ctx f) g]
   }
 
-data FoldrRes = forall ctx f g.
-  [Container, Pretty] ** [Context ctx, f, g] =>
-  FoldrRes { alg :: Either Conflict (FoldrAlg ctx f g) }
+data FoldrRes ctx f g =
+  FoldrRes
+  { algebra :: Either Conflict (FoldrAlg ctx f g)
+  , missing :: [Shape (FoldrIn ctx f)]
+  }
 
 runBench :: FoldrBench -> IO ()
 runBench (FoldrBench name examples) = do
@@ -177,19 +185,46 @@ runBench (FoldrBench name examples) = do
       let vars = variables ctx
       case fromExamples examples of
         Left _ -> putStrLn "Unsatisfiable. (inconsistent input)"
-        Right f -> case foldrSketch f of
-          Left _ -> putStrLn $ "Unsatisfiable. (" <> name <> " is not a fold)"
-          Right alg -> do
-            putStrLn "Satisfiable."
-            putStrLn ""
-            putStrLn $ pp (name <> concatMap (' ':) vars) alg
+        Right f -> do
+          let FoldrRes algebra missing = foldrSketch f
+          putStrLn $ completenessWarning missing
+          case algebra of
+            Left _ -> putStrLn $ "Unsatisfiable. (" <> name <> " is not a fold)"
+            Right alg -> do
+              putStrLn "Satisfiable."
+              putStrLn ""
+              putStrLn $ showFoldr name vars alg
   putStrLn ""
+
+-- Returns a warning of shape incompleteness based on a list of missing inputs
+-- of recursive calls.
+-- TODO: use a less hacky way to print in red.
+completenessWarning :: [Container, Pretty] ** [Context ctx, f] =>
+  [Shape (FoldrIn ctx f)] -> String
+completenessWarning [] = ""
+completenessWarning xs = concat $
+  [ ""
+  , "\ESC[91m[WARNING]\ESC[0m The example set is not shape complete!"
+  , "Examples for the following inputs are missing:"
+  , ""
+  ] ++
+  map (\i -> case recoverInput i of
+    Pair Nil x -> "  " <> pretty 0 x ""
+    Pair c x -> "  " <> pretty 0 c (' ' : pretty 0 x ""))
+    xs
+  ++ [ ""
+  , "Satisfiability will be overapproximated in terms of"
+  , "the maximal shape complete subset of examples."
+  , ""
+  ]
 
 -- TODO: return some Doc rather than String to make pretty printing more
 -- composable. For example, this would allow indenting all of it at once.
-pp :: forall ctx f g. [Container, Pretty] ** [Context ctx, f, g] =>
-  String -> FoldrAlg ctx f g -> String
-pp lhs = (lhs <> " = foldr f e\n  where" ++)
+-- This would also allow using some colours ideally.
+showFoldr :: [Container, Pretty] ** [Context ctx, f, g] =>
+  String -> [String] -> FoldrAlg ctx f g -> String
+showFoldr name args =
+  (name <> concatMap (' ':) args <> " = foldr f e\n  where" ++)
   . concatMap
     ( \(ctx, (fs, es)) ->
       ("\n    " ++) $ pretty 0 ctx $
