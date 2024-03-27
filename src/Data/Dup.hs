@@ -4,10 +4,7 @@ import Base
 
 newtype Dup a = Dup { unDup :: (a, a) }
   deriving newtype (Eq, Ord)
-  deriving stock (Show, Functor)
-
-instance Foldable Dup where
-  foldMap f (Dup (x, y)) = f x <> f y
+  deriving stock (Show, Functor, Foldable, Traversable)
 
 instance Eq1 Dup where
   liftEq eq (Dup (x, y)) (Dup (z, w)) = eq x z && eq y w

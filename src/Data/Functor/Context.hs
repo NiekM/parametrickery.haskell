@@ -7,7 +7,7 @@ module Data.Functor.Context
   ( Context(Nil, Cons)
   , KeyValue(..)
   , Assoc
-  , Name(..)
+  , variables
   ) where
 
 import GHC.TypeLits
@@ -90,3 +90,8 @@ instance AllVal Pretty ctx => Pretty (Context ctx) where
       strs = \case
         Nil -> []
         Ext v x xs -> show v <> " = " <> pretty 0 x "" : strs xs
+
+variables :: Context ctx a -> [String]
+variables = \case
+  Nil -> []
+  Ext v _ xs -> show v : variables xs
