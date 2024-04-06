@@ -1,20 +1,20 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TypeAbstractions #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NoStarIsType #-}
 
 module Data.Container.Foldable where
 
+-- TODO: separate in many files:
+-- 1. One for containers (shapes, positions, morphisms)
+-- 2. One for sketching/example propagation
+-- 3. One for benchmarks
+
+-- This is all completely separate from the SMT stuff, so maybe make it a
+-- different project?
+
 import GHC.TypeLits
-import Control.Monad.Error.Class
 import Data.Foldable
 import Data.Bifunctor (bimap)
-import Data.List (intercalate, (!?), intersperse)
+import Data.List
+  (intercalate, (!?), intersperse, subsequences, permutations, inits, tails)
 import Control.Monad.State
 import Data.Map.Utils qualified as Map
 import Data.Map.Multi (Multi)
@@ -72,19 +72,19 @@ toMorph (Example i o) =
 -- TODO: do something with these conflicts.
 data Conflict = ShapeConflict | PositionConflict
 
-orErr :: MonadError e m => e -> Maybe a -> m a
-orErr e = maybe (throwError e) return
+maybeToEither :: e -> Maybe a -> Either e a
+maybeToEither e = maybe (Left e) Right
 
-merge :: (MonadError Conflict m, Container f, Container g) =>
-  [Morph f g] -> m (Morph f g)
+merge :: (Container f, Container g) =>
+  [Morph f g] -> Either Conflict (Morph f g)
 merge = Map.unionsWithA \ys -> do
   let (ss, ps) = NonEmpty.unzip ys
-  s <- orErr ShapeConflict    $ allSame ss
-  p <- orErr PositionConflict $ consistent ps
+  s <- maybeToEither ShapeConflict    $ allSame ss
+  p <- maybeToEither PositionConflict $ consistent ps
   return (s, p)
 
-fromExamples :: (MonadError Conflict m, Container f, Container g) =>
-  [Example f g] -> m (Morph f g)
+fromExamples :: (Container f, Container g) =>
+  [Example f g] -> Either Conflict (Morph f g)
 fromExamples = merge . map toMorph
 
 consistent :: NonEmpty Origins -> Maybe Origins
@@ -128,8 +128,6 @@ type FoldrEx  ctx f g = Morph (FoldrIn ctx f) g
 type FoldrAlg ctx f g =
   Morph (Product (Context ctx) (Sum (Product f g) (Const ()))) g
 
--- TODO: use some monad with MonadWriter (for missing inputs) and MonadError
--- (for unrealizability)
 foldrSketch :: All Container [Context ctx, f, g] =>
   FoldrEx ctx f g -> FoldrRes ctx f g
 foldrSketch m = Map.toList m & uncurry FoldrRes . first merge . partitionWith
@@ -161,15 +159,14 @@ foldrSketch m = Map.toList m & uncurry FoldrRes . first merge . partitionWith
             else k + fromIntegral (length hd)
 
 -- TODO: this is exactly where we would add options for restricting the context
--- of the arguments to foldr
+-- of the arguments to foldr. But how exactly? Quite tricky to describe this.
 data FoldrBench = forall ctx f g.
   [Container, Pretty] ** [Context ctx, f, g] => FoldrBench
-  { name :: String
+  { name     :: String
   , examples :: [Example (FoldrIn ctx f) g]
   }
 
-data FoldrRes ctx f g =
-  FoldrRes
+data FoldrRes ctx f g = FoldrRes
   { algebra :: Either Conflict (FoldrAlg ctx f g)
   , missing :: [Shape (FoldrIn ctx f)]
   }
@@ -181,19 +178,17 @@ runBench (FoldrBench name examples) = do
     [] -> putStrLn "No examples."
     -- If there is at least one example, we use its context to retrieve the
     -- names of variables in scope.
-    Mono (Pair (Pair ctx _) _) : _ -> do
-      let vars = variables ctx
-      case fromExamples examples of
-        Left _ -> putStrLn "Unsatisfiable. (inconsistent input)"
-        Right f -> do
-          let FoldrRes algebra missing = foldrSketch f
-          putStrLn $ completenessWarning missing
-          case algebra of
-            Left _ -> putStrLn $ "Unsatisfiable. (" <> name <> " is not a fold)"
-            Right alg -> do
-              putStrLn "Satisfiable."
-              putStrLn ""
-              putStrLn $ showFoldr name vars alg
+    Mono (Pair (Pair ctx _) _) : _ -> case fromExamples examples of
+      Left _ -> putStrLn "Unsatisfiable. (inconsistent input)"
+      Right f -> do
+        let FoldrRes algebra missing = foldrSketch f
+        putStr $ completenessWarning missing
+        case algebra of
+          Left _ -> putStrLn $ "Unsatisfiable. (" <> name <> " is not a fold)"
+          Right alg -> do
+            putStrLn "Satisfiable."
+            putStrLn ""
+            putStrLn $ showFoldr name (variables ctx) alg
   putStrLn ""
 
 -- Returns a warning of shape incompleteness based on a list of missing inputs
@@ -202,7 +197,7 @@ runBench (FoldrBench name examples) = do
 completenessWarning :: [Container, Pretty] ** [Context ctx, f] =>
   [Shape (FoldrIn ctx f)] -> String
 completenessWarning [] = ""
-completenessWarning xs = concat $
+completenessWarning xs = unlines $
   [ ""
   , "\ESC[91m[WARNING]\ESC[0m The example set is not shape complete!"
   , "Examples for the following inputs are missing:"
@@ -340,6 +335,10 @@ bench =
   , simpleBench "tail"        safeTail
   , simpleBench "init"        safeInit
   , simpleBench "reverse"     reverse
+  , simpleBench "subseqs"     $ Compose . subsequences
+  , simpleBench "perms"       $ Compose . permutations
+  , simpleBench "inits"       $ Compose . inits
+  , simpleBench "tails"       $ Compose . tails
   , indexBench  "index"       $ flip (!?)
   , indexBench  "drop"        drop
   , indexBench  "take"        take
@@ -354,6 +353,7 @@ bench =
   , listBench   "zip"         $ ((Compose . fmap Dup) .) . zip
   , nestedBench "unzip"       dupInputs $ Compose . Dup . unzip . fmap unDup
   , nestedBench "concat"      nestedInputs concat
+  , nestedBench "transpose"   nestedInputs $ Compose . transpose
   ] where
     headMay, lastMay :: [a] -> Maybe a
     headMay   = \case { [] -> Nothing; y:_ -> Just y }
@@ -382,3 +382,11 @@ populate m = evalState $ m & traverse \_ ->
     x:xs -> do
       put xs
       return x
+
+-- TODO: what would `Morph c f g` look like?
+-- i.e. how do we extend Partial Morphisms to work for arbitrary constraints c
+-- For c a = (a ~ t), it should be a partial function over t
+-- For c a = (), it should be a partial container morphism
+-- c implies some relation that should hold over the position morphism.
+
+-- type M c f g = Map (Shape f) (Shape g, Origins)
