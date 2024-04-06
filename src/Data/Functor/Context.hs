@@ -35,10 +35,6 @@ pattern Cons :: () => (fs ~ ((k :-> f) : fs'), KnownSymbol k) =>
   f a -> Context fs' a -> Context fs a
 pattern Cons x xs = Ext Name x xs
 
-type family AllKey (c :: k -> Constraint) (ts :: Assoc k v) :: Constraint where
-  AllKey c '[] = ()
-  AllKey c ((k :-> v) ': ts) = (c k, AllKey c ts)
-
 type family AllVal (c :: v -> Constraint) (ts :: Assoc k v) :: Constraint where
   AllVal c '[] = ()
   AllVal c ((k :-> v) ': ts) = (c v, AllVal c ts)
@@ -69,14 +65,14 @@ instance AllVal Show1 fs => Show1 (Context fs) where
   liftShowsPrec :: forall a.
     (Int -> a -> ShowS) -> ([a] -> ShowS) -> Int -> Context fs a -> ShowS
   liftShowsPrec _ _ _ Nil s = "{ }" <> s
-  liftShowsPrec shPrec shList _ ctx s =
+  liftShowsPrec sp sl _ ctx s =
     '{' : intercalate ", " (strs ctx) ++ '}' : s
     where
       strs :: forall gs. AllVal Show1 gs => Context gs a -> [String]
       strs = \case
         Nil -> []
         Ext v x xs ->
-          (show v <> " = " <> liftShowsPrec shPrec shList 0 x "") : strs xs
+          (show v <> " = " <> liftShowsPrec sp sl 0 x "") : strs xs
 
 instance (AllVal Show1 fs, Show a) => Show (Context fs a) where
   show x = liftShowsPrec showsPrec showList 0 x ""
