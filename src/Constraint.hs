@@ -1,8 +1,10 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Constraint
   ( All, Each
-  , type (**)
+  , type (**), type (|-)
+  , HasType
   , Trivial
   ) where
 
@@ -10,6 +12,12 @@ import Data.Kind
 
 class    Trivial t
 instance Trivial t
+
+class    (forall a. p a => q a) => p |- q
+instance (forall a. p a => q a) => p |- q
+
+class    (t ~ u) => HasType t u
+instance (t ~ u) => HasType t u
 
 class And (c :: k -> Constraint) (d :: k -> Constraint) (t :: k)
 instance (c t, d t) => And c d t
