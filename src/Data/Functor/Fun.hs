@@ -8,6 +8,7 @@ import Data.List       qualified as List
 import Data.Map.Strict qualified as Map
 
 import Base
+import Pretty
 
 ------ Expressions ------
 
@@ -45,6 +46,9 @@ data Fun f a where
   I :: a -> Fun Identity a
   K :: Exp k -> Fun (Const k) a
   P :: Fun f a -> Fun g a -> Fun (Product f g) a
+  -- What about S :: Sum (Fun f) (Fun g) a -> Fun (Sum f g) a
+  -- Or S :: Either (Fun f a) (Fun g a) -> Fun (Sum f g) a
+  -- This style would make it a bit more consistent.
   A :: Fun f a -> Fun (Sum f g) a
   B :: Fun g a -> Fun (Sum f g) a
   L :: [Fun f a] -> Fun (Compose [] f) a
@@ -250,9 +254,14 @@ instance Ord1 Ctx where
     liftCompare (\(AnyFun a) (AnyFun b) -> liftCmp' cmp a b) m n
 
 instance Show a => Show (Ctx a) where
-  show (Ctx c) =
-    "{" ++ List.intercalate ", " (showMap <$> Map.assocs c) ++ "}"
-    where showMap (k, v) = k ++ " = " ++ show v
+  show x = liftShowsPrec showsPrec showList 0 x ""
+
+instance Show1 Ctx where
+  liftShowsPrec sp sl _ (Ctx c) s =
+    '{' : List.intercalate ", " (showMap <$> Map.assocs c) ++ '}' : s
+    where showMap (k, v) = k ++ " = " ++ liftShowsPrec sp sl 0 v ""
+
+instance Pretty Ctx where
 
 ------ Examples ------
 

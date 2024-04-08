@@ -32,6 +32,11 @@ instance (Pretty f, Pretty g) => Pretty (Product f g) where
   pretty n (Pair x y) =
     liftShowsPrec2 pretty prettyList pretty prettyList n (x, y)
 
+instance (Pretty f, Pretty g) => Pretty (Sum f g) where
+  pretty n = \case
+    InL x -> liftShowsPrec2 pretty prettyList undefined undefined n (Left  x)
+    InR y -> liftShowsPrec2 undefined undefined pretty prettyList n (Right y)
+
 instance (Functor f, Pretty f, Pretty g) => Pretty (Compose f g) where
   pretty n (Compose x) = pretty n (PrettyShow <$> x)
 

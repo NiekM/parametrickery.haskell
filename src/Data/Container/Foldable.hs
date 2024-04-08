@@ -24,15 +24,11 @@ import Data.Set qualified as Set
 import Data.List.NonEmpty qualified as NonEmpty
 
 import Base
-import Constraint
 import Data.Mono
 import Data.Dup
-import Data.Functor.Context
+import Data.Functor.Signatures
 import Pretty
 import Utils
-
-class    (Functor f, Foldable f, Traversable f, Ord1 f, Eq1 f) => Container f
-instance (Functor f, Foldable f, Traversable f, Ord1 f, Eq1 f) => Container f
 
 type Example f g = Mono Ord (Product f g)
 
@@ -123,13 +119,13 @@ recoverOutput t q = populate t $ map (Vars . Set.mapMonotonic Var)
 
 ------ Contexts ------
 
-type FoldrIn  ctx f = Product (Context ctx) (List f)
-type FoldrEx  ctx f g = Morph (FoldrIn ctx f) g
-type FoldrAlg ctx f g =
-  Morph (Product (Context ctx) (Sum (Product f g) (Const ()))) g
+type FoldrIn f = Product Ctx (List f)
+type FoldrEx f g = Morph (FoldrIn f) g
+type FoldrAlg f g =
+  Morph (Product Ctx (Sum (Product f g) (Const ()))) g
 
-foldrSketch :: All Container [Context ctx, f, g] =>
-  FoldrEx ctx f g -> FoldrRes ctx f g
+foldrSketch :: (Container f, Container g) =>
+  FoldrEx f g -> FoldrRes f g
 foldrSketch m = Map.toList m & uncurry FoldrRes . first merge . partitionWith
   \(s, (t, p)) -> case s of
     Pair ctx (Compose []) ->
@@ -143,7 +139,7 @@ foldrSketch m = Map.toList m & uncurry FoldrRes . first merge . partitionWith
     -- Given the shape of the context, the shape of the first element of the
     -- input list and the origins of the recursive call, compute the remapping
     -- of origins that should be applied to the output.
-    remap :: All Container [ctx, f] =>
+    remap :: (Container ctx, Container f) =>
       Shape ctx -> Shape f -> Origins -> Origins
     remap ctx hd rec_p =
       Multi.inverse $ Multi.union
@@ -160,15 +156,15 @@ foldrSketch m = Map.toList m & uncurry FoldrRes . first merge . partitionWith
 
 -- TODO: this is exactly where we would add options for restricting the context
 -- of the arguments to foldr. But how exactly? Quite tricky to describe this.
-data FoldrBench = forall ctx f g.
-  [Container, Pretty] ** [Context ctx, f, g] => FoldrBench
+data FoldrBench = forall f g.
+  (Container f, Container g) => FoldrBench
   { name     :: String
-  , examples :: [Example (FoldrIn ctx f) g]
+  , examples :: [Example (FoldrIn f) g]
   }
 
-data FoldrRes ctx f g = FoldrRes
-  { algebra :: Either Conflict (FoldrAlg ctx f g)
-  , missing :: [Shape (FoldrIn ctx f)]
+data FoldrRes f g = FoldrRes
+  { algebra :: Either Conflict (FoldrAlg f g)
+  , missing :: [Shape (FoldrIn f)]
   }
 
 runBench :: FoldrBench -> IO ()
@@ -178,7 +174,7 @@ runBench (FoldrBench name examples) = do
     [] -> putStrLn "No examples."
     -- If there is at least one example, we use its context to retrieve the
     -- names of variables in scope.
-    Mono (Pair (Pair ctx _) _) : _ -> case fromExamples examples of
+    Mono (Pair (Pair (Ctx ctx) _) _) : _ -> case fromExamples examples of
       Left _ -> putStrLn "Unsatisfiable. (inconsistent input)"
       Right f -> do
         let FoldrRes algebra missing = foldrSketch f
@@ -188,14 +184,14 @@ runBench (FoldrBench name examples) = do
           Right alg -> do
             putStrLn "Satisfiable."
             putStrLn ""
-            putStrLn $ showFoldr name (variables ctx) alg
+            putStrLn $ showFoldr name (Map.keys ctx) alg
   putStrLn ""
 
 -- Returns a warning of shape incompleteness based on a list of missing inputs
 -- of recursive calls.
 -- TODO: use a less hacky way to print in red.
-completenessWarning :: [Container, Pretty] ** [Context ctx, f] =>
-  [Shape (FoldrIn ctx f)] -> String
+completenessWarning :: (Container f, Pretty f) =>
+  [Shape (FoldrIn f)] -> String
 completenessWarning [] = ""
 completenessWarning xs = unlines $
   [ ""
@@ -204,8 +200,8 @@ completenessWarning xs = unlines $
   , ""
   ] ++
   map (\i -> case recoverInput i of
-    Pair Nil x -> "  " <> pretty 0 x ""
-    Pair c x -> "  " <> pretty 0 c (' ' : pretty 0 x ""))
+    Pair (Ctx m) x | Map.null m -> "  " <> pretty 0 x ""
+    Pair m x -> "  " <> pretty 0 m (' ' : pretty 0 x ""))
     xs
   ++ [ ""
   , "Satisfiability will be overapproximated in terms of"
@@ -216,8 +212,8 @@ completenessWarning xs = unlines $
 -- TODO: return some Doc rather than String to make pretty printing more
 -- composable. For example, this would allow indenting all of it at once.
 -- This would also allow using some colours ideally.
-showFoldr :: [Container, Pretty] ** [Context ctx, f, g] =>
-  String -> [String] -> FoldrAlg ctx f g -> String
+showFoldr :: (Container f, Container g) =>
+  String -> [String] -> FoldrAlg f g -> String
 showFoldr name args =
   (name <> concatMap (' ':) args <> " = foldr f e\n  where" ++)
   . concatMap
@@ -244,19 +240,19 @@ showFoldr name args =
 
 type Inputs f = [Mono Ord f]
 
-simpleInputs :: Inputs (FoldrIn '[] Identity)
+simpleInputs :: Inputs (FoldrIn Identity)
 simpleInputs =
   [ Mono @Integer []
   , Mono @Integer [1]
   , Mono @Integer [2,3]
   , Mono @Integer [4,5,6]
-  ] <&> mapMono (Pair Nil . coerce)
+  ] <&> mapMono (Pair (Ctx mempty) . coerce)
 
-intInputs :: Inputs (FoldrIn '["n" :-> Const Int] Identity)
-intInputs = [0, 1, 2] >>= \n -> simpleInputs <&> mapMono
-  \(Pair Nil xs) -> Pair (Cons (Const n) Nil) xs
+intInputs :: Inputs (FoldrIn Identity)
+intInputs = [0 :: Natural, 1, 2] >>= \n -> simpleInputs <&> mapMono
+  \(Pair _ xs) -> Pair (Ctx $ Map.singleton "n" (AnyFun (K Nat) (Const n))) xs
 
-listInputs :: Inputs (FoldrIn '["xs" :-> []] Identity)
+listInputs :: Inputs (FoldrIn Identity)
 listInputs =
   [ Mono @Integer $ Pair [] []
   , Mono @Integer $ Pair [] [1]
@@ -266,25 +262,27 @@ listInputs =
   , Mono @Integer $ Pair [1,2] []
   , Mono @Integer $ Pair [1,2] [3]
   , Mono @Integer $ Pair [1,2] [3,4]
-  ] <&> mapMono \(Pair xs ys) -> Pair (Cons xs Nil) (coerce ys)
+  ] <&> mapMono \(Pair xs ys) ->
+    Pair (Ctx $ Map.singleton "xs" (AnyFun (L I) $ coerce xs)) (coerce ys)
 
-argInputs :: Inputs (FoldrIn '["x" :-> Identity] Identity)
+argInputs :: Inputs (FoldrIn Identity)
 argInputs =
   [ Mono @Integer $ Pair 0 []
   , Mono @Integer $ Pair 0 [1]
   , Mono @Integer $ Pair 0 [2,3]
   , Mono @Integer $ Pair 0 [4,5,6]
-  ] <&> mapMono \(Pair x xs) -> Pair (Cons x Nil) (coerce xs)
+  ] <&> mapMono \(Pair x xs) ->
+    Pair (Ctx $ Map.singleton "x" $ AnyFun I x) (coerce xs)
 
-dupInputs :: Inputs (FoldrIn '[] Dup)
+dupInputs :: Inputs (FoldrIn Dup)
 dupInputs =
   [ Mono @Integer $ Compose []
   , Mono @Integer $ Compose [Dup (1,2)]
   , Mono @Integer $ Compose [Dup (1,2), Dup (3,4)]
   , Mono @Integer $ Compose [Dup (1,2), Dup (3,4), Dup (5,6)]
-  ] <&> mapMono (Pair Nil)
+  ] <&> mapMono (Pair $ Ctx mempty)
 
-nestedInputs :: Inputs (FoldrIn '[] [])
+nestedInputs :: Inputs (FoldrIn [])
 nestedInputs =
   [ Mono @Integer $ Compose []
   , Mono @Integer $ Compose [[]]
@@ -295,35 +293,41 @@ nestedInputs =
   , Mono @Integer $ Compose [[1,2],[3]]
   , Mono @Integer $ Compose [[1],[2,3]]
   , Mono @Integer $ Compose [[1],[2],[1]]
-  ] <&> mapMono (Pair Nil)
+  ] <&> mapMono (Pair $ Ctx mempty)
+
+-- TODO: If the inputs are also of type AnyFun, we can match them up in a single
+-- function i.o. having all these separate ones.
 
 simpleBench :: (Container f, Pretty f) =>
   String -> (forall a. [a] -> f a) -> FoldrBench
-simpleBench name model = FoldrBench @_ @Identity name $ simpleInputs <&>
-  mapMono \(Pair Nil xs) -> Pair (Pair Nil (coerce xs)) (model $ coerce xs)
+simpleBench name model = FoldrBench name $ simpleInputs <&>
+  mapMono \(Pair m xs) -> Pair (Pair m xs) (model $ coerce xs)
 
-indexBench :: (Container f, Pretty f) =>
+indexBench :: forall f. (Container f, Pretty f) =>
   String -> (forall a. Int -> [a] -> f a) -> FoldrBench
-indexBench name model = FoldrBench @_ @Identity name $
-  intInputs <&> mapMono \input@(Pair (Cons n Nil) xs) ->
-    Pair input $ model (coerce n) (coerce xs)
+indexBench name model = FoldrBench @Identity @f name $
+  intInputs <&> mapMono \input@(Pair (Ctx m) xs) -> case Map.lookup "n" m of
+    Just (AnyFun (K Nat) n) -> Pair input $ model (fromIntegral n) (coerce xs)
+    _ -> error "Incorrect context"
 
-argBench :: (Container f, Pretty f) =>
+argBench :: forall f. (Container f, Pretty f) =>
   String -> (forall a. a -> [a] -> f a) -> FoldrBench
-argBench name model = FoldrBench @_ @Identity name $
-  argInputs <&> mapMono \input@(Pair (Cons x Nil) xs) -> do
-    Pair input $ model (coerce x) (coerce xs)
+argBench name model = FoldrBench @Identity @f name $
+  argInputs <&> mapMono \input@(Pair (Ctx m) xs) -> case Map.lookup "x" m of
+    Just (AnyFun I x) -> Pair input $ model (coerce x) (coerce xs)
+    _ -> error "Incorrect context"
 
-listBench :: (Container f, Pretty f) =>
+listBench :: forall f. (Container f, Pretty f) =>
   String -> (forall a. [a] -> [a] -> f a) -> FoldrBench
-listBench name model = FoldrBench @_ @Identity name $
-  listInputs <&> mapMono \input@(Pair (Cons xs Nil) ys) ->
-    Pair input $ model xs (coerce ys)
+listBench name model = FoldrBench @Identity @f name $
+  listInputs <&> mapMono \input@(Pair (Ctx m) ys) -> case Map.lookup "xs" m of
+    Just (AnyFun (L I) xs) -> Pair input $ model (coerce xs) (coerce ys)
+    _ -> error "Incorrect context"
 
-nestedBench :: [Container, Pretty] ** [f, g] =>
-  String -> Inputs (FoldrIn '[] f) -> (forall a. [f a] -> g a) -> FoldrBench
+nestedBench :: (Container f, Container g) =>
+  String -> Inputs (FoldrIn f) -> (forall a. [f a] -> g a) -> FoldrBench
 nestedBench name inputs model = FoldrBench name $
-  inputs <&> mapMono \input@(Pair Nil xs) ->
+  inputs <&> mapMono \input@(Pair _ xs) ->
     Pair input (model $ coerce xs)
 
 bench :: [FoldrBench]
