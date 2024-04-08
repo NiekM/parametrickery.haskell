@@ -75,7 +75,6 @@ library
     , Data.Container.Specialized
     , Data.Dup
     , Data.Functor.Context
-    , Data.Functor.Fun
     , Data.Functor.Signatures
     , Data.SBV.Container
     , Data.SBV.Encode
