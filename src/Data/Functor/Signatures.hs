@@ -14,15 +14,15 @@ import Pretty
 
 ---- Expressions ----
 
-type Expression f = Each [Eq, Ord, Show] f
+type Exp t = Each [Eq, Ord, Show] t
 
 -- Expression signatures
-data ESig t where
-  Nat :: ESig Natural
-  Str :: ESig String
+data ExpSig t where
+  Nat :: ExpSig Natural
+  Str :: ExpSig String
 
 data AnyExp where
-  AnyExp :: forall t. Each [Eq, Ord, Show] t => ESig t -> t -> AnyExp
+  AnyExp :: forall t. Each [Eq, Ord, Show] t => ExpSig t -> t -> AnyExp
 
 instance Eq AnyExp where
   AnyExp s x == AnyExp t y = case (s, t) of
@@ -36,7 +36,7 @@ instance Ord AnyExp where
     (Str, Str) -> x `compare` y
     _ -> compare (ctrIndex s) (ctrIndex t)
     where
-      ctrIndex :: ESig t -> Natural
+      ctrIndex :: ExpSig t -> Natural
       ctrIndex = \case Nat -> 0; Str -> 1
 
 instance Show AnyExp where
@@ -44,19 +44,22 @@ instance Show AnyExp where
 
 ---- Functors ----
 
+type Fun f =
+  Each [Functor, Foldable, Traversable, Eq1, Ord1, Show1, Pretty] f
+
 type Container f =
   Each [Functor, Foldable, Traversable, Eq1, Ord1, Show1, Pretty] f
 
 -- Functor signatures
-data FSig f where
-  I :: FSig Identity
-  K :: Expression t => ESig t -> FSig (Const t)
-  P :: (Container f, Container g) => FSig f -> FSig g -> FSig (Product f g)
-  S :: (Container f, Container g) => FSig f -> FSig g -> FSig (Sum f g)
-  L :: Container f => FSig f -> FSig (Compose [] f)
+data FunSig f where
+  I :: FunSig Identity
+  K :: Exp t => ExpSig t -> FunSig (Const t)
+  P :: (Fun f, Fun g) => FunSig f -> FunSig g -> FunSig (Product f g)
+  S :: (Fun f, Fun g) => FunSig f -> FunSig g -> FunSig (Sum f g)
+  L :: Fun f => FunSig f -> FunSig (Compose [] f)
 
 data AnyFun a where
-  AnyFun :: forall f a. Container f => FSig f -> f a -> AnyFun a
+  AnyFun :: forall f a. Container f => FunSig f -> f a -> AnyFun a
 
 instance Functor AnyFun where
   fmap f (AnyFun s x) = AnyFun s (fmap f x)
@@ -103,7 +106,7 @@ instance Ord1 AnyFun where
       -> liftCompare (\x y -> liftCompare cmp (AnyFun s1 x) (AnyFun t1 y)) xs ys
     _ -> ctrIndex s `compare` ctrIndex t
     where
-      ctrIndex :: FSig f -> Natural
+      ctrIndex :: FunSig f -> Natural
       ctrIndex = \case I -> 0; K{} -> 1; P{} -> 2; S{} -> 3; L{} -> 4
 
 instance Show a => Show (AnyFun a) where
@@ -184,3 +187,30 @@ listArguments (Ctx ctx) = extractEach ctx >>= \(a, f, ctx') -> case f of
   AnyFun (L s) (Compose xs) -> [(a, AnyFun s <$> xs, Ctx ctx')]
   _ -> []
 
+-- TODO: use these better contexts to automatically generate possible
+-- refinements:
+--
+--  1. Scope pruning: it should be easy enough to check realizability with scope
+--     pruning.
+--  2. Sketching: foldr, but also others. Can we create a general framework for
+--     sketching where one container morphism of a specific shape is refined to
+--     zero or more other container morphisms?
+--
+-- - What is a refinement? Perhaps it is a function from a container morphism
+--   that may return any number of morphisms. (i.e. Morph -> Maybe [Morph])
+-- - How do we represent a refinement being instantiated in different ways (i.e.
+--   a fold over different lists in scope)?
+-- - How do we represent the different ways in which a refinement can fail (and
+--   how does this differ from not being applicable)? We could say that a
+--   refinement fails if any of the resulting morphisms are unrealizable. But is
+--   this any different from not being applicable? I guess so, since failure of
+--   some refinements may influence the choice of other refinements.
+-- - How do we handle type abstractions? They are not dependent on the context.
+-- - How do we show the relationship between different refinements? For example,
+--   foldr can only be applied to a list, but there may be multiple lists in
+--   scope. There is a relationship between map and foldr, but we can only
+--   reason about this if we consider the same list.
+-- - How do we combine refinements that follow each other? Do we always consider
+--   each refinement separately or can we group them, e.g. using a sketch
+--   followed by pruning to create a slightly different sketch.
+--
