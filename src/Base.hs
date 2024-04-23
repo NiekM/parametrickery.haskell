@@ -25,7 +25,7 @@ module Base
 import GHC.TypeLits (Symbol)
 
 import Data.Kind (Type, Constraint)
-import Data.Function ((&))
+import Data.Function ((&), on)
 import Data.Functor ((<&>))
 import Data.Bifunctor (first, second)
   

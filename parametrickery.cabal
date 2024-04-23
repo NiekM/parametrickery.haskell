@@ -81,6 +81,7 @@ library
     , Data.SBV.Refine
     , Data.Map.Utils
     , Data.Map.Multi
+    , Deep
     , Pretty
     , Unsafe
     , Utils
