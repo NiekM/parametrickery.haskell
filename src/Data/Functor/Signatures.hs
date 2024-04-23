@@ -12,45 +12,110 @@ import Pretty
 
 ------ Signatures ------
 
+data Comparison x y where
+  Lesser  :: Comparison x y
+  Equal   :: (x ~ y) => Comparison x y
+  Greater :: Comparison x y
+
+lift :: Comparison x y -> Comparison (f x) (f y)
+lift = \case
+  Lesser  -> Lesser
+  Equal   -> Equal
+  Greater -> Greater
+
+lift2 :: Comparison x y -> Comparison z w -> Comparison (f x z) (f y w)
+lift2 a b = case (a, b) of
+  (Lesser , _      ) -> Lesser
+  (Equal  , Lesser ) -> Lesser
+  (Equal  , Equal  ) -> Equal
+  (Equal  , Greater) -> Greater
+  (Greater, _      ) -> Greater
+
+class Signature (sig :: k -> Type) where
+  match :: sig x -> sig y -> Comparison x y
+
+-- data Any s f where
+--   Any :: forall t s f. Exp (f t) => s t -> f t -> Any s f
+
+type Any' = Any1 ExpSig Const ()
+
+-- instance Signature s => Eq (Any s f) where
+--   Any s x == Any t y = case match s t of
+--     Equal -> x == y
+--     _     -> False
+
+-- instance Signature s => Ord (Any s c) where
+--   Any s x `compare` Any t y = case match s t of
+--     Equal   -> x `compare` y
+--     Lesser  -> LT
+--     Greater -> GT
+
+-- instance Signature s => Show (Any s c) where
+--   showsPrec p (Any _ x) r
+--     | p > 10 = "(Any " ++ showsPrec 11 x ")" ++ r
+--     | otherwise = "Any " ++ showsPrec 11 x r
+
+data Any1 s f a where
+  Any1 :: forall t s f a. Fun (f t) => s t -> f t a -> Any1 s f a
+
+instance (Signature s, Eq a) => Eq (Any1 s f a) where
+  (==) = liftEq (==)
+
+instance Signature s => Eq1 (Any1 s f) where
+  liftEq eq (Any1 s x) (Any1 t y) = case match s t of
+    Equal -> liftEq eq x y
+    _     -> False
+
+instance (Signature s, Ord a) => Ord (Any1 s f a) where
+  compare = liftCompare compare
+
+instance Signature s => Ord1 (Any1 s f) where
+  liftCompare cmp (Any1 s x) (Any1 t y) = case match s t of
+    Equal   -> liftCompare cmp x y
+    Lesser  -> LT
+    Greater -> GT
+
+instance (Show a, Signature s) => Show (Any1 s f a) where
+  showsPrec p x = liftShowsPrec showsPrec showList p x
+
+instance Signature s => Show1 (Any1 s f) where
+  liftShowsPrec sp sl p (Any1 _ x) r
+    | p > 10 = "(Any1 " ++ liftShowsPrec sp sl 11 x ")" ++ r
+    | otherwise = "Any1 " ++ liftShowsPrec sp sl 11 x r
+
+instance Functor (Any1 s f) where
+  fmap f (Any1 s x) = Any1 s (fmap f x)
+
+instance Foldable (Any1 s f) where
+  foldMap f (Any1 _ x) = foldMap f x
+
+instance Traversable (Any1 s f) where
+  traverse f (Any1 s x) = Any1 s <$> traverse f x
+
 ---- Expressions ----
 
 type Exp t = Each [Eq, Ord, Show] t
 
--- Expression signatures
 data ExpSig t where
   Nat :: ExpSig Natural
   Str :: ExpSig String
 
-data AnyExp where
-  AnyExp :: forall t. Each [Eq, Ord, Show] t => ExpSig t -> t -> AnyExp
+instance Signature ExpSig where
+  match :: ExpSig t -> ExpSig u -> Comparison t u
+  match Nat Nat = Equal
+  match Str Str = Equal
+  match Nat Str = Lesser
+  match Str Nat = Greater
 
-instance Eq AnyExp where
-  AnyExp s x == AnyExp t y = case (s, t) of
-    (Nat, Nat) -> x == y
-    (Str, Str) -> x == y
-    _ -> False
-
-instance Ord AnyExp where
-  AnyExp s x `compare` AnyExp t y = case (s, t) of
-    (Nat, Nat) -> x `compare` y
-    (Str, Str) -> x `compare` y
-    _ -> compare (ctrIndex s) (ctrIndex t)
-    where
-      ctrIndex :: ExpSig t -> Natural
-      ctrIndex = \case Nat -> 0; Str -> 1
-
-instance Show AnyExp where
-  show (AnyExp _ x) = show x
+-- type AnyExp = Any' ExpSig (Compose Identity)
 
 ---- Functors ----
 
-type Fun f =
-  Each [Functor, Foldable, Traversable, Eq1, Ord1, Show1, Pretty] f
+type Fun f = Container f
 
 type Container f =
   Each [Functor, Foldable, Traversable, Eq1, Ord1, Show1, Pretty] f
 
--- Functor signatures
 data FunSig f where
   I :: FunSig Identity
   K :: Exp t => ExpSig t -> FunSig (Const t)
@@ -58,66 +123,71 @@ data FunSig f where
   S :: (Fun f, Fun g) => FunSig f -> FunSig g -> FunSig (Sum f g)
   L :: Fun f => FunSig f -> FunSig (Compose [] f)
 
-data AnyFun a where
-  AnyFun :: forall f a. Container f => FunSig f -> f a -> AnyFun a
+instance Signature FunSig where
+  match :: FunSig f -> FunSig g -> Comparison f g
+  match s t = case (s, t) of
+    (I, I) -> Equal
+    (K k, K l)
+      | Equal <- match k l
+      -> Equal
+      | otherwise -> lift $ match k l
+    (P s1 s2, P t1 t2)
+      | Equal <- match s1 t1
+      , Equal <- match s2 t2
+      -> Equal
+      | otherwise -> lift2 (match s1 t1) (match s2 t2)
+    (S s1 s2, S t1 t2)
+      | Equal <- match s1 t1
+      , Equal <- match s2 t2
+      -> Equal
+      | otherwise -> lift2 (match s1 t1) (match s2 t2)
+    (L s1, L t1)
+      | Equal <- match s1 t1
+      -> Equal
+      | otherwise -> lift $ match s1 t1
+    (I , _) -> Lesser
+    (K _, I) -> Greater
+    (K _, _) -> Lesser
+    (P {}, I) -> Greater
+    (P {}, K _) -> Greater
+    (P {}, _) -> Lesser
+    (S {}, L _) -> Lesser
+    (S {}, _) -> Greater
+    (L _, _) -> Greater
 
-instance Functor AnyFun where
-  fmap f (AnyFun s x) = AnyFun s (fmap f x)
+  -- type Constraints =
+  --   [Functor, Foldable, Traversable, Eq1, Ord1, Show1, Pretty]
 
-instance Foldable AnyFun where
-  foldMap f (AnyFun _ x) = foldMap f x
+-- TODO: maybe some newtype other than Compose Identity?
+type AnyFun = Any1 FunSig (Compose Identity)
 
-instance Traversable AnyFun where
-  traverse f (AnyFun s x) = AnyFun s <$> traverse f x
-
-instance Eq a => Eq (AnyFun a) where
-  (==) = liftEq (==)
-
-instance Eq1 AnyFun where
-  liftEq eq (AnyFun s a) (AnyFun t b) = case (s, t, a, b) of
-    (I, I, x, y) -> liftEq eq x y
-    (K k, K l, Const x, Const y) -> AnyExp k x == AnyExp l y
-    (P s1 s2, P t1 t2, Pair x1 x2, Pair y1 y2)
-      -> liftEq eq (AnyFun s1 x1) (AnyFun t1 y1)
-      && liftEq eq (AnyFun s2 x2) (AnyFun t2 y2)
-    (S s1 _, S t1 _, InL x, InL y)
-      -> liftEq eq (AnyFun s1 x) (AnyFun t1 y)
-    (S _ s2, S _ t2, InR x, InR y)
-      -> liftEq eq (AnyFun s2 x) (AnyFun t2 y)
-    (L s1, L t1, Compose xs, Compose ys)
-      -> liftEq (\x y -> liftEq eq (AnyFun s1 x) (AnyFun t1 y)) xs ys
-    _ -> False
-
-instance Ord a => Ord (AnyFun a) where
-  compare = liftCompare compare
-
-instance Ord1 AnyFun where
-  liftCompare cmp (AnyFun s a) (AnyFun t b) = case (s, t, a, b) of
-    (I, I, x, y) -> liftCompare cmp x y
-    (K k, K l, Const x, Const y) -> AnyExp k x `compare` AnyExp l y
-    (P s1 s2, P t1 t2, Pair x1 x2, Pair y1 y2)
-      -> liftCompare cmp (AnyFun s1 x1) (AnyFun t1 y1)
-      <> liftCompare cmp (AnyFun s2 x2) (AnyFun t2 y2)
-    (S s1 _, S t1 _, InL x, InL y)
-      -> liftCompare cmp (AnyFun s1 x) (AnyFun t1 y)
-    (S _ s2, S _ t2, InR x, InR y)
-      -> liftCompare cmp (AnyFun s2 x) (AnyFun t2 y)
-    (L s1, L t1, Compose xs, Compose ys)
-      -> liftCompare (\x y -> liftCompare cmp (AnyFun s1 x) (AnyFun t1 y)) xs ys
-    _ -> ctrIndex s `compare` ctrIndex t
-    where
-      ctrIndex :: FunSig f -> Natural
-      ctrIndex = \case I -> 0; K{} -> 1; P{} -> 2; S{} -> 3; L{} -> 4
-
-instance Show a => Show (AnyFun a) where
-  show x = liftShowsPrec showsPrec showList 0 x ""
-
-instance Show1 AnyFun where
-  liftShowsPrec sp sl p (AnyFun _ x) =
-    liftShowsPrec sp sl p x
+pattern AnyFun :: () => Fun (Compose Identity t) => FunSig t -> t a -> AnyFun a
+pattern AnyFun s x = Any1 s (Compose (Identity x))
 
 instance Pretty AnyFun where
-  pretty p (AnyFun _ x) = pretty p x
+  pretty p (Any1 _ x) = pretty p x
+
+data CtxSig f where
+  N :: CtxSig (Const ())
+  E :: String -> FunSig f -> CtxSig g -> CtxSig (Product f g)
+
+instance Signature CtxSig where
+  match N N = Equal
+  match (E s x xs) (E t y ys) = case compare s t of
+    LT -> Lesser
+    EQ -> lift2 (match x y) (match xs ys)
+    GT -> Greater
+  match N _ = Lesser
+  match _ _ = Greater
+
+type Context = Any1 CtxSig (Compose Identity)
+
+pattern Context :: () => Fun (Compose Identity t) =>
+  CtxSig t -> t a -> Context a
+pattern Context s x = Any1 s (Compose (Identity x))
+
+-- instance Pretty Context where
+--   pretty _ ()
 
 newtype Ctx a = Ctx (Map String (AnyFun a))
 
@@ -172,9 +242,12 @@ example = Ctx $ Map.fromList
 -- >>> pretty 0 example ""
 -- "{e = Left \"Error\", x = 4, xs = [1,2,3]}"
 
+-- >>> show example
+-- "{e = Any1 (Compose (Identity (InL (Const \"Error\")))), x = Any1 (Compose (Identity (Identity 4))), xs = Any1 (Compose (Identity (Compose [Identity 1,Identity 2,Identity 3])))}"
+
 ex2 :: AnyFun Int
 ex2 = AnyFun (P (S (S I (K Str)) I) (L I))
-  $ Pair (InL (InR "Hello")) (Compose [1,2,3])
+  $ Pair (InL (InR "Hello")) (Compose [1, 2, 3])
 
 -- >>> pretty 0 ex2 ""
 -- "(Left (Right \"Hello\"),[1,2,3])"
