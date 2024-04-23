@@ -2,13 +2,17 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Constraint
-  ( All, Each
+  ( Dict(..)
+  , All, Each
   , type (**), type (|-)
   , HasType
   , Trivial
   ) where
 
 import Data.Kind
+
+data Dict :: Constraint -> Type where
+  Dict :: c => Dict c
 
 class    Trivial t
 instance Trivial t
