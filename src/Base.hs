@@ -19,6 +19,7 @@ module Base
   , module Data.Maybe
   , module Data.List
   , module Data.List.NonEmpty
+  , module Control.Monad
   ) where
 
 import GHC.TypeLits (Symbol)
@@ -47,3 +48,5 @@ import Data.Set (Set)
 import Data.Maybe (fromMaybe)
 import Data.List (transpose)
 import Data.List.NonEmpty (NonEmpty(..))
+
+import Control.Monad (join, (>=>))
