@@ -1,2 +1,0 @@
-import Data.SBV as SBV
-import Data.SBV (sat)

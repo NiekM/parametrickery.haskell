@@ -59,30 +59,14 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
-      Data.Container
-    , Data.Mono
-    , Data.SBV.Depend
-    , Pipeline
-    , PaperBench
+      Deep
 
   -- Modules included in this library but not exported.
   other-modules:
       Base
     , Constraint
-    , Data.Container.Core
-    , Data.Container.Foldable
-    , Data.Container.Properties
-    , Data.Container.Specialized
-    , Data.Dup
-    , Data.Functor.Context
-    , Data.Functor.Signatures
-    , Data.SBV.Container
-    , Data.SBV.Encode
-    , Data.SBV.Refine
     , Data.Map.Utils
     , Data.Map.Multi
-    , Deep
-    , Pretty
     , Unsafe
     , Utils
 
@@ -95,7 +79,6 @@ library
     , DerivingVia
     , LambdaCase
     , PatternSynonyms
-    , TypeAbstractions
     , TypeFamilies
     , ViewPatterns
 
@@ -104,8 +87,6 @@ library
       base ^>=4.19.0.0
     , containers
     , mtl
-    , sbv
-    , type-level-sets
 
   -- Directories containing source files.
   hs-source-dirs:   src
@@ -129,7 +110,6 @@ executable parametrickery
   -- Other library packages from which modules are imported.
   build-depends:
     base ^>=4.19.0.0,
-    sbv,
     parametrickery
 
   -- Directories containing source files.
@@ -163,7 +143,6 @@ test-suite parametrickery-test
   -- Test dependencies.
   build-depends:
     base ^>=4.19.0.0,
-    sbv,
     hspec,
     containers,
     QuickCheck,

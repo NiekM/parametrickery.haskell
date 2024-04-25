@@ -115,6 +115,8 @@ extend = \cases
 -- TODO: how would we tell the difference between ordered vs unordered lists of
 -- equivalence classes? Wouldn't they have the same effect? I guess the
 -- difference would be a set of sets vs a list of sets.
+-- NOTE: a nice thing about equivalence classes is not just the vizualization,
+-- but also that it is much easier to take a subset of the relation.
 data Rel
   = RNone
   | REq  (Map (Nat, Nat) Bool)
