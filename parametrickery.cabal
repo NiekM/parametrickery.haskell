@@ -60,6 +60,9 @@ library
   -- Modules exported by the library.
   exposed-modules:
       Deep
+    , Language.Type
+    , Language.Expr
+    , Language.Container
 
   -- Modules included in this library but not exported.
   other-modules:
@@ -67,6 +70,7 @@ library
     , Constraint
     , Data.Map.Utils
     , Data.Map.Multi
+    , Prettyprinter.Utils
     , Unsafe
     , Utils
 
@@ -78,6 +82,7 @@ library
     , DerivingStrategies
     , DerivingVia
     , LambdaCase
+    , OverloadedStrings
     , PatternSynonyms
     , TypeFamilies
     , ViewPatterns
@@ -87,6 +92,8 @@ library
       base ^>=4.19.0.0
     , containers
     , mtl
+    , prettyprinter
+    , text
 
   -- Directories containing source files.
   hs-source-dirs:   src
