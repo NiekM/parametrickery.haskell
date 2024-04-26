@@ -28,7 +28,8 @@ data Problem = Problem
 
 -- This is simply a compact representation of a set of input-output examples for
 -- a container morphism.
-type Morph = Map (Map Text Relation, Expr) (Expr, Map Text Origins)
+type Morph =
+  Map (Map Text Relation, [Expr Position]) (Expr Position, Map Text Origins)
 
 combine :: [MorphExample] -> Either Conflict [MorphExample]
 combine = fmap (map fromMorph . Map.assocs) . merge . map toMorph
@@ -138,11 +139,9 @@ prettyProblem fun (Problem sig exs) = statements (header : examples)
 
 ------
 
-class    ToExpr a    where toVal :: a -> Expr
+class    ToExpr a    where toVal :: a -> Expr h
 instance ToExpr Int  where toVal = Lit . MkInt
 instance ToExpr Bool where toVal = Lit . MkBool
-instance ToExpr Nat  where toVal = Lit . MkNat
-instance ToExpr Text where toVal = Lit . MkText
 instance ToExpr ()   where toVal = const Unit
 
 instance ToExpr a => ToExpr [a] where
@@ -163,13 +162,13 @@ sg = Signature [("a", Eq)] [("x", Free "a"), ("xs", List (Free "a"))]
 -- TODO: change ex to something that makes sense.
 -- TODO: in general, give some better working examples here.
 ex :: Example
-ex = Example [toVal @Nat 3, toVal @[Nat] [2, 4]] (toVal @[Nat] [2, 2])
+ex = Example [toVal @Int 3, toVal @[Int] [2, 4]] (toVal @[Int] [2, 2])
 
 -- >>> printSignature sg
 -- "(Eq a) => {x : a, xs : [a]} -> [a]"
 
--- >>> extendExample sg ex
--- MorphExample {relations = fromList [("a",RelEq (fromList [fromList [Position {var = "a", pos = 0}],fromList [Position {var = "a", pos = 1}],fromList [Position {var = "a", pos = 2}]]))], shapeIn = MkList [Lit (MkText "Position {var = \"a\", pos = 0}"),Lit (MkText "Position {var = \"a\", pos = 1}")], shapeOut = Pair (Lit (MkText "Position {var = \"a\", pos = 0}")) (Pair (MkList [Lit (MkText "Position {var = \"a\", pos = 1}"),Lit (MkText "Position {var = \"a\", pos = 2}")]) Unit), origins = fromList [("a",fromList [(Position {var = "a", pos = 0},fromList [Position {var = "a", pos = 1}]),(Position {var = "a", pos = 1},fromList [Position {var = "a", pos = 1}])])]}
+-- >>> pretty $ extendExample sg ex
+-- [a0, a1] | {a0} /= {a1} /= {a2} -> {a1} , [{a1}, {}] , -
 
 prb :: Problem
 prb = Problem
@@ -184,7 +183,7 @@ prb = Problem
     , Example [v2, v2, v1] v2
     ]
   } where
-    v1 = toVal @Nat 1; v2 = toVal @Nat 2
+    v1 = toVal @Int 1; v2 = toVal @Int 2
 
 -- >>> prettyProblem "test" prb
 -- test : (None a) => {x : a, y : a, z : a} -> a
@@ -203,7 +202,7 @@ pairExample = Problem
     , goal = Tup (Free "a") (Free "b")
     }
   , exs =
-    [ Example [toVal @Nat 1, toVal True ] $ toVal @(Nat, Bool) (1,  True)
+    [ Example [toVal @Int 1, toVal True ] $ toVal @(Int, Bool) (1,  True)
     , Example [toVal False, toVal @Int 3] $ toVal @(Bool, Int) (False, 3)
     ]
   }
@@ -227,7 +226,7 @@ sg1 :: Signature
 sg1 = Signature [("a", Ord)] [("xs", List (Free "a"))] (List (Free "a"))
 
 ex1 :: Example
-ex1 = Example [toVal @[Nat] [1,2,4,1,2,3,4,5,1,2]] (toVal @[Nat] [1,2,3,4,5])
+ex1 = Example [toVal @[Int] [1,2,4,1,2,3,4,5,1,2]] (toVal @[Int] [1,2,3,4,5])
 
 -- >>> let (m, _, _) = extendEx sg1 ex1 in pretty $ Map.lookup "a" m
 -- {a0 = a3 = a8} <= {a1 = a4 = a9} <= {a5} <= {a2 = a6} <= {a7}
