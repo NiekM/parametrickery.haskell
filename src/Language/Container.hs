@@ -13,6 +13,7 @@ import Language.Expr
 data Position = Position { var :: Text, pos :: Nat }
   deriving stock (Eq, Ord, Show)
 
+-- TODO: maybe try to rework this to use IntMap, as it is much more efficient.
 data Container = Container
   { shape     :: Expr Position
   , positions :: Map Text (Map Position (Expr Void))

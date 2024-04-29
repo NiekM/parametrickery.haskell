@@ -39,7 +39,6 @@ instance Pretty Base where
 instance Pretty Class where
   pretty = viaShow
 
--- TODO: should we create a class PrettyPrec?
 instance Pretty Mono where
   pretty = prettyMono 0
 

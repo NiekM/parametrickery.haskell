@@ -34,7 +34,7 @@ import Data.Text (Text)
 
 import Data.Map (Map)
 import Data.Set (Set)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.List (transpose)
 import Data.List.NonEmpty (NonEmpty(..))
 

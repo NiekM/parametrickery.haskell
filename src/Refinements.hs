@@ -14,7 +14,6 @@ import Language.Problem
 -- want. In our case, consistency means that there is a partial function that
 -- would make the program complete.
 
-
 -- TODO: what if the refinement returns two problems (i.e. introducing multiple
 -- holes)
 -- TODO: what if a refinement can be applied in multiple ways?
@@ -35,17 +34,14 @@ type Refinement = Problem -> [[Problem]]
 introElimPair :: Refinement
 introElimPair (Problem (sig@Signature { goal }) exs) = case goal of
   Tup t u -> return
-    [ Problem sig { goal = t } $ exs <&> \(Example ins out) ->
-      Example ins (getFst out)
-    , Problem sig { goal = u } $ exs <&> \(Example ins out) ->
-      Example ins (getSnd out)
+    [ Problem sig { goal = t } $ exs <&> \case
+      Example ins (Pair a _) -> Example ins a
+      _ -> error "Type mismatch"
+    , Problem sig { goal = u } $ exs <&> \case
+      Example ins (Pair _ b) -> Example ins b
+      _ -> error "Type mismatch"
     ]
   _ -> []
-  where
-    getFst (Pair a _) = a
-    getFst _ = error "Type mismatch"
-    getSnd (Pair _ b) = b
-    getSnd _ = error "Type mismatch"
 
 -- Randomly removes one variable from the context. How do we show the lattice
 -- structure here?
@@ -54,13 +50,10 @@ introElimPair (Problem (sig@Signature { goal }) exs) = case goal of
 -- better would be to annotate variables in the context as being mandatory?
 -- Still, it might be necessary to perform all possible shrinkings at once?
 shrinkContext :: Refinement
-shrinkContext (Problem sig@Signature { ctxt } exs) =
-  [0 .. length ctxt - 1] <&> \n ->
-  return $ Problem sig { ctxt = delete n ctxt } $ exs <&>
-    \(Example ins out) -> Example (delete n ins) out
-  where
-    delete :: Int -> [a] -> [a]
-    delete n xs = take n xs ++ drop (n + 1) xs
+shrinkContext p = pickApart p <&> \(_, _, _, q) -> [q]
 
--- introFoldr :: Problem -> [Problem]
--- introFoldr (Problem sig exs) = _
+-- introAnyFoldr :: Refinement
+-- introAnyFoldr (Problem  exs) = _
+
+-- introFoldr :: [Expr h] -> Refinement
+-- introFoldr xs (Problem sig exs) = _

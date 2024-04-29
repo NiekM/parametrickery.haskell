@@ -28,3 +28,24 @@ prettyProblem fun (Problem sig exs) = statements (header : examples)
     header = sep [pretty fun, ":", pretty sig]
     examples = exs <&> \(Example ins out) -> sep
       (pretty fun : map (prettyExpr 3) ins ++ ["=", pretty out])
+
+-- Lifts the nth argument out of a problem.
+liftArg :: Nat -> Problem -> Maybe (Text, Mono, [Expr Void], Problem)
+liftArg n (Problem sig@Signature { ctxt } exs)
+  | n >= fromIntegral (length ctxt) = Nothing
+  | otherwise = Just (name, mono, exprs, Problem sig { ctxt = ctxt' } exs')
+  where
+    ((name, mono), ctxt') = pick n ctxt
+    (exprs, exs') = unzip $ pickEx <$> exs
+
+    pickEx (Example (pick n -> (i, ins)) out) = (i, Example ins out)
+
+    pick :: Nat -> [a] -> (a, [a])
+    pick i xs = case splitAt (fromIntegral i) xs of
+      (ys, z:zs) -> (z, ys ++ zs)
+      _ -> error "Error"
+
+-- All possible ways to lift one argument from a problem.
+pickApart :: Problem -> [(Text, Mono, [Expr Void], Problem)]
+pickApart p@(Problem Signature { ctxt } _) =
+  zipWith const [0 ..] ctxt & mapMaybe \n -> liftArg n p
