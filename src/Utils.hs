@@ -2,6 +2,7 @@ module Utils
   ( allSame
   , nonEmpty
   , partitionWith
+  , maybeToEither
   ) where
 
 import Base
@@ -20,3 +21,6 @@ partitionWith :: (a -> Either b c) -> [a] -> ([b], [c])
 partitionWith f = ([], []) & foldr \x -> case f x of
   Left  a -> first  (a:)
   Right b -> second (b:)
+
+maybeToEither :: e -> Maybe a -> Either e a
+maybeToEither e = maybe (Left e) Right

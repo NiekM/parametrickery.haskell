@@ -59,10 +59,12 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
-      Deep
-    , Language.Type
+      Language.Type
     , Language.Expr
     , Language.Container
+    , Language.Container.Morphism
+    , Language.Problem
+    , Refinements
 
   -- Modules included in this library but not exported.
   other-modules:
@@ -73,6 +75,7 @@ library
     , Prettyprinter.Utils
     , Unsafe
     , Utils
+    , Test
 
   -- LANGUAGE extensions used by modules in this package.
   default-extensions:

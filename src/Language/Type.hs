@@ -53,11 +53,17 @@ prettyMono p = \case
   Base b -> pretty b
 
 instance Pretty Signature where
-  pretty (Signature vars ctxt goal) = sep
-    [ tupled $ vars <&> \(x, c) -> pretty c <+> pretty x
-    , "=>"
-    , encloseSep lbrace rbrace ", "
-      $ ctxt <&> \(x, t) -> pretty x <+> ":" <+> pretty t
-    , "->"
+  pretty (Signature vars ctxt goal) = cat
+    [ quantify (fst <$> vars)
+    , constraints (filter ((/= None) . snd) vars)
+    , arguments ctxt
     , pretty goal
-    ]
+    ] where
+      quantify [] = ""
+      quantify xs = sep ("forall" : map pretty xs) <> ". "
+      constraints [] = ""
+      constraints xs =
+        tupled (xs <&> \(x, c) -> pretty c <+> pretty x) <+> "=> "
+      arguments [] = ""
+      arguments xs = encloseSep lbrace rbrace ", "
+        (xs <&> \(x, t) -> pretty x <+> ":" <+> pretty t) <+> "-> "

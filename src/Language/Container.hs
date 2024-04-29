@@ -6,8 +6,6 @@ import Data.Set qualified as Set
 import Control.Monad.State
 
 import Base
-import Data.Map.Multi (Multi)
-import Data.Map.Multi qualified as Multi
 
 import Language.Type
 import Language.Expr
@@ -75,39 +73,6 @@ computeRelation c ps = case c of
       . List.sortOn snd
       $ Map.assocs ps
 
-type Origins = Multi Position Position
-
-computeOrigins :: Ord a => Map Position a -> Map Position a -> Origins
-computeOrigins p q = Multi.remapping (Multi.fromMap q) (Multi.fromMap p)
-
--- An input output example for container morphisms.
-data MorphExample = MorphExample
-  { relations :: Map Text Relation
-  , shapeIns  :: [Expr Position]
-  , shapeOut  :: Expr Position
-  , origins   :: Map Text Origins
-  } deriving stock (Eq, Ord, Show)
-
--- It seems that we only need to compute the relation for the inputs, since the
--- output values are a subset (and if they are not, this is already a conflict).
-extendExample :: Signature -> Example -> MorphExample
-extendExample (Signature vars ctxt goal) (Example ins out) = MorphExample
-  { relations = Map.intersectionWith computeRelation (Map.fromList vars) p
-  , shapeIns  = untuple (length ins) s
-  , shapeOut  = t
-  , origins   = Map.intersectionWith computeOrigins p q
-  }
-  where
-    have = foldr Tup Top $ map snd ctxt
-    inp  = foldr Pair Unit ins
-    Container s p = toContainer (fst <$> vars) have inp
-    Container t q = toContainer (fst <$> vars) goal out
-
-    untuple :: Int -> Expr h -> [Expr h]
-    untuple 0 Unit = []
-    untuple n (Pair x y) = x : untuple (n - 1) y
-    untuple _ _ = error "Something went wrong with untupling."
-
 ------ Pretty ------
 
 instance Pretty Position where
@@ -130,23 +95,3 @@ instance Pretty Relation where
     RelNone -> "{}"
     RelEq  eq  -> encloseSep mempty mempty " /= " . fmap eqClass $ Set.toList eq
     RelOrd ord -> encloseSep mempty mempty " <= " $ fmap eqClass ord
-
-newtype PrettySet a = PrettySet { unPrettySet :: Set a }
-  deriving newtype (Eq, Ord, Show)
-
-instance Pretty a => Pretty (PrettySet a) where
-  pretty = encloseSep lbrace rbrace ", "
-    . map pretty
-    . Set.toList
-    . unPrettySet
-
-instance Pretty MorphExample where
-  pretty (MorphExample r s t o) =
-    barred (inputs : relations) <+> "->" <+> pretty t'
-    where
-      t' = t & mapHole \p@(Position v _) -> case Map.lookup v o of
-        Nothing -> error "Missing key"
-        Just m -> PrettySet $ Multi.lookup p m
-      inputs = sep (map (prettyExpr 3) s)
-      relations = map pretty $ Map.elems r
-      barred = encloseSep mempty mempty " | "
