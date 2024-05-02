@@ -64,6 +64,23 @@ introPair (Problem (sig@Signature { goal }) exs) = case goal of
 shrinkContext :: Refinement
 shrinkContext p = pickApart p <&> \(_, _, _, q) -> [q]
 
+elimList :: Refinement
+elimList p = pickApart p & mapMaybe
+  \(v, t, es, Problem s@(Signature { ctxt }) xs) -> case t of
+    List u ->
+      let
+        (nil, cons) = zip es xs & mapEither \case
+          (Lst [], ex) -> Left ex
+          (Lst (y:ys), Example ins out) ->
+            Right $ Example (y : Lst ys : ins) out
+          _ -> error "Expected a list!"
+      in Just
+        [ Problem s nil
+        -- TODO: generate fresh variables
+        , Problem s { ctxt = (v <> "_h", u) : (v <> "_t", List u) : ctxt } cons
+        ]
+    _ -> Nothing
+
 -- introAnyFoldr :: Refinement
 -- introAnyFoldr (Problem  exs) = _
 
