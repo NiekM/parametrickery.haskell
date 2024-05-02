@@ -18,10 +18,11 @@ data Mono where
   Base :: Base -> Mono
   deriving stock (Eq, Ord, Show)
 
-data Base = Int | Nat | Bool | Text
+-- Base types
+data Base = Int | Bool
   deriving stock (Eq, Ord, Show)
 
--- Type classes.
+-- Type classes
 data Class = None | Eq | Ord
   deriving stock (Eq, Ord, Show)
 
@@ -44,22 +45,22 @@ instance Pretty Mono where
 
 prettyMono :: Int -> Mono -> Doc ann
 prettyMono p = \case
-  Free v -> pretty v
-  Top -> "1"
+  Free v  -> pretty v
+  Top     -> "1"
   Tup t u -> parensIf 2 p (prettyMono 3 t <+> "*" <+> prettyMono 2 u)
   Sum t u -> parensIf 1 p (prettyMono 2 t <+> "+" <+> prettyMono 1 u)
-  List t -> brackets $ pretty t
-  Base b -> pretty b
+  List t  -> brackets $ pretty t
+  Base b  -> pretty b
 
 instance Pretty Signature where
   pretty (Signature vars ctxt goal) = cat
-    [ quantify (fst <$> vars)
+    [ quantifiers (fst <$> vars)
     , constraints (filter ((/= None) . snd) vars)
     , arguments ctxt
     , pretty goal
     ] where
-      quantify [] = ""
-      quantify xs = sep ("forall" : map pretty xs) <> ". "
+      quantifiers [] = ""
+      quantifiers xs = sep ("forall" : map pretty xs) <> ". "
       constraints [] = ""
       constraints xs =
         tupled (xs <&> \(x, c) -> pretty c <+> pretty x) <+> "=> "

@@ -3,6 +3,7 @@ module Utils
   , nonEmpty
   , partitionWith
   , maybeToEither
+  , mapEither
   ) where
 
 import Base
@@ -24,3 +25,6 @@ partitionWith f = ([], []) & foldr \x -> case f x of
 
 maybeToEither :: e -> Maybe a -> Either e a
 maybeToEither e = maybe (Left e) Right
+
+mapEither :: (a -> Either b c) -> [a] -> ([b], [c])
+mapEither f = partitionEithers . fmap f

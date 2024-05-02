@@ -87,7 +87,7 @@ instance Pretty MorphExample where
   pretty (MorphExample r s t o) =
     barred (inputs : relations) <+> "->" <+> pretty t'
     where
-      t' = t & mapHole \p@(Position v _) -> case Map.lookup v o of
+      t' = t <&> \p@(Position v _) -> case Map.lookup v o of
         Nothing -> error "Missing key"
         Just m -> PrettySet $ Multi.lookup p m
       inputs = sep (map (prettyExpr 3) s)

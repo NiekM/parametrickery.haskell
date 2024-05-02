@@ -46,10 +46,10 @@ toContainer as ty e = evalState (extend ty e) st
       (Sum _ u) (Inr y) -> do
         Container s p <- extend u y
         return $ Container (Inr s) p
-      (List t) (MkList xs) -> do
+      (List t) (Lst xs) -> do
         r <- forM xs $ extend t
         let (ss, ps) = unzip [ (s, p) | Container s p <- r]
-        return $ Container (MkList ss) $ Map.unionsWith Map.union ps
+        return $ Container (Lst ss) $ Map.unionsWith Map.union ps
       (Base _) (Lit x) -> return $ Container (Lit x) mempty
       t x -> error . show $
         "Mismatching types!" <+> pretty x <+> ":/:" <+> pretty t

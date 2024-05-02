@@ -24,7 +24,7 @@ instance ToExpr Bool where toVal = Lit . MkBool
 instance ToExpr ()   where toVal = const Unit
 
 instance ToExpr a => ToExpr [a] where
-  toVal = MkList . map toVal
+  toVal = Lst . map toVal
 
 instance (ToExpr a, ToExpr b) => ToExpr (a, b) where
   toVal = uncurry Pair . bimap toVal toVal
@@ -105,7 +105,7 @@ pairExample = Problem
 -- Right [a0 b0 -> {a0} , {b0}]
 
 introPairExample :: [[Problem]]
-introPairExample = introElimPair pairExample
+introPairExample = introPair pairExample
 
 -- >>> pretty introPairExample
 -- [ [ _ : forall a b. {x : a, y : b} -> a

@@ -69,7 +69,6 @@ library
   -- Modules included in this library but not exported.
   other-modules:
       Base
-    , Constraint
     , Data.Map.Utils
     , Data.Map.Multi
     , Prettyprinter.Utils

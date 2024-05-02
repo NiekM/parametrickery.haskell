@@ -5,34 +5,46 @@ import Language.Type
 import Language.Expr
 import Language.Problem
 
+import Utils
+
 ------ Refinements ------
 
 -- TODO: how are refinements already used in synthesizers? Splitting up the search space is already often done in synthesizers, but not often is realizability used to rule out some options.
 
--- NOTE: perhaps a refinement is a choice made about a program that is
--- consistent with the specification, where "consistency" can be whatever we
--- want. In our case, consistency means that there is a partial function that
--- would make the program complete.
+{-
 
--- TODO: what if the refinement returns two problems (i.e. introducing multiple
--- holes)
--- TODO: what if a refinement can be applied in multiple ways?
--- TODO: maybe it should return [[Problem]], a sum of products.
--- TODO: even better, have it return some "lattice" of problems, somehow showing
--- the relations between all of them.
--- TODO: additionally, refinements might return
--- - missing/lifted examples (e.g. due to trace incompleteness)
--- - some usefulness measure (e.g. trace incompleteness might discourage
---   introducing foldr). Can we always statically determine the usefulness, or
---   should we first perform a realizability check?
--- - some information about how this refinement relates to/influences other
---   refinements
--- - a concrete sketch/some way to recover the final program from a series of
---   refinements
+What exactly do we expect from a refinement?
+
+- It is a choice/assumption made about a program that is consistent with the
+  specification, where "consistency" in our case means that there exists a
+  (partial) function that would complete the program.
+- Refinements can be applied in multiple ways.
+- Refinements can introduce multiple new problems.
+- Refinements can have some relation to other refinements (perhaps a lattice
+  structure should be inherent to the refinements?).
+- Should they take into account missing examples (e.g. due to trace
+  completeness?)
+- some usefulness measure (e.g. trace incompleteness might discourage
+  introducing foldr). Can we always statically determine the usefulness, or
+  should we first perform a realizability check?
+- some information about how this refinement relates to/influences other
+  refinements
+- a concrete sketch/some way to recover the final program from a series of
+  refinements
+- Should refinements be able to introduce new (fresh) variables?
+
+-}
+
+
 type Refinement = Problem -> [[Problem]]
 
-introElimPair :: Refinement
-introElimPair (Problem (sig@Signature { goal }) exs) = case goal of
+-- NOTE: this is mostly a test refinement. I don't know how precise we have to
+-- get with the refinements. It could be interesting to keep refining until a
+-- program is solved, but more realistic is to perform a refinement, then first
+-- use a realizability technique as well as some usefulness measure to decide
+-- whether to continue refining or call an external synthesizer.
+introPair :: Refinement
+introPair (Problem (sig@Signature { goal }) exs) = case goal of
   Tup t u -> return
     [ Problem sig { goal = t } $ exs <&> \case
       Example ins (Pair a _) -> Example ins a
