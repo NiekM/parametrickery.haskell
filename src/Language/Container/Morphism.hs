@@ -29,18 +29,23 @@ data MorphExample = MorphExample
 
 -- It seems that we only need to compute the relation for the inputs, since the
 -- output values are a subset (and if they are not, this is already a conflict).
-extendExample :: Signature -> Example -> MorphExample
-extendExample (Signature vars ctxt goal) (Example ins out) = MorphExample
-  { relations = Map.intersectionWith computeRelation (Map.fromList vars) p
-  , shapeIns  = untuple (length ins) s
-  , shapeOut  = t
-  , origins   = Map.intersectionWith computeOrigins p q
-  }
+checkExample :: Signature -> Example -> Either Conflict MorphExample
+checkExample (Signature vars ctxt goal) (Example ins out)
+  | conflict  = Left PositionConflict
+  | otherwise = Right $ MorphExample
+    { relations = Map.intersectionWith computeRelation (Map.fromList vars) p
+    , shapeIns  = untuple (length ins) s
+    , shapeOut  = t
+    , origins   = origins
+    }
   where
     have = foldr Tup Top $ map snd ctxt
     inp  = foldr Pair Unit ins
     Container s p = toContainer (fst <$> vars) have inp
     Container t q = toContainer (fst <$> vars) goal out
+    origins = Map.intersectionWith computeOrigins p q
+
+    conflict = any (isNothing . Multi.consistent) origins
 
     untuple :: Int -> Expr h -> [Expr h]
     untuple 0 Unit = []

@@ -17,7 +17,9 @@ data Problem = Problem
 -- e.g. `{x : a} -> b` is not realizable.
 -- TODO: check that this actually works as expected for multiple type variables.
 check :: Problem -> Either Conflict [MorphExample]
-check (Problem sig exs) = combine $ map (extendExample sig) exs
+check (Problem sig exs) = do
+  xs <- mapM (checkExample sig) exs
+  combine xs
 
 instance Pretty Problem where
   pretty = prettyProblem "_"

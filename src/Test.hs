@@ -46,7 +46,7 @@ ex = Example [toVal @Int 3, toVal @[Int] [2, 4]] (toVal @[Int] [2, 2])
 -- >>> pretty sg
 -- forall a. (Eq a) => {x : a, xs : [a]} -> [a]
 
--- >>> pretty $ extendExample sg ex
+-- >>> either pretty pretty $ checkExample sg ex
 -- a0 [a1, a2] | {a0} /= {a1} /= {a2} -> [{a1}, {a1}]
 
 prb :: Problem
