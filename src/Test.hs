@@ -102,7 +102,7 @@ pairExample = Problem
 -- _ False 3 = False , 3
 
 -- >>> pretty <$> check pairExample
--- Right [a0 b0 -> {a0} , {b0}]
+-- Right [a0 b0 -> ({a0}, {b0})]
 
 introPairExample :: [[Problem]]
 introPairExample = introPair pairExample

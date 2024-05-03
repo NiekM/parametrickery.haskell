@@ -72,7 +72,7 @@ instance Pretty h => Pretty (Expr h) where
 prettyExpr :: Pretty h => Int -> Expr h -> Doc ann
 prettyExpr p = \case
   Unit     -> "-"
-  Pair x y -> parensIf 2 p (prettyExpr 2 x <+> "," <+> prettyExpr 2 y)
+  Pair x y -> parens (prettyExpr 2 x <> "," <+> prettyExpr 2 y)
   Inl x    -> parensIf 2 p ("inl" <+> prettyExpr 3 x)
   Inr y    -> parensIf 2 p ("inr" <+> prettyExpr 3 y)
   Lst xs   -> list $ map (prettyExpr 0) xs

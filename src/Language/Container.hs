@@ -20,8 +20,12 @@ data Container = Container
   } deriving stock (Eq, Ord, Show)
 
 toContainer :: [Text] -> Mono -> Expr Void -> Container
-toContainer as ty e = evalState (extend ty e) st
+toContainer as ty e = Container shape pos'
   where
+    Container shape pos = evalState (extend ty e) st
+    -- Ensure that each type variable is represented.
+    pos' = Map.unionWith Map.union (Map.fromList (as <&> (,mempty))) pos
+
     st :: Map Text Nat
     st = Map.fromList $ as <&> \v -> (v, 0)
 
