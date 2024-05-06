@@ -1,9 +1,12 @@
 module Refinements where
 
+import Data.List qualified as List
+
 import Base
 import Language.Type
 import Language.Expr
 import Language.Problem
+import Language.Container.Morphism
 
 import Utils
 
@@ -33,8 +36,11 @@ What exactly do we expect from a refinement?
   refinements
 - Should refinements be able to introduce new (fresh) variables?
 
--}
+- (!!) Refinements are like tactics! look into papers about how tactics work/are
+  implemented, especially the recent paper about tactics in Haskell. Do tactics also have a lattice-like structure etc?
+  See e.g. https://github.com/TOTBWF/refinery
 
+-}
 
 type Refinement = Problem -> [[Problem]]
 
@@ -81,8 +87,70 @@ elimList p = pickApart p & mapMaybe
         ]
     _ -> Nothing
 
--- introAnyFoldr :: Refinement
--- introAnyFoldr (Problem  exs) = _
+-- TODO: make this work for shape complete example sets!
+-- Currently it only works for exactly trace complete sets...
+-- The only solution seems to be to have refinements work on container problems
+-- In other words, we should translate to container functors first
+introFoldr :: Refinement
+introFoldr p = pickApart p & mapMaybe
+  \(v, t, es, Problem s@(Signature { ctxt, goal }) xs) -> case t of
+    List u ->
+      let
+        paired = zip es xs
+        (nil, cons) = paired & mapEither \case
+          (Lst [], ex) -> Left ex
+          (Lst (y:ys), Example ins out) ->
+            case List.lookup (Lst ys) paired of
+            -- TODO: perhaps we can compute the morphisms of the examples and
+            -- use those to figure out the right monomorphic recursive call.
+            -- This is quite clever, we can use the polymorphic type to
+            -- transform our monomorphic examples as we please to equivalent
+            -- monomorphic examples.
+            -- Perhaps we just check if the shape and relation occur and then
+            -- fill in the positions as required.
+            -- IDEA!: we should write a function that tries to apply a partial
+            -- container morphism to an expression, returning the transformed
+            -- expression if the input and relation matches.
+            Just (Example i o) | i == ins -> do
+              Right $ Example (y : o : ins) out
+            _ -> error "Trace incomplete!"
+          _ -> error "Expected a list!"
+      in Just
+        [ Problem s nil
+        -- TODO: generate fresh variables
+        , Problem s { ctxt = (v <> "_h", u) : (v <> "_r", goal) : ctxt } cons
+        ]
+    _ -> Nothing
 
--- introFoldr :: [Expr h] -> Refinement
--- introFoldr xs (Problem sig exs) = _
+-- TODO: make this work for shape complete example sets!
+-- Currently it only works for exactly trace complete sets...
+-- The only solution seems to be to have refinements work on container problems
+-- In other words, we should translate to container functors first
+introFoldrPoly :: Refinement
+introFoldrPoly p = case check p of
+  Left conflict -> error . show $ pretty conflict
+  Right examples -> pickApart p & mapMaybe
+    \(v, t, es, Problem s@(Signature { ctxt, goal }) xs) -> case t of
+      List u ->
+        let
+          paired = zip es xs
+          (nil, cons) = paired & mapEither \case
+            (Lst [], ex) -> Left ex
+            (Lst (y:ys), Example ins out) ->
+              -- TODO: how to do this???????
+              case applyMorph s examples (Lst ys : ins) of
+                Just e -> Right $ Example (y : e : ins) out
+                Nothing -> error "Shape incomplete!"
+            _ -> error "Expected a list!"
+        in Just
+          [ Problem s nil
+          -- TODO: generate fresh variables
+          , Problem s { ctxt = (v <> "_h", u) : (v <> "_r", goal) : ctxt } cons
+          ]
+      _ -> Nothing
+
+-- NOTE: this is not that easy, recomputing positions becomes quite tricky
+-- during refinements. We might require to have positions be not just indices,
+-- but some kind of projections.
+-- morphIntroFoldr :: MorphProblem -> [[MorphProblem]]
+-- morphIntroFoldr p = _

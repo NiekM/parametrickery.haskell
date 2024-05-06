@@ -1,8 +1,11 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+
 module Language.Container.Morphism where
 
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.List qualified as List
 
 import Base
 import Data.Map.Multi (Multi)
@@ -33,24 +36,16 @@ checkExample :: Signature -> Example -> Either Conflict MorphExample
 checkExample (Signature vars ctxt goal) (Example ins out)
   | conflict  = Left PositionConflict
   | otherwise = Right $ MorphExample
-    { relations = Map.intersectionWith computeRelation (Map.fromList vars) p
-    , shapeIns  = untuple (length ins) s
+    { relations = rs
+    , shapeIns  = ss
     , shapeOut  = t
-    , origins   = origins
+    , origins   = os
     }
   where
-    have = foldr Tup Top $ map snd ctxt
-    inp  = foldr Pair Unit ins
-    Container s p = toContainer (fst <$> vars) have inp
+    RelContainer ss rs p = toRelContainer vars (snd <$> ctxt) ins
     Container t q = toContainer (fst <$> vars) goal out
-    origins = Map.intersectionWith computeOrigins p q
-
-    conflict = any (isNothing . Multi.consistent) origins
-
-    untuple :: Int -> Expr h -> [Expr h]
-    untuple 0 Unit = []
-    untuple n (Pair x y) = x : untuple (n - 1) y
-    untuple _ _ = error "Something went wrong with untupling."
+    os = Map.intersectionWith computeOrigins p q
+    conflict = any (isNothing . Multi.consistent) os
 
 -- This is simply a compact representation of a set of input-output examples for
 -- a container morphism.
@@ -72,6 +67,20 @@ combine = fmap (map fromMorph . Map.assocs) . merge . map toMorph
 
 consistent :: NonEmpty Origins -> Maybe Origins
 consistent = Multi.consistent . foldl1 Multi.intersection
+
+applyMorph :: Signature -> [MorphExample] -> [Expr Void] -> Maybe (Expr Void)
+applyMorph (Signature vars ctxt _) m ins = case out of
+  Nothing -> Nothing
+  Just MorphExample { shapeOut, origins } -> fmap join $ shapeOut &
+    traverse \p@Position { var } -> do
+      os <- Map.lookup var origins
+      q <- Set.lookupMin $ Multi.lookup p os
+      positions <- Map.lookup var ps
+      Map.lookup q positions
+  where
+    RelContainer ss rs ps = toRelContainer vars (snd <$> ctxt) ins
+    out = m & List.find \MorphExample { shapeIns, relations } ->
+      shapeIns == ss && relations == rs
 
 -- TODO: do something with these conflicts.
 data Conflict = ShapeConflict | PositionConflict

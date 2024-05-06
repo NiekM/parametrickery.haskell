@@ -1,5 +1,7 @@
 module Language.Expr where
 
+import Data.Map.Strict qualified as Map
+
 import Base
 
 import Prettyprinter.Utils
@@ -7,6 +9,8 @@ import Prettyprinter.Utils
 data Lit = MkInt Int | MkBool Bool
   deriving stock (Eq, Ord, Show)
 
+-- TODO: we could replace Unit and Pair with an n-ary tuple [Expr h];
+--       and remove Inl and Inr in favor of some Ctr :: Text -> Expr h -> Expr h
 data Expr h where
   Unit :: Expr h
   Pair :: Expr h -> Expr h -> Expr h
@@ -16,17 +20,7 @@ data Expr h where
   Lit  :: Lit -> Expr h
   Hole :: h -> Expr h
   deriving stock (Eq, Ord, Show)
-
-instance Functor Expr where
-  fmap :: (a -> b) -> Expr a -> Expr b
-  fmap f = \case
-    Unit     -> Unit
-    Pair x y -> Pair (fmap f x) (fmap f y)
-    Inl x    -> Inl (fmap f x)
-    Inr y    -> Inr (fmap f y)
-    Lst xs   -> Lst (fmap f <$> xs)
-    Lit l    -> Lit l
-    Hole v   -> Hole (f v)
+  deriving stock (Functor, Foldable, Traversable)
 
 instance Applicative Expr where
   pure :: a -> Expr a
@@ -49,6 +43,18 @@ accept = \case
   Lst xs   -> Lst (accept <$> xs)
   Lit l    -> Lit l
   Hole e   -> e
+
+match :: Ord a => Expr a -> Expr b -> Maybe (Map a (Expr b))
+match = \cases
+  Unit       Unit       -> Just mempty
+  (Pair x y) (Pair a b) -> Map.union <$> match x a <*> match y b
+  (Inl x)    (Inl a)    -> match x a
+  (Inr y)    (Inr b)    -> match y b
+  (Lst xs)   (Lst as) | length xs == length as ->
+    fmap Map.unions . sequence $ zipWith match xs as
+  (Lit l)    (Lit m)  | l == m -> Just mempty
+  (Hole h)   e          -> Just $ Map.singleton h e
+  _ _ -> Nothing
 
 -- A monomorphic input-output example according to some function signature. We
 -- do not have to give a specific type instantiation, because we may make the

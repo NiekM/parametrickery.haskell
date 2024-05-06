@@ -4,7 +4,10 @@ module Utils
   , partitionWith
   , maybeToEither
   , mapEither
+  , extract
   ) where
+
+import Data.Map.Strict qualified as Map
 
 import Base
 
@@ -28,3 +31,6 @@ maybeToEither e = maybe (Left e) Right
 
 mapEither :: (a -> Either b c) -> [a] -> ([b], [c])
 mapEither f = partitionEithers . fmap f
+
+extract :: (Traversable f, Ord a) => f (a, b) -> (Map a b, f a)
+extract = traverse \(x, y) -> (Map.singleton x y, x)

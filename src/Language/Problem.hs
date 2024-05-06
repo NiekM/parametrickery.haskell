@@ -51,3 +51,13 @@ liftArg n (Problem sig@Signature { ctxt } exs)
 pickApart :: Problem -> [(Text, Mono, [Expr Void], Problem)]
 pickApart p@(Problem Signature { ctxt } _) =
   zipWith const [0 ..] ctxt & mapMaybe \n -> liftArg n p
+
+-- TODO: polymorphic problems
+
+data MorphProblem = MorphProblem
+  { signature :: Signature
+  , examples  :: [MorphExample]
+  } deriving stock (Eq, Ord, Show)
+
+toMorphism :: Problem -> Either Conflict MorphProblem
+toMorphism p@Problem { sig } = MorphProblem sig <$> check p
