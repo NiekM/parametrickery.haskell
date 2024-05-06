@@ -88,5 +88,6 @@ prettyExpr p = \case
   Hole v   -> pretty v
 
 instance Pretty Example where
+  pretty (Example [] out) = pretty out
   pretty (Example ins out) =
     sep (map (prettyExpr 3) ins) <+> "->" <+> pretty out

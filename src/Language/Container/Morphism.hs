@@ -15,6 +15,7 @@ import Utils
 import Language.Type
 import Language.Expr
 import Language.Container
+import Language.Container.Relation
 
 type Origins = Multi Position Position
 
@@ -34,17 +35,17 @@ data MorphExample = MorphExample
 checkExample :: Signature -> Example -> Either Conflict MorphExample
 checkExample (Signature vars ctxt goal) (Example ins out)
   | conflict  = Left PositionConflict
-  | otherwise = Right $ MorphExample
-    { relations = rs
-    , shapeIns  = ss
-    , shapeOut  = t
-    , origins   = os
-    }
+  | otherwise = Right MorphExample { relations, shapeIns, shapeOut, origins }
   where
-    RelContainer ss rs p = toRelContainer vars (snd <$> ctxt) ins
-    Container t q = toContainer goal out
-    os = computeOrigins p q
-    conflict = isNothing $ Multi.consistent os
+    Container shapeOut q = toContainer goal out
+
+    inputs    = toContainers $ zip (snd <$> ctxt) ins
+    shapeIns  = shape <$> inputs
+    p         = foldMap positions inputs
+
+    relations = computeRelations vars p
+    origins   = computeOrigins p q
+    conflict  = isNothing $ Multi.consistent origins
 
 -- This is simply a compact representation of a set of input-output examples for
 -- a container morphism.
@@ -96,6 +97,7 @@ instance Pretty a => Pretty (PrettySet a) where
     . unPrettySet
 
 instance Pretty MorphExample where
+  pretty (MorphExample _ [] t _) = pretty t
   pretty (MorphExample r s t o) =
     barred (inputs : relations) <+> "->" <+> pretty t'
     where
