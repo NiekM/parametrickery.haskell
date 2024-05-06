@@ -22,6 +22,8 @@ data Expr h where
   deriving stock (Eq, Ord, Show)
   deriving stock (Functor, Foldable, Traversable)
 
+type Term = Expr Void
+
 instance Applicative Expr where
   pure :: a -> Expr a
   pure = Hole
@@ -61,8 +63,8 @@ match = \cases
 -- type more or less abstract. In other words, it is not up to the example to
 -- decide which type abstraction we pick.
 data Example = Example
-  { ins :: [Expr Void]
-  , out :: Expr Void
+  { ins :: [Term]
+  , out :: Term
   } deriving stock (Eq, Ord, Show)
 
 ------ Pretty ------

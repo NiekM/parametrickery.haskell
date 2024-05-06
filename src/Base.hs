@@ -25,7 +25,7 @@ import Data.Text (Text)
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Maybe (fromMaybe, mapMaybe, isJust, isNothing)
-import Data.List.NonEmpty (NonEmpty(..))
+import Data.List.NonEmpty (NonEmpty(..), groupWith)
 
 import Data.Either (partitionEithers)
 

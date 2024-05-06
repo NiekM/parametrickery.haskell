@@ -6,7 +6,7 @@ import Base
 import Language.Type
 import Language.Expr
 import Language.Problem
-import Language.Container.Morphism
+-- import Language.Container.Morphism
 
 import Utils
 
@@ -122,32 +122,32 @@ introFoldr p = pickApart p & mapMaybe
         ]
     _ -> Nothing
 
--- TODO: make this work for shape complete example sets!
--- Currently it only works for exactly trace complete sets...
--- The only solution seems to be to have refinements work on container problems
--- In other words, we should translate to container functors first
-introFoldrPoly :: Refinement
-introFoldrPoly p = case check p of
-  Left conflict -> error . show $ pretty conflict
-  Right examples -> pickApart p & mapMaybe
-    \(v, t, es, Problem s@(Signature { ctxt, goal }) xs) -> case t of
-      List u ->
-        let
-          paired = zip es xs
-          (nil, cons) = paired & mapEither \case
-            (Lst [], ex) -> Left ex
-            (Lst (y:ys), Example ins out) ->
-              -- TODO: how to do this???????
-              case applyMorph s examples (Lst ys : ins) of
-                Just e -> Right $ Example (y : e : ins) out
-                Nothing -> error "Shape incomplete!"
-            _ -> error "Expected a list!"
-        in Just
-          [ Problem s nil
-          -- TODO: generate fresh variables
-          , Problem s { ctxt = (v <> "_h", u) : (v <> "_r", goal) : ctxt } cons
-          ]
-      _ -> Nothing
+-- -- TODO: make this work for shape complete example sets!
+-- -- Currently it only works for exactly trace complete sets...
+-- -- The only solution seems to be to have refinements work on container problems
+-- -- In other words, we should translate to container functors first
+-- introFoldrPoly :: Refinement
+-- introFoldrPoly p = case check p of
+--   Left conflict -> error . show $ pretty conflict
+--   Right examples -> pickApart p & mapMaybe
+--     \(v, t, es, Problem s@(Signature { ctxt, goal }) xs) -> case t of
+--       List u ->
+--         let
+--           paired = zip es xs
+--           (nil, cons) = paired & mapEither \case
+--             (Lst [], ex) -> Left ex
+--             (Lst (y:ys), Example ins out) ->
+--               -- TODO: how to do this???????
+--               case applyMorph s examples (Lst ys : ins) of
+--                 Just e -> Right $ Example (y : e : ins) out
+--                 Nothing -> error "Shape incomplete!"
+--             _ -> error "Expected a list!"
+--         in Just
+--           [ Problem s nil
+--           -- TODO: generate fresh variables
+--           , Problem s { ctxt = (v <> "_h", u) : (v <> "_r", goal) : ctxt } cons
+--           ]
+--       _ -> Nothing
 
 -- NOTE: this is not that easy, recomputing positions becomes quite tricky
 -- during refinements. We might require to have positions be not just indices,

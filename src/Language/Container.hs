@@ -1,21 +1,15 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
-module Language.Container
-  ( Position(..)
-  , Container(..)
-  , Relation(..)
-  , RelContainer(..)
-  , computeRelation
-  , toContainer
-  , toRelContainer
-  ) where
+module Language.Container where
 
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Control.Monad.State
 
 import Base
+import Utils
 
 import Language.Type
 import Language.Expr
@@ -23,50 +17,45 @@ import Language.Expr
 data Position = Position { var :: Text, pos :: Nat }
   deriving stock (Eq, Ord, Show)
 
+type Shape = Expr Position
+
 -- TODO: maybe try to rework this to use IntMap, as it is much more efficient.
 data Container = Container
-  { shape     :: Expr Position
-  , positions :: Map Text (Map Position (Expr Void))
+  { shape     :: Shape
+  , positions :: Map Position Term
   } deriving stock (Eq, Ord, Show)
 
-extend :: Mono -> Expr Void -> State (Map Text Nat) Container
-extend = \cases
-  (Free v) x -> do
-    m <- get
-    case Map.lookup v m of
-      Nothing -> error "Missing variable counter!"
-      Just n -> do
-        put $ Map.adjust (+1) v m
-        let p = Position v n
-        return . Container (Hole p) . Map.singleton v $ Map.singleton p x
-  Top Unit -> return $ Container Unit mempty
-  (Tup t u) (Pair x y) -> do
-    Container s p <- extend t x
-    Container r q <- extend u y
-    return $ Container (Pair s r) $ Map.unionWith Map.union p q
-  (Sum t _) (Inl x) -> do
-    Container s p <- extend t x
-    return $ Container (Inl s) p
-  (Sum _ u) (Inr y) -> do
-    Container s p <- extend u y
-    return $ Container (Inr s) p
-  (List t) (Lst xs) -> do
-    r <- forM xs $ extend t
-    let (ss, ps) = unzip [ (s, p) | Container s p <- r]
-    return $ Container (Lst ss) $ Map.unionsWith Map.union ps
-  (Base _) (Lit x) -> return $ Container (Lit x) mempty
+-- Traverse an expression along with its type, introducing holes at free
+-- variables.
+poly :: Mono -> Expr a -> Expr (Text, Expr a)
+poly = \cases
+  (Free  v) x          -> Hole (v, x)
+  Top       Unit       -> Unit
+  (Tup t u) (Pair x y) -> Pair (poly t x) (poly u y)
+  (Sum t _) (Inl x)    -> Inl (poly t x)
+  (Sum _ u) (Inr y)    -> Inr (poly u y)
+  (List  t) (Lst xs)   -> Lst (poly t <$> xs)
+  (Base  _) (Lit x)    -> Lit x
   t x -> error . show $
-    "Mismatching types!" <+> pretty x <+> ":/:" <+> pretty t
+    "Mismatching types!" <+> pretty (() <$ x) <+> ":/:" <+> pretty t
 
-toContainer :: [Text] -> Mono -> Expr Void -> Container
-toContainer as ty e = Container shape pos'
+computePositions :: Mono -> Term -> State (Map Text Nat) (Expr (Position, Term))
+computePositions t e = do
+  poly t e & traverse \(v, x) -> do
+    m <- get
+    let n = fromMaybe 0 $ Map.lookup v m
+    modify $ Map.insert v (n + 1)
+    return (Position v n, x)
+
+toContainer :: Mono -> Term -> Container
+toContainer ty e = Container shape pos
+  where (pos, shape) = extract $ evalState (computePositions ty e) mempty
+
+toContainers :: [(Mono, Term)] -> ([Shape], Map Position Term)
+toContainers xs = (p, ss)
   where
-    Container shape pos = evalState (extend ty e) st
-    -- Ensure that each type variable is represented.
-    pos' = Map.unionWith Map.union (Map.fromList (as <&> (,mempty))) pos
-
-    st :: Map Text Nat
-    st = Map.fromList $ as <&> \v -> (v, 0)
+    (ss, p) = traverse extract $
+      evalState (traverse (uncurry computePositions) xs) mempty
 
 -- The container representation of type class relations.
 data Relation
@@ -77,39 +66,32 @@ data Relation
   | RelOrd [Set Position]
   deriving stock (Eq, Ord, Show)
 
-computeRelation :: Ord h => Class -> Map Position (Expr h) -> Relation
+computeRelation :: Ord h => Class -> [(Position, Expr h)] -> Relation
 computeRelation c ps = case c of
   None -> RelNone
   Eq   -> RelEq $ Set.fromList order
   Ord  -> RelOrd order
   where
-    order = map (Set.fromList . map fst)
-      . List.groupBy ((==) `on` snd)
-      . List.sortOn snd
-      $ Map.assocs ps
+    order = fmap (Set.fromList . NonEmpty.toList . fmap fst)
+      . NonEmpty.groupWith snd . List.sortOn snd $ ps
 
--- TODO: maybe try to rework this to use IntMap, as it is much more efficient.
+-- TODO: it is a bit weird that normal containers have one shape, but containers
+-- with relations have multiple.
 data RelContainer = RelContainer
-  { shapes    :: [Expr Position]
+  { shapes    :: [Shape]
   , relations :: Map Text Relation
-  , positions :: Map Text (Map Position (Expr Void))
+  , positions :: Map Position Term
   } deriving stock (Eq, Ord, Show)
 
-toRelContainer :: [(Text, Class)] -> [Mono] -> [Expr Void] -> RelContainer
-toRelContainer vars ts es = RelContainer
-  { shapes    = untuple (length ts) s
-  , relations = Map.intersectionWith computeRelation (Map.fromList vars) p
-  , positions = p
-  }
+toRelContainer :: [(Text, Class)] -> [Mono] -> [Term] -> RelContainer
+toRelContainer vars ts es = RelContainer { shapes, relations, positions }
   where
-    have = foldr Tup  Top  ts
-    inpt = foldr Pair Unit es
-    Container s p = toContainer (fst <$> vars) have inpt
+    (shapes, positions) = toContainers (zip ts es)
 
-    untuple :: Int -> Expr h -> [Expr h]
-    untuple 0 Unit = []
-    untuple n (Pair x y) = x : untuple (n - 1) y
-    untuple _ _ = error "Something went wrong with untupling."
+    relations = Map.intersectionWith computeRelation (Map.fromList vars) ps
+
+    ps = Map.fromList $ NonEmpty.groupWith (var . fst) (Map.assocs positions)
+      <&> \xs -> (var . fst $ NonEmpty.head xs, NonEmpty.toList xs)
 
 ------ Pretty ------
 
@@ -119,11 +101,7 @@ instance Pretty Position where
 instance Pretty Container where
   pretty (Container s p) = pretty s <+> encloseSep lbrace rbrace ", " xs
     where
-      xs = map (\(i, x) -> pretty i <+> "=" <+> pretty x)
-        . Map.assocs
-        . Map.unions
-        . map snd
-        $ Map.assocs p
+      xs = Map.assocs p <&> \(i, x) -> pretty i <+> "=" <+> pretty x
 
 eqClass :: Pretty a => Set a -> Doc ann
 eqClass = encloseSep lbrace rbrace " = " . map pretty . Set.toList
