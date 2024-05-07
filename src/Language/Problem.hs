@@ -16,7 +16,7 @@ data Problem = Problem
 -- there are no examples, we should still be able to check automatically that
 -- e.g. `{x : a} -> b` is not realizable.
 -- TODO: check that this actually works as expected for multiple type variables.
-check :: Problem -> Either Conflict [MorphExample]
+check :: Problem -> Either Conflict [PolyExample]
 check (Problem sig exs) = do
   xs <- mapM (checkExample sig) exs
   combine xs
@@ -50,14 +50,14 @@ liftArg n (Problem sig@Signature { ctxt } exs)
 -- All possible ways to lift one argument from a problem.
 pickApart :: Problem -> [(Text, Mono, [Term], Problem)]
 pickApart p@(Problem Signature { ctxt } _) =
-  zipWith const [0 ..] ctxt & mapMaybe \n -> liftArg n p
+  zipWith const [0..] ctxt & mapMaybe \n -> liftArg n p
 
 -- TODO: polymorphic problems
 
-data MorphProblem = MorphProblem
+data PolyProblem = PolyProblem
   { signature :: Signature
-  , examples  :: [MorphExample]
+  , examples  :: [PolyExample]
   } deriving stock (Eq, Ord, Show)
 
-toMorphism :: Problem -> Either Conflict MorphProblem
-toMorphism p@Problem { sig } = MorphProblem sig <$> check p
+toMorphism :: Problem -> Either Conflict PolyProblem
+toMorphism p@Problem { sig } = PolyProblem sig <$> check p

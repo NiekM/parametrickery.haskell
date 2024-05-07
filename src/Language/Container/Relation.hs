@@ -3,7 +3,6 @@ module Language.Container.Relation
   , computeRelations
   ) where
 
-import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -14,8 +13,9 @@ import Language.Type
 import Language.Expr
 import Language.Container
 
--- The container representation of type class relations.
+-- | The container representation of type class relations.
 data Relation
+  -- | The empty relation
   = RelNone
   -- | Sets of equivalence classes
   | RelEq  (Set (Set Position))
@@ -31,12 +31,14 @@ computeRelation c ps = case c of
   Ord  -> RelOrd order
   where
     order = fmap (Set.fromList . NonEmpty.toList . fmap fst)
-      . NonEmpty.groupWith snd . List.sortOn snd . Map.assocs $ ps
+      . NonEmpty.groupAllWith snd . Map.assocs $ ps
 
 computeRelations :: [(Text, Class)] -> Map Position Term -> Map Text Relation
 computeRelations cs p = Map.fromList $ cs <&>
   \(v, c) -> (v,) . computeRelation c $ p &
     Map.filterWithKey \Position { var } _ -> v == var
+
+------ Pretty ------
 
 eqClass :: Pretty a => Set a -> Doc ann
 eqClass = encloseSep lbrace rbrace " = " . map pretty . Set.toList
