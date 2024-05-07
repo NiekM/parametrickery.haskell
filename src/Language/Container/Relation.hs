@@ -1,6 +1,7 @@
 module Language.Container.Relation
   ( Relation(..)
   , computeRelations
+  , relevant
   ) where
 
 import Data.List.NonEmpty qualified as NonEmpty
@@ -22,6 +23,13 @@ data Relation
   -- | Ordered equivalence classes
   | RelOrd [Set Position]
   deriving stock (Eq, Ord, Show)
+
+-- | A relation is only relevant if it has at least 2 elements.
+relevant :: Relation -> Bool
+relevant = \case
+  RelNone    -> False
+  RelEq eq   -> Set.size (Set.unions eq) > 1
+  RelOrd ord -> Set.size (Set.unions ord) > 1
 
 -- We assume that all positions in the map have the same type.
 computeRelation :: Class -> Map Position Term -> Relation

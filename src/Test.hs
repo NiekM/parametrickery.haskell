@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 -- Exploring a deep embedding of the language. The shallow embedding (at
 -- different depths) runs into the issue that we cannot easily inspect the
@@ -34,29 +33,14 @@ instance (ToExpr a, ToExpr b) => ToExpr (Either a b) where
 
 ------ Examples ------
 
-sg :: Signature
-sg = Signature [("a", Eq)] [("x", Free "a"), ("xs", List (Free "a"))]
-  (List (Free "a"))
-
--- TODO: change ex to something that makes sense.
--- TODO: in general, give some better working examples here.
-ex :: Example
-ex = Example [toVal @Int 3, toVal @[Int] [2, 4]] (toVal @[Int] [2, 2])
-
--- >>> pretty sg
--- forall a. (Eq a) => {x : a, xs : [a]} -> [a]
-
--- >>> either pretty pretty $ checkExample sg ex
--- a0 [a1, a2] | {a0} /= {a1} /= {a2} -> [{a1}, {a1}]
-
-prb :: Problem
-prb = Problem
-  { sig = Signature
+triple :: Problem
+triple = Problem
+  { signature = Signature
     { vars = [("a", None)]
     , ctxt = [("x", Free "a"), ("y", Free "a"), ("z", Free "a")]
     , goal = Free "a"
     }
-  , exs =
+  , examples =
     [ Example [v1, v2, v2] v2
     , Example [v2, v1, v2] v2
     , Example [v2, v2, v1] v2
@@ -64,33 +48,33 @@ prb = Problem
   } where
     v1 = toVal @Int 1; v2 = toVal @Int 2
 
--- >>> pretty prb
+-- >>> pretty triple
 -- _ : forall a. {x : a, y : a, z : a} -> a
 -- _ 1 2 2 = 2
 -- _ 2 1 2 = 2
 -- _ 2 2 1 = 2
 
--- >>> pretty <$> check prb
+-- >>> pretty <$> check triple
 -- Left PositionConflict
 
-tst :: Problem
-tst = Problem
-  { sig = Signature { vars = [], ctxt = [], goal = Base Int }
-  , exs = [Example [] (toVal @Int 4)]
+constant :: Problem
+constant = Problem
+  { signature = Signature { vars = [], ctxt = [], goal = Base Int }
+  , examples = [Example [] (toVal @Int 4)]
   }
 
--- >>> pretty tst
+-- >>> pretty constant
 -- _ : Int
 -- _ = 4
 
 pairExample :: Problem
 pairExample = Problem
-  { sig = Signature
+  { signature = Signature
     { vars = [("a", None), ("b", None)]
     , ctxt = [("x", Free "a"), ("y", Free "b")]
     , goal = Tup (Free "a") (Free "b")
     }
-  , exs =
+  , examples =
     [ Example [toVal @Int 1, toVal True ] $ toVal @(Int, Bool) (1,  True)
     , Example [toVal False, toVal @Int 3] $ toVal @(Bool, Int) (False, 3)
     ]
@@ -102,7 +86,8 @@ pairExample = Problem
 -- _ False 3 = False , 3
 
 -- >>> pretty <$> check pairExample
--- Right [a0 b0 -> ({a0}, {b0})]
+-- Right _ : forall a b. {x : a, y : b} -> a * b
+-- _ a0 b0 = ({a0}, {b0})
 
 introPairExample :: [[Problem]]
 introPairExample = introPair pairExample
@@ -115,18 +100,49 @@ introPairExample = introPair pairExample
 --   _ 1 True = True
 --   _ False 3 = 3 ] ]
 
-sg1 :: Signature
-sg1 = Signature [("a", Ord)] [("xs", List (Free "a"))] (List (Free "a"))
+zipExample :: Problem
+zipExample = Problem
+  { signature = Signature
+    { vars = [("a", None), ("b", None)]
+    , ctxt = [("xs", List (Free "a")), ("ys", List (Free "b"))]
+    , goal = List (Tup (Free "a") (Free "b"))
+    }
+  , examples =
+    [ Example [toVal @[Int] [], toVal @[Int] []] (toVal @[(Int, Int)] [])
+    , Example [toVal @[Int] [1], toVal @[Int] [2]] (toVal @[(Int, Int)] [(1,2)])
+    , Example [toVal @[Int] [1,2], toVal @[Int] [3,4,5]]
+      (toVal @[(Int, Int)] [(1,3),(2,4)])
+    , Example [toVal @[Int] [1,2,3], toVal @[Int] [4,5]]
+      (toVal @[(Int, Int)] [(1,4),(2,5)])
+    ]
+  }
 
-ex1 :: Example
-ex1 = Example [toVal @[Int] [1,2,4,1,2,3,4,5,1,2]] (toVal @[Int] [1,2,3,4,5])
+lenExample :: Problem
+lenExample = Problem
+  { signature = Signature
+    { vars = [("a", None)]
+    , ctxt = [("xs", List (Free "a"))]
+    , goal = Base Int
+    }
+  , examples =
+    [ Example [toVal @[Int] []] (toVal @Int 0)
+    , Example [toVal @[Int] [3]] (toVal @Int 1)
+    , Example [toVal @[Int] [2,3]] (toVal @Int 2)
+    , Example [toVal @[Int] [1,2,3]] (toVal @Int 3)
+    ]
+  }
 
--- >>> pretty $ extendExample sg1 ex1
--- [a0, a1, a2, a3, a4, a5, a6, a7, a8, a9]
---  | {a0 = a3 = a8} <= {a1 = a4 = a9} <= {a5} <= {a2 = a6} <= {a7} -> [ {a0
--- , a3
--- , a8}
--- , {a1, a4, a9}
--- , {a5}
--- , {a2, a6}
--- , {a7} ]
+sortExample :: Problem
+sortExample = Problem
+  { signature = Signature
+    { vars = [("a", Ord)]
+    , ctxt = [("xs", List (Free "a"))]
+    , goal = List (Free "a")
+    }
+  , examples =
+    [ Example [toVal @[Int] []] (toVal @[Int] [])
+    , Example [toVal @[Int] [3]] (toVal @[Int] [3])
+    , Example [toVal @[Int] [3,2]] (toVal @[Int] [2,3])
+    , Example [toVal @[Int] [2,3,1]] (toVal @[Int] [1,2,3])
+    ]
+  }

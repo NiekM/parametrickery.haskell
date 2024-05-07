@@ -1,14 +1,18 @@
 module Language.Problem where
 
+import Data.Map.Strict qualified as Map
+
 import Prettyprinter.Utils
 import Base
+import Data.Map.Multi qualified as Multi
 import Language.Expr
 import Language.Type
+import Language.Container.Relation
 import Language.Container.Morphism
 
 data Problem = Problem
-  { sig :: Signature
-  , exs :: [Example]
+  { signature :: Signature
+  , examples  :: [Example]
   } deriving stock (Eq, Ord, Show)
 
 -- TODO: before checking the realizability w.r.t. parametricity, it might be
@@ -16,10 +20,11 @@ data Problem = Problem
 -- there are no examples, we should still be able to check automatically that
 -- e.g. `{x : a} -> b` is not realizable.
 -- TODO: check that this actually works as expected for multiple type variables.
-check :: Problem -> Either Conflict [PolyExample]
-check (Problem sig exs) = do
-  xs <- mapM (checkExample sig) exs
-  combine xs
+check :: Problem -> Either Conflict PolyProblem
+check (Problem signature exs) = do
+  xs <- mapM (checkExample signature) exs
+  examples <- combine xs
+  return PolyProblem { signature, examples }
 
 instance Pretty Problem where
   pretty = prettyProblem "_"
@@ -52,12 +57,23 @@ pickApart :: Problem -> [(Text, Mono, [Term], Problem)]
 pickApart p@(Problem Signature { ctxt } _) =
   zipWith const [0..] ctxt & mapMaybe \n -> liftArg n p
 
--- TODO: polymorphic problems
-
 data PolyProblem = PolyProblem
   { signature :: Signature
   , examples  :: [PolyExample]
   } deriving stock (Eq, Ord, Show)
 
-toMorphism :: Problem -> Either Conflict PolyProblem
-toMorphism p@Problem { sig } = PolyProblem sig <$> check p
+instance Pretty PolyProblem where
+  pretty = prettyPolyProblem "_"
+
+prettyPolyProblem :: Text -> PolyProblem -> Doc ann
+prettyPolyProblem fun (PolyProblem sig exs) = statements (header : examples)
+  where
+    header = sep [pretty fun, ":", pretty sig]
+    barred = encloseSep mempty mempty " | "
+    examples = exs <&> \(PolyExample r ss t o) ->
+      let
+        arguments = sep (pretty fun : map (prettyExpr 3) ss)
+        relations = map pretty . filter relevant $ Map.elems r
+        output = pretty $ t <&> \p -> PrettySet $ Multi.lookup p o
+      in
+        barred (arguments : relations) <+> "=" <+> output

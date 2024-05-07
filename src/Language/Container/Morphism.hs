@@ -1,5 +1,3 @@
-{-# LANGUAGE DuplicateRecordFields #-}
-
 module Language.Container.Morphism where
 
 import Data.List.NonEmpty qualified as NonEmpty
@@ -98,7 +96,7 @@ instance Pretty PolyExample where
     where
       t' = t <&> \p -> PrettySet $ Multi.lookup p o
       inputs = sep (map (prettyExpr 3) s)
-      relations = map pretty . filter (/= RelNone) $ Map.elems r
+      relations = map pretty . filter relevant $ Map.elems r
       barred = encloseSep mempty mempty " | "
 
 instance Pretty Conflict where

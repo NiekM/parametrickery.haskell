@@ -1,5 +1,3 @@
-{-# LANGUAGE DuplicateRecordFields #-}
-
 module Language.Container where
 
 import Data.Map.Strict qualified as Map
