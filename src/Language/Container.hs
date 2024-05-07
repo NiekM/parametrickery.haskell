@@ -45,11 +45,11 @@ computePositions t e = do
     return (Position v n, x)
 
 toContainer :: Mono -> Term -> Container
-toContainer ty e = uncurry Container . swap . extract $
+toContainer ty e = uncurry Container . extract $
   evalState (computePositions ty e) mempty
 
 toContainers :: [(Mono, Term)] -> [Container]
-toContainers xs = uncurry Container . swap . extract <$>
+toContainers xs = uncurry Container . extract <$>
   evalState (traverse (uncurry computePositions) xs) mempty
 
 ------ Pretty ------
