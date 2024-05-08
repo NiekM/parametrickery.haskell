@@ -68,23 +68,16 @@ library
   -- Modules included in this library but not exported.
   other-modules:
       Base
-    , Constraint
     , Data.Container.Core
-    , Data.Container.Foldable
     , Data.Container.Properties
     , Data.Container.Specialized
     , Data.Dup
-    , Data.Functor.Context
-    , Data.Functor.Signatures
     , Data.SBV.Container
     , Data.SBV.Encode
     , Data.SBV.Refine
     , Data.Map.Utils
-    , Data.Map.Multi
-    , Deep
     , Pretty
     , Unsafe
-    , Utils
 
   -- LANGUAGE extensions used by modules in this package.
   default-extensions:

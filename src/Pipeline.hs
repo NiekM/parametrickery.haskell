@@ -13,6 +13,10 @@ import Base
 import Data.Container
 import Data.Mono
 
+-- TODO: add clear comments of how the pipelines correspond to the figures in
+-- the paper.
+
+
 -- foldr : (c a -> f a -> g a -> g a) -> (d a -> g a) -> [f a] -> g a
 type FoldInput c d f g = Product (Product (Product c d) (Compose [] f)) g
 

@@ -2,7 +2,6 @@ module Unsafe
   ( lookupError
   , stripLeft
   , stripRight
-  , stripJust
   , coerceKeysMonotonic
   ) where
 
@@ -22,10 +21,6 @@ stripLeft _ = error "Expected Left"
 stripRight :: Either a b -> b
 stripRight (Right y) = y
 stripRight _ = error "Expected Right"
-
-stripJust :: Maybe a -> a
-stripJust (Just x) = x
-stripJust _ = error "Expected Just"
 
 coerceKeysMonotonic :: Map k1 v -> Map k2 v
 coerceKeysMonotonic = unsafeCoerce

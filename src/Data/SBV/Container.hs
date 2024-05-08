@@ -119,8 +119,7 @@ unifyExtension :: forall m f a. (Monad m, SolverContext m) =>
   SExtension f a -> SExtension f a -> m ()
 unifyExtension (SExtension s p) (SExtension t q) = do
   constrain $ s .== t
-  constrain \(Forall x) -> do
-    dep @(Position f) Proxy s x .=> p x .== q x
+  constrain \(Forall x) -> dep @(Position f) Proxy s x .=> p x .== q x
 
 -- Constrain a symbolic morphism using an input-output example.
 constrainExample :: (Monad m, SolverContext m) =>
