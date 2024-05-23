@@ -30,7 +30,7 @@ checkAll xs = forM_ xs \(name, bench) -> do
     Right False -> "Unsatisfiable"
     Right True  -> "Satisfiable"
   return ()
-  where width = 2 + maximum (map (length . fst) xs)
+  where width = 2 + maximum (length . fst <$> xs)
 
 main :: IO ()
 main = do

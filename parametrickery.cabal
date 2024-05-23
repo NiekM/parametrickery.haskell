@@ -62,12 +62,14 @@ library
       Data.Container
     , Data.Mono
     , Data.SBV.Depend
-    , Pipeline
     , PaperBench
+    , Sketch.Foldr
+    , Sketch.Map
 
   -- Modules included in this library but not exported.
   other-modules:
       Base
+    , Control.Monad.Fresh
     , Data.Container.Core
     , Data.Container.Properties
     , Data.Container.Specialized
@@ -98,7 +100,6 @@ library
     , containers
     , mtl
     , sbv
-    , type-level-sets
 
   -- Directories containing source files.
   hs-source-dirs:   src

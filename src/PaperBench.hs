@@ -7,9 +7,9 @@ import Data.List ((!?))
 import Data.SBV
 
 import Base
-import Pipeline
 import Data.Container
 import Data.Mono
+import Sketch.Foldr
 
 -- Functions from Prelude:
 -- concat

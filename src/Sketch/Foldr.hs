@@ -1,9 +1,7 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-
-module Pipeline where
+module Sketch.Foldr where
 
 import Control.Monad
+import Control.Monad.Fresh
 
 import Data.SBV hiding (output)
 
@@ -13,11 +11,6 @@ import Base
 import Data.Container
 import Data.Mono
 
--- TODO: add clear comments of how the pipelines correspond to the figures in
--- the paper.
-
-
--- foldr : (c a -> f a -> g a -> g a) -> (d a -> g a) -> [f a] -> g a
 type FoldInput c d f g = Product (Product (Product c d) (Compose [] f)) g
 
 {-# COMPLETE FoldInput #-}
@@ -29,7 +22,7 @@ data FoldInputs = forall c d f g.
   FoldInputs [Mono SymVal (FoldInput c d f g)]
 
 foldr :: FoldInputs -> ConstraintSet
-foldr (FoldInputs examples) = freshEnvironment do
+foldr (FoldInputs examples) = runFresh do
 
   f <- symMorphism
   e <- symMorphism

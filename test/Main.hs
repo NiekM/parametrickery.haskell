@@ -26,7 +26,10 @@ natural :: Gen Natural
 natural = fromInteger . getNonNegative <$> arbitrary
 
 instance (Arbitrary1 f, Arbitrary1 g) => Arbitrary1 (Sum f g) where
-  liftArbitrary arb = oneof [InL <$> liftArbitrary arb, InR <$> liftArbitrary arb]
+  liftArbitrary arb = oneof
+    [ InL <$> liftArbitrary arb
+    , InR <$> liftArbitrary arb
+    ]
   liftShrink shr (InL x) = [ InL x' | x' <- liftShrink shr x]
   liftShrink shr (InR y) = [ InR y' | y' <- liftShrink shr y]
 

@@ -3,14 +3,13 @@
 module Data.SBV.Container
   ( SShape, SPosition
   , SExtension, SMorphism
-  , freshEnvironment
   , apply, pair
   , constrainExtension, unifyExtension, constrainExample
   , symContainer, symMorphism
   ) where
 
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.Fresh
 import Data.Map qualified as Map
 
 import Data.SBV (Forall(..))
@@ -39,35 +38,13 @@ data SMorphism f g where
     -> (SShape f -> SPosition g -> SPosition f)
     -> SMorphism f g
 
-freshEnvironment :: Monad m => StateT Int m a -> m a
-freshEnvironment m = evalStateT m 0
-
-liftSt :: Monad m => m a -> StateT s m a
-liftSt m = StateT \s -> (,s) <$> m
-
-instance (Monad m, SolverContext m) => SolverContext (StateT s m) where
-  constrain                 = liftSt . constrain
-  softConstrain             = liftSt . softConstrain
-  namedConstraint s         = liftSt . namedConstraint s
-  constrainWithAttribute xs = liftSt . constrainWithAttribute xs
-  setInfo x                 = liftSt . setInfo x
-  setOption                 = liftSt . setOption
-  setLogic                  = liftSt . setLogic
-  contextState              = liftSt   contextState
-
-fresh :: MonadState Int m => m Int
-fresh = do
-  n <- get
-  put $ n + 1
-  return n
-
 -- Create a symbolic variable for the extension of a container, given a name for
 -- its shape and its position function.
 -- WARNING: the position function is a dynamically dependent function and should
 -- never be constrained on impossible positions (those that fail the dependency
 -- check).
 symContainer :: forall m f a.
-  (MonadState Int m, SolverContext m, Container f, HasKind a)
+  (MonadFresh m, SolverContext m, Container f, HasKind a)
   => m (SExtension f a)
 symContainer = do
   n <- fresh
@@ -79,7 +56,7 @@ symContainer = do
 -- Create a symbolic variable for the extension of a container morphism, given a
 -- name for its shape morphism and position morphism.
 symMorphism :: forall m f g.
-  (MonadState Int m, SolverContext m, Container f, Container g) =>
+  (MonadFresh m, SolverContext m, Container f, Container g) =>
   m (SMorphism f g)
 symMorphism = do
   n <- fresh
