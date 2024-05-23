@@ -88,6 +88,7 @@ library
     , DefaultSignatures
     , DerivingStrategies
     , DerivingVia
+    , DuplicateRecordFields
     , LambdaCase
     , PatternSynonyms
     , TypeAbstractions

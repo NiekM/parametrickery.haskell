@@ -2,7 +2,7 @@
 
 module Data.SBV.Container
   ( SShape, SPosition
-  , SExtension, SMorphism
+  , SExtension(..), SMorphism(..)
   , apply, pair
   , constrainExtension, unifyExtension, constrainExample
   , symContainer, symMorphism
@@ -27,16 +27,16 @@ type SShape    f = SBV (Sym (Shape f))
 type SPosition f = SBV (Sym (Position f))
 
 data SExtension f a where
-  SExtension :: Container f
-    => SShape f
-    -> (SPosition f -> SBV a)
-    -> SExtension f a
+  SExtension :: Container f =>
+    { shape    :: SShape f
+    , position :: SPosition f -> SBV a
+    } -> SExtension f a
 
 data SMorphism f g where
-  SMorphism :: (Container f, Container g)
-    => (SShape f -> SShape g)
-    -> (SShape f -> SPosition g -> SPosition f)
-    -> SMorphism f g
+  SMorphism :: (Container f, Container g) =>
+    { shape    :: SShape f -> SShape g
+    , position :: SShape f -> SPosition g -> SPosition f
+    } -> SMorphism f g
 
 -- Create a symbolic variable for the extension of a container, given a name for
 -- its shape and its position function.
