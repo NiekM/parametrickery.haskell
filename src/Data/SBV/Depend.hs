@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Data.SBV.Depend
   ( module Data.SBV.Encode
@@ -23,11 +24,11 @@ import Base
 
 class (Encode a, Ref (Arg a)) => Dep a where
   type Arg a :: Type
-  dep :: Proxy a -> SBV (Sym (Arg a)) -> SBV (Sym a) -> SBool
+  dep :: SBV (Sym (Arg a)) -> SBV (Sym a) -> SBool
 
 instance (Ref a, Ref b) => Dep (Const a b) where
   type Arg (Const a b) = b
-  dep Proxy _ y = ref @a Proxy y
+  dep _ y = ref @a y
 
 -- TODO: move these to separate files.
 
@@ -37,21 +38,21 @@ newtype May = May ()
 
 instance Dep May where
   type Arg May = Bool
-  dep Proxy m _ = m .== sTrue
+  dep m _ = m .== sTrue
 
 newtype Fin = Fin Natural
   deriving newtype (Eq, Ord, Enum, Show, Num, Encode)
 
 instance Dep Fin where
   type Arg Fin = Natural
-  dep Proxy n x = x .>= 0 .&& x .< n
+  dep n x = x .>= 0 .&& x .< n
 
 newtype OR a b = OR (Either a b)
   deriving newtype (Eq, Ord, Show, Encode)
 
 instance (Dep a, Dep b) => (Dep (OR a b)) where
   type Arg (OR a b) = (Arg a, Arg b)
-  dep Proxy t = SBV.either (dep @a Proxy x) (dep @b Proxy y)
+  dep t = SBV.either (dep @a x) (dep @b y)
     where (x, y) = SBV.untuple t
 
 newtype XOR a b = XOR { unXOR :: Either a b }
@@ -59,16 +60,16 @@ newtype XOR a b = XOR { unXOR :: Either a b }
 
 instance (Dep a, Dep b) => (Dep (XOR a b)) where
   type Arg (XOR a b) = Either (Arg a) (Arg b)
-  dep Proxy e d =
+  dep e d =
     SBV.either
-    (\l -> SBV.isLeft  d .&& dep @a Proxy l (SBV.fromLeft  d))
-    (\r -> SBV.isRight d .&& dep @b Proxy r (SBV.fromRight d))
+    (\l -> SBV.isLeft  d .&& dep @a l (SBV.fromLeft  d))
+    (\r -> SBV.isRight d .&& dep @b r (SBV.fromRight d))
     e
 
 -- | Properties
 
 depHolds :: forall a. Dep a => (Arg a) -> a -> Bool
-depHolds x y = case unliteral (dep (Proxy @a) x' y') of
+depHolds x y = case unliteral (dep @a x' y') of
   Nothing -> error "Something went wrong: somehow not a literal"
   Just b -> b
   where

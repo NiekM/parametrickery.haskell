@@ -28,7 +28,7 @@ newtype DecFin = DecFin Natural
 
 instance Dep DecFin where
   type Arg DecFin = Natural
-  dep Proxy n = dep @Fin Proxy (n - 1)
+  dep n = dep @Fin (n - 1)
 
 newtype OptList a = OptList (Maybe [a])
   deriving stock (Eq, Ord, Show)
@@ -53,7 +53,7 @@ newtype SumFin = FinPair Natural
 
 instance Dep SumFin where
   type Arg SumFin = (Natural, Natural)
-  dep Proxy n = dep @Fin Proxy (a + b)
+  dep n = dep @Fin (a + b)
     where (a, b) = SBV.untuple n
 
 newtype ListPair a = ListPair ([a], [a])
@@ -78,7 +78,7 @@ newtype DoubleFin = DoubleFin Natural
 
 instance Dep DoubleFin where
   type Arg DoubleFin = Natural
-  dep Proxy n = dep @Fin Proxy (2 * n)
+  dep n = dep @Fin (2 * n)
 
 newtype PairList a = PairList [(a, a)]
   deriving stock (Eq, Ord, Show)
