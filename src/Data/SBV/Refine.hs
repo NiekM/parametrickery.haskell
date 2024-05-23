@@ -1,4 +1,3 @@
-{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Data.SBV.Refine
@@ -8,14 +7,15 @@ module Data.SBV.Refine
   ) where
 
 import Data.SBV
-import Data.SBV.Tuple qualified as SBV
+import Data.SBV.Tuple  qualified as SBV
 import Data.SBV.Either qualified as SBV
-import Data.SBV.Maybe qualified as SBV
+import Data.SBV.Maybe  qualified as SBV
 
 import Data.SBV.Encode
 
 import Base
 
+-- TODO: rewrite using RequiredTypeArguments i.o. AllowAmbiguousTypes
 class Encode a => Ref a where
   ref :: SBV (Sym a) -> SBool
 

@@ -22,6 +22,7 @@ import Data.SBV.Either qualified as SBV
 
 import Base
 
+-- TODO: rewrite using RequiredTypeArguments i.o. AllowAmbiguousTypes
 class (Encode a, Ref (Arg a)) => Dep a where
   type Arg a :: Type
   dep :: SBV (Sym (Arg a)) -> SBV (Sym a) -> SBool

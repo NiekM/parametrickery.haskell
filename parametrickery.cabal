@@ -84,16 +84,12 @@ library
   -- LANGUAGE extensions used by modules in this package.
   default-extensions:
       BlockArguments
-    , DataKinds
     , DefaultSignatures
     , DerivingStrategies
-    , DerivingVia
     , DuplicateRecordFields
     , LambdaCase
     , PatternSynonyms
-    , TypeAbstractions
     , TypeFamilies
-    , ViewPatterns
 
   -- Other library packages from which modules are imported.
   build-depends:

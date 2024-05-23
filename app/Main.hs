@@ -7,8 +7,8 @@ import Data.SBV.Control
 import Control.Monad
 import Control.Exception
 
-import Pipeline (FoldInputs)
-import Pipeline qualified
+import Sketch.Foldr (FoldInputs)
+import Sketch.Foldr qualified as Sketch
 import PaperBench
 
 settings :: SMTConfig
@@ -19,7 +19,7 @@ settings = defaultSMTCfg
   }
 
 checkOne :: FoldInputs -> IO (Either SomeException Bool)
-checkOne = try . isSatisfiableWith settings . Pipeline.foldr
+checkOne = try . isSatisfiableWith settings . Sketch.foldr
 
 checkAll :: [(String, FoldInputs)] -> IO ()
 checkAll xs = forM_ xs \(name, bench) -> do

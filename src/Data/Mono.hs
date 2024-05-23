@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeAbstractions#-}
+{-# LANGUAGE TypeAbstractions #-}
 
 module Data.Mono where
 

@@ -1,5 +1,3 @@
-{-# LANGUAGE DefaultSignatures #-}
-
 module Data.SBV.Encode where
 
 import Data.Bifunctor
