@@ -1,7 +1,16 @@
+{- |
+Module      : Data.SBV.Depend
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : n.mulleners@uu.nl
+
+A tuple that is a functor in both arguments.
+
+-}
 module Data.Dup where
 
 import Base
 
+-- | A pair of values of the same type.
 newtype Dup a = Dup { unDup :: (a, a) }
   deriving newtype (Eq, Ord)
   deriving stock (Show, Functor, Foldable, Traversable)

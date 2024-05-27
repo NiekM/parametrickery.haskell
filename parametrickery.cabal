@@ -59,10 +59,10 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
-      Data.Container
+      Benchmark
+    , Data.Container
     , Data.Mono
     , Data.SBV.Depend
-    , PaperBench
     , Sketch.Foldr
     , Sketch.Map
 
@@ -74,10 +74,10 @@ library
     , Data.Container.Properties
     , Data.Container.Specialized
     , Data.Dup
+    , Data.Map.Utils
     , Data.SBV.Container
     , Data.SBV.Encode
     , Data.SBV.Refine
-    , Data.Map.Utils
     , Pretty
     , Unsafe
 
@@ -119,9 +119,10 @@ executable parametrickery
 
   -- Other library packages from which modules are imported.
   build-depends:
-    base ^>=4.19.0.0,
-    sbv,
-    parametrickery
+      base ^>=4.19.0.0
+    , sbv
+    , parametrickery
+    , time
 
   -- Directories containing source files.
   hs-source-dirs:   app
@@ -153,9 +154,9 @@ test-suite parametrickery-test
 
   -- Test dependencies.
   build-depends:
-    base ^>=4.19.0.0,
-    sbv,
-    hspec,
-    containers,
-    QuickCheck,
-    parametrickery
+      base ^>=4.19.0.0
+    , sbv
+    , hspec
+    , containers
+    , QuickCheck
+    , parametrickery

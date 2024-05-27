@@ -1,6 +1,14 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
+{- |
+Module      : Data.SBV.Depend
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : n.mulleners@uu.nl
+
+Dependent types.
+
+-}
 module Data.SBV.Depend
   ( module Data.SBV.Encode
   , module Data.SBV.Refine
@@ -29,7 +37,7 @@ class (Encode a, Ref (Arg a)) => Dep a where
 
 instance (Ref a, Ref b) => Dep (Const a b) where
   type Arg (Const a b) = b
-  dep _ y = ref @a y
+  dep _ = ref @a
 
 -- TODO: move these to separate files.
 
@@ -69,7 +77,7 @@ instance (Dep a, Dep b) => (Dep (XOR a b)) where
 
 -- | Properties
 
-depHolds :: forall a. Dep a => (Arg a) -> a -> Bool
+depHolds :: forall a. Dep a => Arg a -> a -> Bool
 depHolds x y = case unliteral (dep @a x' y') of
   Nothing -> error "Something went wrong: somehow not a literal"
   Just b -> b

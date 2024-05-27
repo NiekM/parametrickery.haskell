@@ -1,10 +1,19 @@
-module Data.Map.Utils (splitEither) where
+{- |
+Module      : Data.Map.Utils
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : n.mulleners@uu.nl
 
-import Prelude hiding (uncurry, curry)
+Utility functions to accompany "Data.Map".
+
+-}
+module Data.Map.Utils (splitEither) where
 
 import Data.Map.Internal
 import Utils.Containers.Internal.StrictPair
 
+{- |
+
+-}
 splitEither :: Map (Either k1 k2) a -> (Map k1 a, Map k2 a)
 splitEither t0 = toPair $ go t0
   where

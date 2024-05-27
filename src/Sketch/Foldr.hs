@@ -11,31 +11,31 @@ import Base
 import Data.Container
 import Data.Mono
 
-type FoldInput c d f g = Product (Product (Product c d) (Compose [] f)) g
+type FoldExample c d f g = Product (Product (Product c d) (Compose [] f)) g
 
-{-# COMPLETE FoldInput #-}
-pattern FoldInput :: c a -> d a -> [f a] -> g a -> FoldInput c d f g a
-pattern FoldInput c d f g = Pair (Pair (Pair c d) (Compose f)) g
+{-# COMPLETE FoldExample #-}
+pattern FoldExample :: c a -> d a -> [f a] -> g a -> FoldExample c d f g a
+pattern FoldExample c d f g = Pair (Pair (Pair c d) (Compose f)) g
 
-data FoldInputs = forall c d f g.
+data FoldExamples = forall c d f g.
   (Container c, Container d, Container f, Container g) =>
-  FoldInputs [Mono SymVal (FoldInput c d f g)]
+  FoldExamples [Mono SymVal (FoldExample c d f g)]
 
-foldr :: FoldInputs -> ConstraintSet
-foldr (FoldInputs examples) = runFresh do
+foldr :: FoldExamples -> ConstraintSet
+foldr (FoldExamples examples) = runFresh do
 
   f <- symMorphism
   e <- symMorphism
 
   forM_ examples
-    \(Mono (FoldInput ctx_f ctx_e inputs output)) -> do
+    \(Mono (FoldExample ctx_f ctx_e inputs output)) -> do
 
     as <- forM (reverse inputs) \x -> do
       a <- symContainer
       constrainExtension a x
       return a
 
-    bs <- replicateM (length inputs + 1) $ symContainer
+    bs <- replicateM (length inputs + 1) symContainer
 
     c <- symContainer
     constrainExtension c ctx_f

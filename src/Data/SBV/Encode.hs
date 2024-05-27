@@ -1,3 +1,12 @@
+{- |
+Module      : Data.SBV.Encode
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : n.mulleners@uu.nl
+
+How to encode Haskell values in SBV, for the purpose of modeling refinement
+types ("Data.SBV.Refine") and dependent types ("Data.SBV.Depend").
+
+-}
 module Data.SBV.Encode where
 
 import Data.Bifunctor

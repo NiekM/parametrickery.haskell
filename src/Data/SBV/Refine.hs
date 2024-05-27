@@ -1,5 +1,13 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
+{- |
+Module      : Data.SBV.Refine
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : n.mulleners@uu.nl
+
+Refinement types.
+
+-}
 module Data.SBV.Refine
   ( module Data.SBV.Encode
   , Ref(..)
@@ -42,11 +50,10 @@ instance (Ref a, Ref b) => Ref (Either a b) where
   ref = SBV.either (ref @a) (ref @b)
 
 instance Ref a => Ref (Maybe a) where
-  ref x = SBV.maybe sTrue (ref @a) x
+  ref = SBV.maybe sTrue (ref @a)
 
 -- | Properties
 
--- TODO: This should return Prop or Laws, and perhaps use ShowType or smth
 refHolds :: forall a. Ref a => a -> Bool
 refHolds x = case unliteral (ref @a $ literal $ encode x) of
   Nothing -> error "Something went wrong: somehow not a literal"

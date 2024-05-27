@@ -5,6 +5,7 @@ import Text.Show
 
 import Data.Dup
 
+-- TODO: use prettyprinter???
 class Pretty f where
   pretty :: Show a => Int -> f a -> ShowS
 
