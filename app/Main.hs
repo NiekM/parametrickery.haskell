@@ -76,9 +76,9 @@ main :: IO ()
 main = do
   let runs = 10 :: Int
 
-  -- HACK: this ensures that the SMT solver is 'primed', ensuring that the time
-  -- of the first benchmark is not inflated because the solver has to
-  -- initialize. Additionally ensures that the number of runs is positive.
+  -- HACK: this ensures that the SMT solver is 'primed', so that the runtime of
+  -- the first benchmark is not inflated by the solver having to initialize.
+  -- Additionally ensures that the number of runs is positive.
   True <- isSatisfiable (fromIntegral @_ @(SBV Integer) runs .> 0)
 
   putStrLn "-------- Shape complete ----------"

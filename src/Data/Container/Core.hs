@@ -1,6 +1,17 @@
 {-# LANGUAGE UndecidableInstances #-}
 
-module Data.Container.Core (Container(..), Extension(..), Fin(..)) where
+{- |
+Module      : Data.Container.Core
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : n.mulleners@uu.nl
+
+Container functors and their extensions.
+
+-}
+module Data.Container.Core
+  ( Container(..)
+  , Extension(..)
+  ) where
 
 import Data.Map qualified as Map
 import Data.List (genericLength)
@@ -14,6 +25,12 @@ import Unsafe qualified
 
 type Dependent a b = (Ref a, Dep b, Arg b ~ a)
 
+-- | A type @f@ is a Container if there is an isomorphism between @f@ and its
+-- container extension, defined by the 'Shape' and 'Position' type families.
+--
+-- [Left-Inverse]  @'toContainer' . 'fromContainer' == 'id'@
+-- [Right-Inverse] @'fromContainer' . 'toContainer' == 'id'@
+--
 class (Dependent (Shape f) (Position f), Ord (Position f))
   => Container (f :: Type -> Type) where
   type Shape    f :: Type
@@ -22,6 +39,7 @@ class (Dependent (Shape f) (Position f), Ord (Position f))
   toContainer   :: f a -> Extension f a
   fromContainer :: Extension f a -> f a
 
+-- | The extension of a container functor
 data Extension f a = Extension
   { shape    :: Shape f
   , position :: Map (Position f) a
