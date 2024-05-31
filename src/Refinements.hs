@@ -50,7 +50,7 @@ type Refinement = Problem -> [[Problem]]
 -- use a realizability technique as well as some usefulness measure to decide
 -- whether to continue refining or call an external synthesizer.
 introPair :: Refinement
-introPair (Problem (sig@Signature { goal }) exs) = case goal of
+introPair (Problem sig@Signature { goal } exs) = case goal of
   Tup t u -> return
     [ Problem sig { goal = t } $ exs <&> \case
       Example ins (Pair a _) -> Example ins a

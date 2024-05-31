@@ -1,15 +1,15 @@
 module Data.Map.Multi
   ( Multi
-  , singleton
+  -- , singleton
   , union, intersection
   , lookup
   , fromMap
-  , elems
-  , map, mapMany
+  -- , elems
+  -- , map, mapMany
   , compose
-  , inverse
+  -- , inverse
   , remapping
-  , mapKeys, mapKeysMonotonic
+  -- , mapKeys, mapKeysMonotonic
   , consistent
   ) where
 

@@ -145,6 +145,11 @@ sortExample = Problem
     , Example [toVal @[Int] [3,2]] (toVal @[Int] [2,3])
     , Example [toVal @[Int] [2,3,1]] (toVal @[Int] [1,2,3])
     ]
+    -- [ ([], [])
+    -- , ([3], [3])
+    -- , ([3,2], [2,3])
+    -- , ([2,3,1], [1,2,3])
+    -- ] <&> \(i, o) -> Example [toVal @[Int] i] (toVal @[Int] o)
   }
 
 twoRelations :: Problem
