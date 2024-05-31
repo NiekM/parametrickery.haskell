@@ -16,17 +16,23 @@ module Data.Container.Core
 import Data.Map qualified as Map
 import Data.List (genericLength)
 import Data.Maybe (isJust)
+import Data.Either (isLeft)
 
-import Data.SBV.Depend
+import Data.SBV
 
 import Base
-import Data.Map.Utils qualified as Map
+import Data.SBV.Either qualified as SBV
+import Data.SBV.Tuple  qualified as SBV
+import Data.SBV.Depend
+import Data.Fin
+
 import Unsafe qualified
 
 type Dependent a b = (Ref a, Dep b, Arg b ~ a)
 
--- | A type @f@ is a Container if there is an isomorphism between @f@ and its
--- container extension, defined by the 'Shape' and 'Position' type families.
+-- | A type @f@ is a Container if there exists an isomorphism between @f@ and
+-- its container extension, defined by the 'Shape' and 'Position' type
+-- families.
 --
 -- [Left-Inverse]  @'toContainer' . 'fromContainer' == 'id'@
 -- [Right-Inverse] @'fromContainer' . 'toContainer' == 'id'@
@@ -36,10 +42,14 @@ class (Dependent (Shape f) (Position f), Ord (Position f))
   type Shape    f :: Type
   type Position f :: Type
 
+  -- | Turn a 'Data.Functor.Functor' into its 'Container' representation.
   toContainer   :: f a -> Extension f a
+
+  -- | Turn a 'Container' representation back into a regular
+  -- 'Data.Functor.Functor'.
   fromContainer :: Extension f a -> f a
 
--- | The extension of a container functor
+-- | The extension of a container functor.
 data Extension f a = Extension
   { shape    :: Shape f
   , position :: Map (Position f) a
@@ -52,16 +62,12 @@ deriving instance Each Eq   f a => Eq   (Extension f a)
 deriving instance Each Ord  f a => Ord  (Extension f a)
 deriving instance Each Show f a => Show (Extension f a)
 
--- | Identity
-
 instance Container Identity where
   type Shape    Identity = ()
   type Position Identity = Const () ()
 
   toContainer = Extension () . Map.singleton (Const ()) . runIdentity
   fromContainer = Identity . Unsafe.lookupError (Const ()) . position
-
--- | Const
 
 instance Ref k => Container (Const k) where
   type Shape    (Const k) = k
@@ -70,7 +76,13 @@ instance Ref k => Container (Const k) where
   toContainer (Const x) = Extension x mempty
   fromContainer = Const . shape
 
--- | Product
+newtype OR a b = OR (Either a b)
+  deriving newtype (Eq, Ord, Show, Encode)
+
+instance (Dep a, Dep b) => (Dep (OR a b)) where
+  type Arg (OR a b) = (Arg a, Arg b)
+  depend t = SBV.either (depend @a x) (depend @b y)
+    where (x, y) = SBV.untuple t
 
 instance (Container f, Container g) => Container (Product f g) where
   type Shape    (Product f g) = (Shape f, Shape g)
@@ -78,18 +90,27 @@ instance (Container f, Container g) => Container (Product f g) where
 
   toContainer (Pair x y) = Extension
     { shape = (s, t)
-    , position = Unsafe.coerceKeysMonotonic $
+    , position = Unsafe.coerceKeys $
       Map.mapKeysMonotonic Left p <> Map.mapKeysMonotonic Right q
     } where
       Extension s p = toContainer x
       Extension t q = toContainer y
   fromContainer (Extension (s, t) pq) = Pair x y
     where
-      (p, q) = Map.splitEither $ Unsafe.coerceKeysMonotonic pq
-      x = fromContainer (Extension s p)
-      y = fromContainer (Extension t q)
+      (p, q) = Map.spanAntitone isLeft $ Unsafe.coerceKeys pq
+      x = fromContainer (Extension s (Map.mapKeysMonotonic Unsafe.stripLeft p))
+      y = fromContainer (Extension t (Map.mapKeysMonotonic Unsafe.stripRight q))
 
--- | Sum
+newtype XOR a b = XOR { unXOR :: Either a b }
+  deriving newtype (Eq, Ord, Show, Encode)
+
+instance (Dep a, Dep b) => (Dep (XOR a b)) where
+  type Arg (XOR a b) = Either (Arg a) (Arg b)
+  depend e d =
+    SBV.either
+    (\l -> SBV.isLeft  d .&& depend @a l (SBV.fromLeft  d))
+    (\r -> SBV.isRight d .&& depend @b r (SBV.fromRight d))
+    e
 
 instance (Container f, Container g) => Container (Sum f g) where
   type Shape    (Sum f g) = Either (Shape f) (Shape g)
@@ -108,8 +129,6 @@ instance (Container f, Container g) => Container (Sum f g) where
     Extension (Right t) q -> InR . fromContainer . Extension t $
       Map.mapKeysMonotonic (Unsafe.stripRight . unXOR) q
 
--- | List
-
 instance Container [] where
   type Shape    [] = Natural
   type Position [] = Fin
@@ -120,7 +139,13 @@ instance Container [] where
     }
   fromContainer = Map.elems . position
 
--- | Maybe
+newtype May = May ()
+  deriving stock (Eq, Ord, Show)
+  deriving newtype Encode
+
+instance Dep May where
+  type Arg May = Bool
+  depend m _ = m .== sTrue
 
 instance Container Maybe where
   type Shape    Maybe = Bool

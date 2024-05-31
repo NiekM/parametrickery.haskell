@@ -1,3 +1,11 @@
+{- |
+Module      : Control.Monad.Fresh
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : n.mulleners@uu.nl
+
+A Monad for generating fresh integers.
+
+-}
 module Control.Monad.Fresh where
 
 import Control.Monad.State

@@ -59,27 +59,24 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
-      Benchmark
+      Control.Monad.Fresh
     , Data.Container
+    , Data.Container.Core
+    , Data.Container.Specialized
+    , Data.Dup
+    , Data.Fin
     , Data.Mono
+    , Data.SBV.Container
     , Data.SBV.Depend
+    , Data.SBV.Encode
+    , Data.SBV.Refine
     , Sketch.Foldr
     , Sketch.Map
+    , Unsafe
 
   -- Modules included in this library but not exported.
   other-modules:
       Base
-    , Control.Monad.Fresh
-    , Data.Container.Core
-    , Data.Container.Properties
-    , Data.Container.Specialized
-    , Data.Dup
-    , Data.Map.Utils
-    , Data.SBV.Container
-    , Data.SBV.Encode
-    , Data.SBV.Refine
-    , Pretty
-    , Unsafe
 
   -- LANGUAGE extensions used by modules in this package.
   default-extensions:
@@ -112,7 +109,7 @@ executable parametrickery
   main-is:          Main.hs
 
   -- Modules included in this executable, other than Main.
-  -- other-modules:
+  other-modules: Benchmark
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:

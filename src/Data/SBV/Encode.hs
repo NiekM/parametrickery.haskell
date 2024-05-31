@@ -3,8 +3,8 @@ Module      : Data.SBV.Encode
 Copyright   : (c) Niek Mulleners 2024
 Maintainer  : n.mulleners@uu.nl
 
-How to encode Haskell values in SBV, for the purpose of modeling refinement
-types ("Data.SBV.Refine") and dependent types ("Data.SBV.Depend").
+Encoding Haskell values in SBV, for the purpose of modeling
+'Data.SBV.Refine.Ref'inement types and 'Data.SBV.Depend.Dep'endent types.
 
 -}
 module Data.SBV.Encode where
@@ -16,6 +16,8 @@ import Data.SBV (SymVal)
 
 import Base
 
+-- | The class 'Encode' describes how a value can be encoded into a symbolic
+-- representation.
 class SymVal (Sym a) => Encode a where
   type Sym a :: Type
   encode :: a -> Sym a

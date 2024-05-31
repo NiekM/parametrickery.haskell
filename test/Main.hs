@@ -5,7 +5,7 @@ module Main (main) where
 
 import Test.QuickCheck
 import Numeric.Natural
-import Test.Hspec
+import Test.Hspec hiding (Arg)
 import Test.Hspec.QuickCheck
 
 import qualified Data.Set as Set
@@ -16,6 +16,7 @@ import Data.Functor.Const
 import Data.Functor.Product
 import Data.Functor.Sum
 
+import Data.SBV
 import Data.SBV.Depend
 import Data.Container
 
@@ -56,13 +57,13 @@ main = hspec do
     describe "@(Either Int Int)" . injective $ encode @(Either Int Int)
 
   describe "ref holds on encoded values" do
-    prop "@()"               $ refHolds @()
-    prop "@Bool"             $ refHolds @Bool
-    prop "@Int"              $ refHolds @Int
-    prop "@Char"             $ refHolds @Char
-    prop "@Natural"          $ refHolds @Natural
-    prop "@(Int, Int)"       $ refHolds @(Int, Int)
-    prop "@(Either Int Int)" $ refHolds @(Either Int Int)
+    prop "@()"               $ refineHolds @()
+    prop "@Bool"             $ refineHolds @Bool
+    prop "@Int"              $ refineHolds @Int
+    prop "@Char"             $ refineHolds @Char
+    prop "@Natural"          $ refineHolds @Natural
+    prop "@(Int, Int)"       $ refineHolds @(Int, Int)
+    prop "@(Either Int Int)" $ refineHolds @(Either Int Int)
 
   describe "container laws" do
     describe "roundtrip" do
@@ -80,6 +81,35 @@ main = hspec do
       prop "@Const"    $ containerDependencies @(Const Int) @Int
       prop "@Product"  $ containerDependencies @(Product [] Maybe) @Int
       prop "@Sum"      $ containerDependencies @(Sum [] Maybe) @Int
+
+-- | Check if encoding a refinement types results in a value for which
+-- 'Data.SBV.Refine.refine' holds.
+refineHolds :: forall a. Ref a => a -> Bool
+refineHolds x = case unliteral (refine @a $ literal $ encode x) of
+  Nothing -> error "Something went wrong: somehow not a literal"
+  Just b -> b
+
+-- | Check if encoding a dependent type and its argument results in values for
+-- which 'Data.SBV.Depend.depend' holds.
+dependHolds :: forall a. Dep a => Arg a -> a -> Bool
+dependHolds x y = case unliteral (depend @a x' y') of
+  Nothing -> error "Something went wrong: somehow not a literal"
+  Just b -> b
+  where
+    x' = literal (encode x)
+    y' = literal (encode y)
+
+-- | Check whether turning a 'Data.Functor.Functor' into its
+-- 'Data.Container.Core.Container' representation and back results in the same
+-- value.
+containerRoundTrip :: (Container f, Eq (f a)) => f a -> Bool
+containerRoundTrip x = x == fromContainer (toContainer x)
+
+-- | Check whether the shapes and positions of a 'Data.Container.Core.Container'
+-- are properly constrained.
+containerDependencies :: (Container f, Eq (f a)) => f a -> Bool
+containerDependencies x = refineHolds s && all (dependHolds s) (Map.keys p)
+  where Extension s p = toContainer x
 
 --- Injectivity ---
 

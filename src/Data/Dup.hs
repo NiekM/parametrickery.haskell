@@ -1,5 +1,5 @@
 {- |
-Module      : Data.SBV.Depend
+Module      : Data.Dup
 Copyright   : (c) Niek Mulleners 2024
 Maintainer  : n.mulleners@uu.nl
 

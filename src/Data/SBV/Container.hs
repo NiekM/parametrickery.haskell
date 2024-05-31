@@ -1,11 +1,23 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
+{- |
+Module      : Data.SBV.Container
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : n.mulleners@uu.nl
+
+Datatypes and helper functions for working with symbolic container functors and container morphisms.
+
+-}
 module Data.SBV.Container
+  -- * Symbolic container data types
   ( SShape, SPosition
   , SExtension(..), SMorphism(..)
-  , apply, pair
-  , constrainExtension, unifyExtension, constrainExample
+  -- * Creating symbolic values
   , symContainer, symMorphism
+  -- * Constraining symbolic containers and morphisms
+  , constrainExtension, unifyExtension, constrainMorphism
+  -- * Other functions
+  , apply, pair
   ) where
 
 import Control.Monad
@@ -23,26 +35,49 @@ import Data.Container.Core
 
 import Base
 
+-- | A type synonym for symbolic shapes of the 'Data.Container.Core.Container'
+-- @f@.
 type SShape    f = SBV (Sym (Shape f))
+
+-- | A type synonym for symbolic positions of the
+-- 'Data.Container.Core.Container' @f@.
 type SPosition f = SBV (Sym (Position f))
 
+-- | A symbolic container extension, the symbolic equivalent of
+-- 'Data.Container.Core.Extension'.
+--  
+-- WARNING: the argument to 'Data.SBV.Container.position' is a
+-- 'Data.SBV.Depend.Dep'endent type and care should be taken to never constrain
+-- 'SExtension.position' on impossible inputs (those that fail
+-- 'Data.SBV.Depend.depend').
+-- 
 data SExtension f a where
   SExtension :: Container f =>
     { shape    :: SShape f
     , position :: SPosition f -> SBV a
     } -> SExtension f a
 
+-- | A symbolic container morphism.
+--
+-- WARNING: the arguments to 'Data.SBV.Container.shape' and
+-- 'Data.SBV.Container.position' are 'Data.SBV.Refine.Ref'inement and
+-- 'Data.SBV.Depend.Dep'endent types and care should be taken to never
+-- constrain 'Data.SBV.Container.shape' and 'Data.SBV.Container.position' on
+-- impossible inputs (those that fail 'Data.SBV.Refine.refine' or
+-- 'Data.SBV.Depend.depend').
+--
 data SMorphism f g where
   SMorphism :: (Container f, Container g) =>
     { shape    :: SShape f -> SShape g
     , position :: SShape f -> SPosition g -> SPosition f
     } -> SMorphism f g
 
--- Create a symbolic variable for the extension of a container, given a name for
--- its shape and its position function.
--- WARNING: the position function is a dynamically dependent function and should
--- never be constrained on impossible positions (those that fail the dependency
--- check).
+-- | Create a symbolic variable for the extension of a container.
+--
+-- WARNING: this function introduces symbolic variables with fresh names of the
+-- form @"s_0"@ and @"p_0"@. To avoid naming conflicts, try to refrain from
+-- introducing variables with such names.
+--
 symContainer :: forall m f a.
   (MonadFresh m, SolverContext m, Container f, HasKind a)
   => m (SExtension f a)
@@ -50,11 +85,15 @@ symContainer = do
   n <- fresh
   let s = sym $ "s_" <> show n
   let p = sym $ "p_" <> show n
-  constrain $ ref @(Shape f) s
+  constrain $ refine @(Shape f) s
   return $ SExtension s p
 
--- Create a symbolic variable for the extension of a container morphism, given a
--- name for its shape morphism and position morphism.
+-- | Create a symbolic variable for the extension of a container morphism.
+--
+-- WARNING: this function introduces symbolic variables with fresh names of the
+-- form @"u_0"@ and @"g_0"@. To avoid naming conflicts, try to refrain from
+-- introducing variables with such names.
+--
 symMorphism :: forall m f g.
   (MonadFresh m, SolverContext m, Container f, Container g) =>
   m (SMorphism f g)
@@ -64,25 +103,25 @@ symMorphism = do
   let g = sym $ "g_" <> show n
   -- Foreach correct input s to u, the output should also be correct.
   constrain \(Forall s) ->
-    ref @(Shape f) s .=> ref @(Shape g) (u s)
+    refine @(Shape f) s .=> refine @(Shape g) (u s)
   -- Foreach correct input s and x, the output should also be correct.
   constrain \(Forall s) (Forall x) ->
-    (ref @(Shape f) s .&& dep @(Position g) (u s) x)
-    .=> dep @(Position f) s (g s x)
+    (refine @(Shape f) s .&& depend @(Position g) (u s) x)
+    .=> depend @(Position f) s (g s x)
   return $ SMorphism u g
 
--- Apply a symbolic morphism to a symbolic container.
+-- | Apply a symbolic morphism to a symbolic container.
 apply :: SMorphism f g -> SExtension f a -> SExtension g a
 apply (SMorphism u g) (SExtension s p) = SExtension (u s) (p . g s)
 
--- The pair of two symbolic containers.
+-- | Compute the pair of two symbolic containers.
 pair :: SymVal a => SExtension f a -> SExtension g a ->
   SExtension (Product f g) a
 pair (SExtension s p) (SExtension t q) =
   SExtension (SBV.tuple (s, t)) (SBV.either p q)
 
--- Constrain a symbolic container extension to be equal to a concrete container
--- extension.
+-- | Constrain a symbolic container extension to be equal to a concrete
+-- container extension.
 constrainExtension :: (SymVal a, Monad m, SolverContext m) =>
   SExtension f a -> f a -> m ()
 constrainExtension (SExtension s p) c = do
@@ -91,14 +130,14 @@ constrainExtension (SExtension s p) c = do
   forM_ (Map.assocs p') \(k, v) -> do
     constrain $ p (literal (encode k)) .== literal v
 
--- Unify two symbolic container extensions.
+-- | Constrain two symbolic container extensions to be equal to each other.
 unifyExtension :: forall m f a. (Monad m, SolverContext m) =>
   SExtension f a -> SExtension f a -> m ()
 unifyExtension (SExtension s p) (SExtension t q) = do
   constrain $ s .== t
-  constrain \(Forall x) -> dep @(Position f) s x .=> p x .== q x
+  constrain \(Forall x) -> depend @(Position f) s x .=> p x .== q x
 
--- Constrain a symbolic morphism using an input-output example.
-constrainExample :: (Monad m, SolverContext m) =>
+-- | Constrain a symbolic morphism using an input-output example.
+constrainMorphism :: (Monad m, SolverContext m) =>
   SMorphism f g -> SExtension f a -> SExtension g a -> m ()
-constrainExample f i = unifyExtension (apply f i)
+constrainMorphism f i = unifyExtension (apply f i)

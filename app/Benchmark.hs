@@ -1,12 +1,18 @@
 {-# LANGUAGE TypeAbstractions #-}
+{-# LANGUAGE BlockArguments #-}
 
 module Benchmark where
 
+import Data.Functor ((<&>))
+import Data.Functor.Product
+import Data.Functor.Identity
+import Data.Functor.Compose
+import Data.Functor.Const
 import Data.List ((!?))
+import Data.Coerce
 
 import Data.SBV
 
-import Base
 import Data.Container
 import Data.Mono
 import Sketch.Foldr
@@ -31,18 +37,18 @@ split (Mono @a xs) = Mono @a . uncurry Pair <$> splits
 
 -- For functions of the form `foldr f e`
 simple :: Container g => (forall a. [a] -> g a) -> FoldExamples
-simple f = FoldExamples @_ @_ @Identity $
+simple f = FoldExamples @_ @Identity $
   simpleInputs <&> mapMono \xs ->
-    FoldExample (Const ()) (Const ()) (coerce xs) (f xs)
+    FoldExample (Const ()) (coerce xs) (f xs)
 
 withInt :: Container g => (forall a. Int -> [a] -> g a) -> FoldExamples
-withInt f = FoldExamples @_ @_ @Identity $
+withInt f = FoldExamples @_ @Identity $
   dropInputs <&> \(n, Mono @a xs) ->
-    Mono @a (Pair (Pair (Pair (Const n) (Const n)) (coerce xs)) (f n xs))
+    Mono @a (Pair (Pair (Const n) (coerce xs)) (f n xs))
 
 withList :: Container g => (forall a. [a] -> [a] -> g a) -> FoldExamples
-withList f = FoldExamples @_ @_ @Identity $ twoInputs <&> mapMono
-  \(Pair xs ys) -> Pair (Pair (Pair (Const ()) xs) (coerce ys)) (f xs ys)
+withList f = FoldExamples @_ @Identity $ twoInputs <&> mapMono
+  \(Pair xs ys) -> Pair (Pair xs (coerce ys)) (f xs ys)
 
 listInputs :: [Mono' []]
 listInputs =
@@ -90,11 +96,13 @@ dupInputs = Mono @Integer . Compose . map Dup <$>
 
 nested :: forall f g. (Container f, Container g) =>
   (forall a. [f a] -> g a) -> [Mono' (Compose [] f)] -> FoldExamples
-nested f inputs = FoldExamples @(Const ()) @(Const ()) @f @g $ inputs <&>
-  mapMono \xs -> Pair (Pair (Pair (Const ()) (Const ())) xs) (f $ getCompose xs)
+nested f inputs = FoldExamples @(Const ()) @f @g $ inputs <&>
+  mapMono \xs -> Pair (Pair (Const ()) xs) (f $ getCompose xs)
 
-preludeBenches :: [(String, FoldExamples)]
-preludeBenches =
+type Benchmark = [(String, FoldExamples)]
+
+shapeComplete :: Benchmark
+shapeComplete =
   [ ("null"     , simple _null)
   , ("length"   , simple _length)
   , ("head"     , simple safeHead)
@@ -153,8 +161,8 @@ preludeBenches =
     _unzip :: [Dup a] -> ListPair a
     _unzip = ListPair . unzip . coerce
 
-incompleteBenches :: [(String, FoldExamples)]
-incompleteBenches = preludeBenches <&> fmap \(FoldExamples examples) ->
+shapeIncomplete :: Benchmark
+shapeIncomplete = shapeComplete <&> fmap \(FoldExamples examples) ->
   FoldExamples (decimate examples)
 
 -- Used to make sets incomplete.
@@ -168,9 +176,9 @@ decimate (_:x:xs) = x : decimate xs
 --   [ ("tail", simple t)
 --   , ("init", simple i)
 --   ] where
---     t, i :: [a] -> OptList a
---     t [] = OptList Nothing
---     t (_:xs) = OptList $ Just xs
---     i [] = OptList Nothing
---     i xs = OptList . Just $ init xs
+--     t, i :: [a] -> MaybeList a
+--     t [] = MaybeList Nothing
+--     t (_:xs) = MaybeList $ Just xs
+--     i [] = MaybeList Nothing
+--     i xs = MaybeList . Just $ init xs
  

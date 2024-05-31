@@ -60,8 +60,8 @@ merge xs = sequence xs <&> \case
 milliseconds :: NominalDiffTime -> String
 milliseconds = formatTime defaultTimeLocale "%_4s" . (*1000)
 
-runBench :: Int -> [(String, FoldExamples)] -> IO ()
-runBench runs benches = do
+runBenchmark :: Int -> Benchmark -> IO ()
+runBenchmark runs benches = do
   let (names, examples) = unzip benches
   let width = 4 + maximum (map length names)
   results <- replicateM runs do checkAll examples
@@ -82,7 +82,7 @@ main = do
   True <- isSatisfiable (fromIntegral @_ @(SBV Integer) runs .> 0)
 
   putStrLn "-------- Shape complete ----------"
-  runBench runs preludeBenches
+  runBenchmark runs Benchmark.shapeComplete
 
   putStrLn "-------- Shape incomplete --------"
-  runBench runs incompleteBenches
+  runBenchmark runs Benchmark.shapeIncomplete
