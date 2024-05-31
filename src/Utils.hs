@@ -4,7 +4,7 @@ module Utils
   , partitionWith
   , maybeToEither
   , mapEither
-  , extract
+  , extract, inject
   ) where
 
 import Data.Map.Strict qualified as Map
@@ -32,5 +32,8 @@ maybeToEither e = maybe (Left e) Right
 mapEither :: (a -> Either b c) -> [a] -> ([b], [c])
 mapEither f = partitionEithers . fmap f
 
-extract :: (Traversable f, Ord a) => f (a, b) -> (f a, Map a b)
+extract :: (Traversable f, Ord k) => f (k, v) -> (f k, Map k v)
 extract = swap . traverse \(x, y) -> (Map.singleton x y, x)
+
+inject :: (Traversable f, Ord k) => Map k v -> f k -> Maybe (f v)
+inject m = traverse (`Map.lookup` m)

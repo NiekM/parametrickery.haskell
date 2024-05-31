@@ -53,7 +53,7 @@ match = \cases
   (Inl x)    (Inl a)    -> match x a
   (Inr y)    (Inr b)    -> match y b
   (Lst xs)   (Lst as) | length xs == length as ->
-    fmap Map.unions . sequence $ zipWith match xs as
+    Map.unions <$> zipWithM match xs as
   (Lit l)    (Lit m)  | l == m -> Just mempty
   (Hole h)   e          -> Just $ Map.singleton h e
   _ _ -> Nothing
@@ -63,8 +63,8 @@ match = \cases
 -- type more or less abstract. In other words, it is not up to the example to
 -- decide which type abstraction we pick.
 data Example = Example
-  { ins :: [Term]
-  , out :: Term
+  { inputs :: [Term]
+  , output :: Term
   } deriving stock (Eq, Ord, Show)
 
 ------ Pretty ------

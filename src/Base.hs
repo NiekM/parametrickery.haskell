@@ -31,7 +31,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Tuple (swap)
 import Data.Either (partitionEithers)
 
-import Control.Monad (join, (>=>), forM)
+import Control.Monad
 
 import Prettyprinter
 

@@ -69,11 +69,11 @@ prettyPolyProblem :: Text -> PolyProblem -> Doc ann
 prettyPolyProblem fun (PolyProblem sig exs) = statements (header : examples)
   where
     header = sep [pretty fun, ":", pretty sig]
-    barred = encloseSep mempty mempty " | "
     examples = exs <&> \(PolyExample r ss t o) ->
       let
         arguments = sep (pretty fun : map (prettyExpr 3) ss)
         relations = map pretty . filter relevant $ Map.elems r
         output = pretty $ t <&> \p -> PrettySet $ Multi.lookup p o
-      in
-        barred (arguments : relations) <+> "=" <+> output
+      in if null relations
+        then arguments <+> "=" <+> output
+        else arguments <+> encloseSep "| " " =" ", " relations <+> output

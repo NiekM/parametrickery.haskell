@@ -73,7 +73,6 @@ library
     , Data.Map.Utils
     , Data.Map.Multi
     , Prettyprinter.Utils
-    , Unsafe
     , Utils
     , Test
 

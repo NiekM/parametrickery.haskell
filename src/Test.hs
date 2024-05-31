@@ -146,3 +146,17 @@ sortExample = Problem
     , Example [toVal @[Int] [2,3,1]] (toVal @[Int] [1,2,3])
     ]
   }
+
+twoRelations :: Problem
+twoRelations = Problem
+  { signature = Signature
+    { vars = [("a", Ord), ("b", Eq)]
+    , ctxt = [("xs", List (Tup (Free "a") (Free "b")))]
+    , goal = Tup (List (Free "a")) (List (Free "b"))
+    }
+  , examples =
+    [ Example [toVal @[(Int, Int)] [(1,2),(3,4)]] (toVal @([Int], [Int]) ([1,3], [2,4]))
+    , Example [toVal @[(Int, Int)] [(1,2)]] (toVal @([Int], [Int]) ([1], [2]))
+    , Example [toVal @[(Int, Int)] [(1,2),(1,2),(1,2)]] (toVal @([Int], [Int]) ([1], [2]))
+    ]
+  }

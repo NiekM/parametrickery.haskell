@@ -32,7 +32,7 @@ poly = \cases
   (List  t) (Lst xs)   -> Lst (poly t <$> xs)
   (Base  _) (Lit x)    -> Lit x
   t x -> error . show $
-    "Mismatching types!" <+> pretty (() <$ x) <+> ":/:" <+> pretty t
+    pretty (void x) <+> "does not have type" <+> pretty t <> "."
 
 computePositions :: Mono -> Term -> State (Map Text Nat) (Expr (Position, Term))
 computePositions t e = do

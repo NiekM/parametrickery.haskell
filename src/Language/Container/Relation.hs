@@ -16,11 +16,11 @@ import Language.Container
 
 -- | The container representation of type class relations.
 data Relation
-  -- | The empty relation
+  -- | The empty relation.
   = RelNone
-  -- | Sets of equivalence classes
+  -- | Sets of equivalence classes.
   | RelEq  (Set (Set Position))
-  -- | Ordered equivalence classes
+  -- | Ordered equivalence classes.
   | RelOrd [Set Position]
   deriving stock (Eq, Ord, Show)
 
@@ -55,4 +55,4 @@ instance Pretty Relation where
   pretty = \case
     RelNone -> "{}"
     RelEq  eq  -> encloseSep mempty mempty " /= " . fmap eqClass $ Set.toList eq
-    RelOrd ord -> encloseSep mempty mempty " <= " $ fmap eqClass ord
+    RelOrd ord -> encloseSep mempty mempty " < " $ fmap eqClass ord
