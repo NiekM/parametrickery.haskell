@@ -1,7 +1,13 @@
 {-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE BlockArguments #-}
 
+{-# OPTIONS_GHC -Wno-x-partial #-}
+
 module Benchmark where
+
+import Prelude hiding
+  (null, length, head, last, tail, init, splitAt, zip, unzip)
+import Prelude qualified
 
 import Data.Functor ((<&>))
 import Data.Functor.Product
@@ -33,7 +39,7 @@ split :: Mono' [] -> [Mono' (Product [] [])]
 split (Mono @a xs) = Mono @a . uncurry Pair <$> splits
   where
     splits :: [([a],[a])]
-    splits = flip splitAt xs <$> [0 .. length xs]
+    splits = flip Prelude.splitAt xs <$> [0 .. Prelude.length xs]
 
 -- For functions of the form `foldr f e`
 simple :: Container g => (forall a. [a] -> g a) -> FoldExamples
@@ -101,25 +107,60 @@ nested f inputs = FoldExamples @(Const ()) @f @g $ inputs <&>
 
 type Benchmark = [(String, FoldExamples)]
 
+safeMaybe :: ([a] -> b) -> [a] -> Maybe b
+safeMaybe _ [] = Nothing
+safeMaybe f xs = Just $ f xs
+
+safeList :: ([a] -> [b]) -> [a] -> [b]
+safeList _ [] = []
+safeList f xs = f xs
+
 shapeComplete :: Benchmark
 shapeComplete =
-  [ ("null"     , simple _null)
-  , ("length"   , simple _length)
-  , ("head"     , simple safeHead)
-  , ("last"     , simple safeLast)
-  , ("tail"     , simple safeTail)
-  , ("init"     , simple safeInit)
+  [ ("null"     , simple null)
+  , ("length"   , simple length)
+  , ("head"     , simple head)
+  , ("last"     , simple last)
+  , ("tail"     , simple tail)
+  , ("init"     , simple init)
   , ("reverse"  , simple reverse)
   , ("index"    , withInt index)
   , ("drop"     , withInt drop)
   , ("take"     , withInt take)
-  , ("splitAt"  , withInt _splitAt)
+  , ("splitAt"  , withInt splitAt)
   , ("append"   , withList append)
   , ("prepend"  , withList prepend)
-  , ("zip"      , withList _zip)
-  , ("unzip"    , nested _unzip dupInputs)
+  , ("zip"      , withList zip)
+  , ("unzip"    , nested unzip dupInputs)
   , ("concat"   , nested concat nestedInputs)
   ] where
+
+    -- Functions with monomorphic output.
+
+    null :: [a] -> Const Bool a
+    null = Const . Prelude.null
+
+    length :: [a] -> Const Int a
+    length = Const . Prelude.length
+
+    -- Partial functions.
+
+    head :: [a] -> Maybe a
+    head = safeMaybe Prelude.head
+
+    last :: [a] -> Maybe a
+    last = safeMaybe Prelude.last
+
+    tail :: [a] -> [a]
+    tail = safeList Prelude.tail
+
+    init :: [a] -> [a]
+    init = safeList Prelude.init
+
+    -- Operators.
+
+    index :: Int -> [a] -> Maybe a
+    index = flip (!?)
 
     append :: [a] -> [a] -> [a]
     append  = (++)
@@ -127,45 +168,24 @@ shapeComplete =
     prepend :: [a] -> [a] -> [a]
     prepend = flip (++)
 
-    safeHead :: [a] -> Maybe a
-    safeHead []    = Nothing
-    safeHead (x:_) = Just x
+    -- Functions with specialized containers.
 
-    safeLast :: [a] -> Maybe a
-    safeLast []    = Nothing
-    safeLast xs    = Just $ last xs
+    splitAt :: Int -> [a] -> ListPair a
+    splitAt n xs = ListPair $ Prelude.splitAt n xs
 
-    index :: Int -> [a] -> Maybe a
-    index n xs = xs !? n
+    zip :: [a] -> [a] -> PairList a
+    zip xs ys = PairList $ Prelude.zip xs ys
 
-    _null :: [a] -> Const Bool a
-    _null = Const . null
+    unzip :: [Dup a] -> ListPair a
+    unzip = ListPair . Prelude.unzip . coerce
 
-    _length :: [a] -> Const Int a
-    _length = Const . length
-
-    safeTail :: [a] -> [a]
-    safeTail []     = []
-    safeTail (_:xs) = xs
-
-    safeInit :: [a] -> [a]
-    safeInit []     = []
-    safeInit xs     = init xs
-
-    _splitAt :: Int -> [a] -> ListPair a
-    _splitAt n xs = ListPair $ splitAt n xs
-
-    _zip :: [a] -> [a] -> PairList a
-    _zip xs ys = PairList $ zip xs ys
-
-    _unzip :: [Dup a] -> ListPair a
-    _unzip = ListPair . unzip . coerce
-
+-- | A shape incomplete version of the benchmark, with every other input removed
+-- from each set of input-output examples.
 shapeIncomplete :: Benchmark
 shapeIncomplete = shapeComplete <&> fmap \(FoldExamples examples) ->
   FoldExamples (decimate examples)
 
--- Used to make sets incomplete.
+-- | Removes every other element from a list.
 decimate :: [a] -> [a]
 decimate [] = []
 decimate [x] = [x]
