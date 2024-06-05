@@ -12,7 +12,6 @@ module Data.SBV.Depend
   ( module Data.SBV.Encode
   , module Data.SBV.Refine
   , Dep(..)
-  -- * Miscellaneous dependent datatypes
   ) where
 
 import Data.SBV
@@ -33,5 +32,3 @@ class (Encode a, Ref (Arg a)) => Dep a where
 instance (Ref a, Ref b) => Dep (Const a b) where
   type Arg (Const a b) = b
   depend _ = refine @a
-
--- TODO: move these to separate files.

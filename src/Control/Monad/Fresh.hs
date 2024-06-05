@@ -3,21 +3,28 @@ Module      : Control.Monad.Fresh
 Copyright   : (c) Anonymous 2024
 Maintainer  : Anonymous
 
-A Monad for generating fresh integers.
+A Monad transformer for generating fresh integers.
 
 -}
-module Control.Monad.Fresh where
+module Control.Monad.Fresh
+  ( FreshT
+  , MonadFresh(..)
+  , runFresh
+  ) where
 
 import Control.Monad.State
 
 import Data.SBV.Internals
 
+-- | A newtype around an integer state, used for generating fresh integers.
 newtype FreshT m a = FreshT { getFreshT :: StateT Int m a }
   deriving newtype (Functor, Applicative, Monad, MonadTrans, MonadState Int)
 
+-- | Evaluate a computation that generates fresh integers.
 runFresh :: Monad m => FreshT m a -> m a
 runFresh m = evalStateT (getFreshT m) 0
 
+-- | Monads that support generating fresh integers.
 class Monad m => MonadFresh m where
   fresh :: m Int
 

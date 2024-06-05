@@ -40,6 +40,10 @@ instance Dep DecFin where
   type Arg DecFin = Natural
   depend n = depend @Fin (n - 1)
 
+-- | A type synonym for @'Data.Maybe.Maybe' [a]@ with a container instance
+-- \[
+-- (n : \textit{Nat}) \triangleright \textit{Fin}\ (n - 1)
+-- \]
 newtype MaybeList a = MaybeList (Maybe [a])
   deriving stock (Eq, Ord, Show)
   deriving stock Functor
@@ -64,6 +68,11 @@ instance Dep SumFin where
   depend n = depend @Fin (a + b)
     where (a, b) = SBV.untuple n
 
+-- | A type synonym for @([a], [a])@ with a container instance
+-- \[
+-- ((n, m) : \textit{Nat} \times \textit{Nat})
+-- \triangleright \textit{Fin}\ (n + m)
+-- \]
 newtype ListPair a = ListPair ([a], [a])
   deriving stock (Eq, Ord, Show)
   deriving stock Functor
@@ -86,6 +95,10 @@ instance Dep DoubleFin where
   type Arg DoubleFin = Natural
   depend n = depend @Fin (2 * n)
 
+-- | A type synonym for @[(a, a)]@ with a container instance
+-- \[
+-- (n : \textit{Nat}) \triangleright \textit{Fin}\ 2n
+-- \]
 newtype PairList a = PairList [(a, a)]
   deriving stock (Eq, Ord, Show)
   deriving stock Functor

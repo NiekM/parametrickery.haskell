@@ -1,6 +1,5 @@
 {-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE BlockArguments #-}
-
 {-# OPTIONS_GHC -Wno-x-partial #-}
 
 module Benchmark where

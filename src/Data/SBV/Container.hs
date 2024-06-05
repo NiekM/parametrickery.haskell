@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 {- |
 Module      : Data.SBV.Container
 Copyright   : (c) Anonymous 2024
