@@ -15,6 +15,7 @@ import Control.Monad.Fresh
 
 import Data.SBV hiding (output)
 import Data.SBV.Container
+import Data.List.NonEmpty.Utils qualified as NonEmpty
 
 import Base
 import Data.Container
@@ -55,8 +56,6 @@ pattern FoldExample c f g = Pair (Pair c (Compose f)) g
 data FoldExamples = forall c f g. (Container c, Container f, Container g) =>
   FoldExamples [Mono SymVal (FoldExample c f g)]
 
--- TODO: do we define many different versions of foldr?
-
 -- | Compute the constraint for a @foldr@ sketch.
 --
 -- This is a slight generalization of Figure 5 of "Example-Based Reasoning
@@ -65,29 +64,39 @@ data FoldExamples = forall c f g. (Container c, Container f, Container g) =>
 foldr :: FoldExamples -> ConstraintSet
 foldr (FoldExamples examples) = runFresh do
 
+  -- Create a symbolic morphism (a hole) for both arguments.
   f <- symMorphism
   e <- symMorphism
 
+  -- Each top-level example is encoded separately.
   forM_ examples
     \(Mono (FoldExample ctx inputs output)) -> do
 
-    as <- forM (reverse inputs) \x -> do
-      a <- symContainer
-      constrainExtension a x
-      return a
+    -- Create a symbolic container constrained to each input. The inputs are
+    -- reversed because foldr goes through a list from right to left.
+    xs <- forM (reverse inputs) \i -> do
+      x <- symContainer
+      constrainExtension x i
+      return x
 
-    bs <- replicateM (length inputs + 1) symContainer
+    -- Create a free symbolic container for each intermediate value.
+    ys <- replicateM (length inputs) symContainer
 
+    -- Create a symbolic container constrained to the output.
+    yn <- symContainer
+    constrainExtension yn output
+
+    -- Create a symbolic container constrained to the context argument.
     c <- symContainer
     constrainExtension c ctx
 
-    case bs of
-      -- If there are intermediate results ...
-      (b0 : bs') -> do
-        constrainMorphism e c b0
-        constrainExtension (last bs) output
+    let y0 :| ys' = NonEmpty.snoc ys yn
 
-        forM_ (zip3 as bs bs') \(a, b, b') -> do
-          constrainMorphism f (pair c (pair a b)) b'
+    -- The first (intermediate) result is equal to the base case.
+    constrainMorphism e c y0
 
-      _ -> return ()
+    -- The morphism f is constrained so that each pair of input x_i and
+    -- (intermediate) output y_i (along with the context) is mapped to the
+    -- next (intermediate) output y_i+1.
+    forM_ (zip3 xs ys ys') \(x, y, y') -> do
+      constrainMorphism f (pair c (pair x y)) y'

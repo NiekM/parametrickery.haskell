@@ -23,10 +23,16 @@ name:               parametrickery
 version:            0.1.0.0
 
 -- A short (one-line) description of the package.
--- synopsis:
+synopsis:
+  The implementation for "Example-Based Reasoning About the Realizability of Polymorphic Programs".
 
 -- A longer description of the package.
--- description:
+description:
+  This package allows reasoning about container functors by translating regular haskell Functors to their container extension and using an SMT solver to solve equations on them.
+
+  The package provides some utility functions for reasoning about whether functions are folds or maps.
+
+  This package accompanies the ICFP paper "Example-Based Reasoning About the Realizability of Polymorphic Programs".
 
 -- The license under which the package is released.
 license:            BSD-2-Clause
@@ -35,10 +41,10 @@ license:            BSD-2-Clause
 license-file:       LICENSE
 
 -- The package author(s).
-author:             Niek Mulleners
+author:             Anonymous
 
 -- An email address to which users can send suggestions, bug reports, and patches.
-maintainer:         n.mulleners@uu.nl
+maintainer:         Anonymous
 
 -- A copyright notice.
 -- copyright:
@@ -74,6 +80,7 @@ library
   -- Modules included in this library but not exported.
   other-modules:
       Base
+    , Data.List.NonEmpty.Utils
 
   -- LANGUAGE extensions used by modules in this package.
   default-extensions:

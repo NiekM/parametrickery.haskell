@@ -34,16 +34,10 @@ instance (Arbitrary1 f, Arbitrary1 g) => Arbitrary1 (Sum f g) where
   liftShrink shr (InL x) = [ InL x' | x' <- liftShrink shr x]
   liftShrink shr (InR y) = [ InR y' | y' <- liftShrink shr y]
 
-instance (Arbitrary1 f, Arbitrary1 g, Arbitrary a) => Arbitrary (Sum f g a) where
+instance (Arbitrary1 f, Arbitrary1 g, Arbitrary a) =>
+  Arbitrary (Sum f g a) where
   arbitrary = liftArbitrary arbitrary
   shrink = liftShrink shrink
-
--- TODO: how to easily test for many different types?
--- TODO: use approach inspired by quickcheck-classes library
--- so: use functions that generate tests for a type. i.e. rawLaws, refLaws, depLaws.
-
--- TODO: is there any way to make this less verbose?
--- i.e. can we pass a list 'types' and check at each of them?
 
 main :: IO ()
 main = hspec do
@@ -56,7 +50,7 @@ main = hspec do
     describe "@(Int, Int)"       . injective $ encode @(Int, Int)
     describe "@(Either Int Int)" . injective $ encode @(Either Int Int)
 
-  describe "ref holds on encoded values" do
+  describe "refine holds on encoded values" do
     prop "@()"               $ refineHolds @()
     prop "@Bool"             $ refineHolds @Bool
     prop "@Int"              $ refineHolds @Int
@@ -113,21 +107,26 @@ containerDependencies x = refineHolds s && all (dependHolds s) (Map.keys p)
 
 --- Injectivity ---
 
--- TODO: is there some way to shrink the results?
-
 genVec :: (Arbitrary a, Ord a) => Int -> IO [a]
 genVec n = Set.toAscList . Set.fromList <$> generate (vectorOf n arbitrary)
-
-asExpected :: Expectation
-asExpected = return ()
 
 injective :: (Arbitrary a, Ord a, Ord b, Show a, Show b) => (a -> b) -> Spec
 injective f = beforeAll (genVec 300) do
   it "is injective" $ \xs -> checkInjective f xs mempty
 
+-- | Check for the injectivity of a function based on a list of inputs, using an
+-- accumulating Map.
+--
+-- As opposed to the more natural but inefficient:
+--
+-- @
+-- checkInjective :: (Eq a, Eq b) => (a -> b) -> a -> a -> Property
+-- checkInjective f x y = f x == f y ==> x == y
+-- @
+--
 checkInjective :: (Eq a, Ord b, Show a, Show b) =>
   (a -> b) -> [a] -> Map b a -> Expectation
-checkInjective _ [] _ = asExpected
+checkInjective _ [] _ = return ()
 checkInjective f (x:xs) m =
   case Map.insertLookupWithKey (const const) (f x) x m of
     (Just y, _) | x /= y -> expectationFailure $ unwords
@@ -138,19 +137,3 @@ checkInjective f (x:xs) m =
       , show xs
       ]
     (_, m') -> checkInjective f xs m'
-
--- As opposed to the more natural but inefficient:
---
--- injective :: (Eq a, Eq b) => (a -> b) -> a -> a -> Property
--- injective f x y = f x == f y ==> x == y
---
--- Usage:
--- > hspec do
--- >  describe "(+1)" $ injective @Int (+1)
--- >  describe "(`div` 2)" $ injective @Int (`div` 2)
---
--- (+1)
---   is injective [v]
--- (`div` 2)
---   is injective [x]
---

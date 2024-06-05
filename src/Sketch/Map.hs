@@ -71,21 +71,31 @@ data MapExamples = forall c f g. (Container c, Container f, Container g) =>
 map :: MapExamples -> ConstraintSet
 map (MapExamples examples) = runFresh do
 
+  -- Create a symbolic morphism (a hole) for the argument f.
   f <- symMorphism
 
+  -- Each top-level example is encoded separately.
   forM_ examples
     \(Mono (MapExample ctx inputs outputs)) -> do
 
+    -- The input and output lists should have the same length.
     constrain . fromBool $ length inputs == length outputs
 
+    -- Create a symbolic container constrained to the context argument.
     c <- symContainer
     constrainExtension c ctx
 
-    forM_ (zip inputs outputs) \(x, y) -> do
-      a <- symContainer
-      constrainExtension a x
+    -- Per example, each input-output pair is encoded separately.
+    forM_ (zip inputs outputs) \(i, o) -> do
 
-      b <- symContainer
-      constrainExtension b y
+      -- Create a symbolic container constrained to the input.
+      x <- symContainer
+      constrainExtension x i
 
-      constrainMorphism f (pair c a) b
+      -- Create a symbolic container constrained to the output.
+      y <- symContainer
+      constrainExtension y o
+
+      -- Constrain the morphism f so that each input x_i (along with the
+      -- context) maps to the corresponding output y_i.
+      constrainMorphism f (pair c x) y
