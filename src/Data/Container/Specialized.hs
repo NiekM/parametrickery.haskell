@@ -3,8 +3,8 @@
 
 {- |
 Module      : Data.Container.Specialized
-Copyright   : (c) Niek Mulleners 2024
-Maintainer  : n.mulleners@uu.nl
+Copyright   : (c) Anonymous 2024
+Maintainer  : Anonymous
 
 Specialized implementations of containers that are more efficient than the
 standard representations.

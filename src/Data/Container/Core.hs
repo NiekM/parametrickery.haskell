@@ -2,8 +2,8 @@
 
 {- |
 Module      : Data.Container.Core
-Copyright   : (c) Niek Mulleners 2024
-Maintainer  : n.mulleners@uu.nl
+Copyright   : (c) Anonymous 2024
+Maintainer  : Anonymous
 
 Container functors and their extensions.
 
