@@ -15,6 +15,7 @@ import Data.Time.Format
 import Control.Monad
 import Control.Exception
 
+import Data.List.NonEmpty.Utils
 import Sketch.Foldr (FoldExamples)
 import Sketch.Foldr qualified as Sketch
 import Benchmark
@@ -39,14 +40,6 @@ checkAll xs = do
     Right b -> do
       t <- readIORef time
       return $ Just (b, t)
-
-allSame :: Eq a => NonEmpty a -> Maybe a
-allSame (x :| xs)
-  | all (x==) xs = Just x
-  | otherwise    = Nothing
-
-average :: Fractional a => NonEmpty a -> a
-average xs = sum xs / fromIntegral (length xs)
 
 merge :: [Maybe (Bool, NominalDiffTime)] -> Maybe (Bool, NominalDiffTime)
 merge xs = sequence xs <&> \case

@@ -68,6 +68,7 @@ library
     , Data.Container.Specialized
     , Data.Dup
     , Data.Fin
+    , Data.List.NonEmpty.Utils
     , Data.Mono
     , Data.SBV.Container
     , Data.SBV.Depend
@@ -80,7 +81,6 @@ library
   -- Modules included in this library but not exported.
   other-modules:
       Base
-    , Data.List.NonEmpty.Utils
 
   -- LANGUAGE extensions used by modules in this package.
   default-extensions:
