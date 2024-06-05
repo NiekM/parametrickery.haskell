@@ -98,6 +98,9 @@ nested f inputs = FoldExamples @(Const ()) @f @g $ inputs <&>
 
 type Benchmark = [(String, FoldExamples)]
 
+-- | This is the shape complete benchmark as described in "Example-Based
+-- Reasoning About the Realizability of Polymorphic Programs", based on list
+-- function from 'Prelude'.
 shapeComplete :: Benchmark
 shapeComplete =
   [ ("null"     , simple null)
@@ -175,9 +178,8 @@ shapeComplete =
 shapeIncomplete :: Benchmark
 shapeIncomplete = shapeComplete <&> fmap \(FoldExamples examples) ->
   FoldExamples (decimate examples)
-
--- | Removes every other element from a list.
-decimate :: [a] -> [a]
-decimate [] = []
-decimate [x] = [x]
-decimate (_:x:xs) = x : decimate xs
+  where
+    decimate :: [a] -> [a]
+    decimate [] = []
+    decimate [x] = [x]
+    decimate (_:x:xs) = x : decimate xs

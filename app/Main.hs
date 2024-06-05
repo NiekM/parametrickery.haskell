@@ -41,6 +41,8 @@ checkAll xs = do
       t <- readIORef time
       return $ Just (b, t)
 
+-- | Merge the results from different runs of the same benchmark, ensuring that
+-- they all have the same resulting and computing the average runtime.
 merge :: [Maybe (Bool, NominalDiffTime)] -> Maybe (Bool, NominalDiffTime)
 merge xs = sequence xs <&> \case
   [] -> error "No values to merge"
@@ -50,6 +52,7 @@ merge xs = sequence xs <&> \case
       Nothing -> error "Inconsistent realizability result"
       Just b -> (b, average ts)
 
+-- | Print 'NominalDiffTime' in milliseconds.
 milliseconds :: NominalDiffTime -> String
 milliseconds = formatTime defaultTimeLocale "%_4s" . (*1000)
 
