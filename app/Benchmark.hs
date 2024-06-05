@@ -24,37 +24,7 @@ import Sketch.Foldr
 
 type Mono' = Mono SymVal
 
-simpleInputs :: [Mono' []]
-simpleInputs =
-  [ Mono @Integer [1,2,3]
-  , Mono          [True, False]
-  , Mono          [()]
-  ]
-
-dropInputs :: [(Int, Mono' [])]
-dropInputs = [(1,),(2,)] >>= (<$> simpleInputs)
-
-split :: Mono' [] -> [Mono' (Product [] [])]
-split (Mono @a xs) = Mono @a . uncurry Pair <$> splits
-  where
-    splits :: [([a],[a])]
-    splits = flip Prelude.splitAt xs <$> [0 .. Prelude.length xs]
-
--- For functions of the form `foldr f e`
-simple :: Container g => (forall a. [a] -> g a) -> FoldExamples
-simple f = FoldExamples @_ @Identity $
-  simpleInputs <&> mapMono \xs ->
-    FoldExample (Const ()) (coerce xs) (f xs)
-
-withInt :: Container g => (forall a. Int -> [a] -> g a) -> FoldExamples
-withInt f = FoldExamples @_ @Identity $
-  dropInputs <&> \(n, Mono @a xs) ->
-    Mono @a (Pair (Pair (Const n) (coerce xs)) (f n xs))
-
-withList :: Container g => (forall a. [a] -> [a] -> g a) -> FoldExamples
-withList f = FoldExamples @_ @Identity $ twoInputs <&> mapMono
-  \(Pair xs ys) -> Pair (Pair xs (coerce ys)) (f xs ys)
-
+-- | Basic list inputs.
 listInputs :: [Mono' []]
 listInputs =
   [ Mono @Integer [1,2,3]
@@ -63,9 +33,23 @@ listInputs =
   , Mono @Integer []
   ]
 
-splitInputs :: [Mono' (Product [] [])]
-splitInputs = concatMap split listInputs
+-- | Create a benchmark based on a simple function of type @[a] -> g a@.
+simple :: Container g => (forall a. [a] -> g a) -> FoldExamples
+simple f = FoldExamples @_ @Identity $
+  listInputs <&> mapMono \xs ->
+    FoldExample (Const ()) (coerce xs) (f xs)
 
+-- | Basic list inputs with an additional integer argument.
+inputsWithInt :: [(Int, Mono' [])]
+inputsWithInt = [(1,),(2,)] >>= (<$> listInputs)
+
+-- | Create a benchmark based on a function of type @Int -> [a] -> g a@.
+withInt :: Container g => (forall a. Int -> [a] -> g a) -> FoldExamples
+withInt f = FoldExamples @_ @Identity $
+  inputsWithInt <&> \(n, Mono @a xs) ->
+    Mono @a (Pair (Pair (Const n) (coerce xs)) (f n xs))
+
+-- | Pairs of lists as inputs.
 twoInputs :: [Mono' (Product [] [])]
 twoInputs = Mono @Integer <$>
   [ Pair [] []
@@ -78,6 +62,12 @@ twoInputs = Mono @Integer <$>
   , Pair [1,2] [3,4]
   ]
 
+-- | Create a benchmark based on a function of type @[a] -> [a] -> g a@.
+withList :: Container g => (forall a. [a] -> [a] -> g a) -> FoldExamples
+withList f = FoldExamples @_ @Identity $ twoInputs <&> mapMono
+  \(Pair xs ys) -> Pair (Pair xs (coerce ys)) (f xs ys)
+
+-- | Nested lists as inputs.
 nestedInputs :: [Mono' (Compose [] [])]
 nestedInputs = Mono @Integer . Compose <$>
   [ []
@@ -91,6 +81,7 @@ nestedInputs = Mono @Integer . Compose <$>
   , [[1],[2],[1]]
   ]
 
+-- | Pairs of lists as inputs.
 dupInputs :: [Mono' (Compose [] Dup)]
 dupInputs = Mono @Integer . Compose . map Dup <$>
   [ []
@@ -99,20 +90,13 @@ dupInputs = Mono @Integer . Compose . map Dup <$>
   , [(1,2), (3,4), (5,6)]
   ]
 
+-- | Create a benchmark based on a function of type @[f a] -> g a@.
 nested :: forall f g. (Container f, Container g) =>
   (forall a. [f a] -> g a) -> [Mono' (Compose [] f)] -> FoldExamples
 nested f inputs = FoldExamples @(Const ()) @f @g $ inputs <&>
   mapMono \xs -> Pair (Pair (Const ()) xs) (f $ getCompose xs)
 
 type Benchmark = [(String, FoldExamples)]
-
-safeMaybe :: ([a] -> b) -> [a] -> Maybe b
-safeMaybe _ [] = Nothing
-safeMaybe f xs = Just $ f xs
-
-safeList :: ([a] -> [b]) -> [a] -> [b]
-safeList _ [] = []
-safeList f xs = f xs
 
 shapeComplete :: Benchmark
 shapeComplete =
@@ -143,6 +127,14 @@ shapeComplete =
     length = Const . Prelude.length
 
     -- Partial functions.
+
+    safeMaybe :: ([a] -> b) -> [a] -> Maybe b
+    safeMaybe _ [] = Nothing
+    safeMaybe f xs = Just $ f xs
+
+    safeList :: ([a] -> [b]) -> [a] -> [b]
+    safeList _ [] = []
+    safeList f xs = f xs
 
     head :: [a] -> Maybe a
     head = safeMaybe Prelude.head
@@ -189,15 +181,3 @@ decimate :: [a] -> [a]
 decimate [] = []
 decimate [x] = [x]
 decimate (_:x:xs) = x : decimate xs
-
--- maybeTailInit :: [(String, FoldExamples)]
--- maybeTailInit =
---   [ ("tail", simple t)
---   , ("init", simple i)
---   ] where
---     t, i :: [a] -> MaybeList a
---     t [] = MaybeList Nothing
---     t (_:xs) = MaybeList $ Just xs
---     i [] = MaybeList Nothing
---     i xs = MaybeList . Just $ init xs
- 
