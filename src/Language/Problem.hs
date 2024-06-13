@@ -1,13 +1,9 @@
 module Language.Problem where
 
-import Data.Map.Strict qualified as Map
-
 import Prettyprinter.Utils
 import Base
-import Data.Map.Multi qualified as Multi
 import Language.Expr
 import Language.Type
-import Language.Container.Relation
 import Language.Container.Morphism
 
 data Problem = Problem
@@ -20,21 +16,14 @@ data Problem = Problem
 -- there are no examples, we should still be able to check automatically that
 -- e.g. `{x : a} -> b` is not realizable.
 -- TODO: check that this actually works as expected for multiple type variables.
-check :: Problem -> Either Conflict PolyProblem
+check :: Problem -> Result PolyProblem
 check (Problem signature exs) = do
   xs <- mapM (checkExample signature) exs
   examples <- combine xs
   return PolyProblem { signature, examples }
 
 instance Pretty Problem where
-  pretty = prettyProblem "_"
-
-prettyProblem :: Text -> Problem -> Doc ann
-prettyProblem fun (Problem sig exs) = statements (header : examples)
-  where
-    header = sep [pretty fun, ":", pretty sig]
-    examples = exs <&> \(Example ins out) -> sep
-      (pretty fun : map (prettyExpr 3) ins ++ ["=", pretty out])
+  pretty = prettyNamed "_"
 
 -- Lifts the nth argument out of a problem.
 liftArg :: Nat -> Problem -> Maybe (Text, Mono, [Term], Problem)
@@ -63,17 +52,16 @@ data PolyProblem = PolyProblem
   } deriving stock (Eq, Ord, Show)
 
 instance Pretty PolyProblem where
-  pretty = prettyPolyProblem "_"
+  pretty = prettyNamed "_"
 
-prettyPolyProblem :: Text -> PolyProblem -> Doc ann
-prettyPolyProblem fun (PolyProblem sig exs) = statements (header : examples)
-  where
-    header = sep [pretty fun, ":", pretty sig]
-    examples = exs <&> \(PolyExample r ss t o) ->
-      let
-        arguments = sep (pretty fun : map (prettyExpr 3) ss)
-        relations = map pretty . filter relevant $ Map.elems r
-        output = pretty $ t <&> \p -> PrettySet $ Multi.lookup p o
-      in if null relations
-        then arguments <+> "=" <+> output
-        else arguments <+> encloseSep "| " " =" ", " relations <+> output
+instance Pretty (Named PolyProblem) where
+  pretty (Named name (PolyProblem sig exs)) = statements (header : examples)
+    where
+      header   = prettyNamed name sig
+      examples = prettyNamed name <$> exs
+
+instance Pretty (Named Problem) where
+  pretty (Named name (Problem sig exs)) = statements (header : examples)
+    where
+      header   = prettyNamed name sig
+      examples = prettyNamed name <$> exs

@@ -1,5 +1,6 @@
 module Language.Container.Morphism where
 
+import Control.Monad.Error.Class
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -7,6 +8,7 @@ import Data.Set qualified as Set
 import Base
 import Data.Map.Multi (Multi)
 import Data.Map.Multi qualified as Multi
+import Prettyprinter.Utils
 import Utils
 
 import Language.Type
@@ -14,6 +16,7 @@ import Language.Expr
 import Language.Container
 import Language.Container.Relation
 
+-- TODO: maybe rewrite with some other datatype?
 type Origins = Multi Position Position
 
 computeOrigins :: Ord a => Map Position a -> Map Position a -> Origins
@@ -30,10 +33,10 @@ data PolyExample = PolyExample
 
 -- It seems that we only need to compute the relation for the inputs, since the
 -- output values are a subset (and if they are not, this is already a conflict).
-checkExample :: Signature -> Example -> Either Conflict PolyExample
+checkExample :: Signature -> Example -> Result PolyExample
 checkExample (Signature vars ctxt goal) (Example ins out)
-  | conflict  = Left PositionConflict
-  | otherwise = Right PolyExample { relations, inShapes, outShape, origins }
+  | conflict  = throwError PositionConflict
+  | otherwise = return PolyExample { relations, inShapes, outShape, origins }
   where
     Container outShape q = toContainer goal out
 
@@ -45,13 +48,14 @@ checkExample (Signature vars ctxt goal) (Example ins out)
     origins   = computeOrigins p q
     conflict  = isNothing $ Multi.consistent origins
 
-combine :: [PolyExample] -> Either Conflict [PolyExample]
+-- | Combine multiple examples, checking if there are no conflicts.
+combine :: [PolyExample] -> Result [PolyExample]
 combine = traverse merge . NonEmpty.groupAllWith input
   where
-    merge :: NonEmpty PolyExample -> Either Conflict PolyExample
+    merge :: NonEmpty PolyExample -> Result PolyExample
     merge xs = do
-      t <- maybeToEither ShapeConflict    $ allSame (outShape <$> xs)
-      o <- maybeToEither PositionConflict $ consistent (origins <$> xs)
+      t <- maybeToError ShapeConflict    $ allSame (outShape <$> xs)
+      o <- maybeToError PositionConflict $ consistent (origins <$> xs)
       return (NonEmpty.head xs) { outShape = t, origins = o }
 
     input :: PolyExample -> (Map Text Relation, [Shape])
@@ -74,6 +78,10 @@ consistent = Multi.consistent . foldl1 Multi.intersection
 --     out = m & List.find \PolyExample { inShapes, relations } ->
 --       shapeIns == ss && relations == rs
 
+newtype Result a = Result (Either Conflict a)
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (Functor, Foldable, Applicative, Monad, MonadError Conflict)
+
 -- TODO: do something with these conflicts.
 data Conflict = ShapeConflict | PositionConflict
   deriving stock (Eq, Ord, Show)
@@ -95,10 +103,24 @@ instance Pretty PolyExample where
     barred (inputs : relations) <+> "->" <+> pretty t'
     where
       t' = t <&> \p -> PrettySet $ Multi.lookup p o
-      inputs = sep (map (prettyExpr 3) s)
+      inputs = sep (map prettyMaxPrec s)
       relations = map pretty . filter relevant $ Map.elems r
       barred = encloseSep mempty mempty " | "
+
+instance Pretty (Named PolyExample) where
+  pretty (Named name (PolyExample r ss t o))
+    | null relations = arguments <+> "=" <+> output
+    | otherwise = arguments <+> encloseSep "| " " =" ", " relations <+> output
+    where
+      arguments = sep (pretty name : map prettyMaxPrec ss)
+      relations = map pretty . filter relevant $ Map.elems r
+      output = pretty $ t <&> \p -> PrettySet $ Multi.lookup p o
 
 instance Pretty Conflict where
   -- TODO: we can make this nicer
   pretty = viaShow
+
+instance Pretty a => Pretty (Result a) where
+  pretty (Result res) = case res of
+    Left e -> pretty e
+    Right x -> pretty x

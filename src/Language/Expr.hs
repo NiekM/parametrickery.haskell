@@ -75,19 +75,23 @@ instance Pretty Lit where
     MkBool b -> pretty b
 
 instance Pretty h => Pretty (Expr h) where
-  pretty = prettyExpr 0
+  pretty = prettyMinPrec
 
-prettyExpr :: Pretty h => Int -> Expr h -> Doc ann
-prettyExpr p = \case
-  Unit     -> "-"
-  Pair x y -> parens (prettyExpr 2 x <> "," <+> prettyExpr 2 y)
-  Inl x    -> parensIf 2 p ("inl" <+> prettyExpr 3 x)
-  Inr y    -> parensIf 2 p ("inr" <+> prettyExpr 3 y)
-  Lst xs   -> list $ map (prettyExpr 0) xs
-  Lit l    -> pretty l
-  Hole v   -> pretty v
+instance Pretty h => Pretty (Prec (Expr h)) where
+  pretty (Prec p e) = case e of
+    Unit     -> "-"
+    Pair x y -> parens (prettyPrec 2 x <> "," <+> prettyPrec 2 y)
+    Inl x    -> parensIf (p > 2) ("inl" <+> prettyPrec 3 x)
+    Inr y    -> parensIf (p > 2) ("inr" <+> prettyPrec 3 y)
+    Lst xs   -> list $ map (prettyPrec 0) xs
+    Lit l    -> pretty l
+    Hole v   -> pretty v
 
 instance Pretty Example where
   pretty (Example [] out) = pretty out
   pretty (Example ins out) =
-    sep (map (prettyExpr 3) ins) <+> "->" <+> pretty out
+    sep (map prettyMaxPrec ins) <+> "->" <+> pretty out
+
+instance Pretty (Named Example) where
+  pretty (Named name (Example ins out)) =
+    sep (pretty name : map prettyMaxPrec ins ++ ["=", pretty out])

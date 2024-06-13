@@ -33,7 +33,7 @@ What exactly do we expect from a refinement?
 - some information about how this refinement relates to/influences other
   refinements
 - a concrete sketch/some way to recover the final program from a series of
-  refinements
+  refinements, this includes having some way to identity which branch was chosen.
 - Should refinements be able to introduce new (fresh) variables?
 
 - (!!) Refinements are like tactics! look into papers about how tactics work/are
@@ -91,6 +91,7 @@ elimList p = pickApart p & mapMaybe
 -- Currently it only works for exactly trace complete sets...
 -- The only solution seems to be to have refinements work on container problems
 -- In other words, we should translate to container functors first
+-- TODO: how do we recover which argument the fold was applied to?
 introFoldr :: Refinement
 introFoldr p = pickApart p & mapMaybe
   \(v, t, es, Problem s@(Signature { ctxt, goal }) xs) -> case t of

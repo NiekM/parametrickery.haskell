@@ -15,6 +15,8 @@ import Language.Container.Morphism
 import Language.Problem
 import Refinements
 
+import Data.Either (isRight)
+
 ------
 
 class    ToExpr a    where toVal :: a -> Expr h
@@ -132,6 +134,21 @@ lenExample = Problem
     ]
   }
 
+tailExample :: Problem
+tailExample = Problem
+  { signature = Signature
+    { vars = [("a", None)]
+    , ctxt = [("xs", List (Free "a"))]
+    , goal = List (Free "a")
+    }
+  , examples =
+    [ Example [toVal @[Int] []] (toVal @[Int] [])
+    , Example [toVal @[Int] [3]] (toVal @[Int] [])
+    , Example [toVal @[Int] [2,3]] (toVal @[Int] [3])
+    , Example [toVal @[Int] [1,2,3]] (toVal @[Int] [2,3])
+    ]
+  }
+
 sortExample :: Problem
 sortExample = Problem
   { signature = Signature
@@ -165,3 +182,6 @@ twoRelations = Problem
     , Example [toVal @[(Int, Int)] [(1,2),(1,2),(1,2)]] (toVal @([Int], [Int]) ([1], [2]))
     ]
   }
+
+isFold :: Problem -> [Result [PolyProblem]]
+isFold p = introFoldr p <&> traverse check

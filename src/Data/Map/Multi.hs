@@ -9,7 +9,6 @@ module Data.Map.Multi
   , compose
   -- , inverse
   , remapping
-  -- , mapKeys, mapKeysMonotonic
   , consistent
   ) where
 
@@ -61,12 +60,6 @@ compose = mapMany . flip lookup
 
 remapping :: (Ord k2, Ord v) => Multi k1 v -> Multi k2 v -> Multi k1 k2
 remapping m = flip compose m . inverse
-
-mapKeys :: Ord k2 => (k1 -> k2) -> Multi k1 v -> Multi k2 v
-mapKeys f = Multi . Map.mapKeys f . getMulti
-
-mapKeysMonotonic :: (k1 -> k2) -> Multi k1 v -> Multi k2 v
-mapKeysMonotonic f = Multi . Map.mapKeysMonotonic f . getMulti
 
 consistent :: Multi k v -> Maybe (Multi k v)
 consistent (Multi m)

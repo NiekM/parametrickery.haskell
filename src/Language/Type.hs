@@ -41,16 +41,16 @@ instance Pretty Class where
   pretty = viaShow
 
 instance Pretty Mono where
-  pretty = prettyMono 0
+  pretty = prettyMinPrec
 
-prettyMono :: Int -> Mono -> Doc ann
-prettyMono p = \case
-  Free v  -> pretty v
-  Top     -> "1"
-  Tup t u -> parensIf 2 p (prettyMono 3 t <+> "*" <+> prettyMono 2 u)
-  Sum t u -> parensIf 1 p (prettyMono 2 t <+> "+" <+> prettyMono 1 u)
-  List t  -> brackets $ pretty t
-  Base b  -> pretty b
+instance Pretty (Prec Mono) where
+  pretty (Prec p m) = case m of
+    Free v  -> pretty v
+    Top     -> "1"
+    Tup t u -> parensIf (p > 2) $ sep [prettyPrec 3 t, "*", prettyPrec 2 u]
+    Sum t u -> parensIf (p > 1) $ sep [prettyPrec 2 t, "+", prettyPrec 1 u]
+    List t  -> brackets $ pretty t
+    Base b  -> pretty b
 
 instance Pretty Signature where
   pretty (Signature vars ctxt goal) = cat
@@ -67,3 +67,6 @@ instance Pretty Signature where
       arguments [] = ""
       arguments xs = encloseSep lbrace rbrace ", "
         (xs <&> \(x, t) -> pretty x <+> ":" <+> pretty t) <+> "-> "
+
+instance Pretty (Named Signature) where
+  pretty (Named name sig) = sep [pretty name, ":", pretty sig]
