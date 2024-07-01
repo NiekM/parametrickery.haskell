@@ -88,15 +88,6 @@ data Conflict = ShapeConflict | PositionConflict
 
 ------ Pretty ------
 
-newtype PrettySet a = PrettySet { unPrettySet :: Set a }
-  deriving newtype (Eq, Ord, Show)
-
-instance Pretty a => Pretty (PrettySet a) where
-  pretty = encloseSep lbrace rbrace ", "
-    . map pretty
-    . Set.toList
-    . unPrettySet
-
 instance Pretty PolyExample where
   pretty (PolyExample _ [] t _) = pretty t
   pretty (PolyExample r s t o) =

@@ -1,13 +1,13 @@
 module Data.Map.Multi
   ( Multi
-  -- , singleton
+  , singleton
   , union, intersection
   , lookup
-  , fromMap
-  -- , elems
-  -- , map, mapMany
+  , fromMap, toMap
+  , elems
+  , map
   , compose
-  -- , inverse
+  , inverse
   , remapping
   , consistent
   ) where
@@ -29,6 +29,9 @@ singleton k = Multi . Map.singleton k . Set.singleton
 
 fromMap :: Map k v -> Multi k v
 fromMap = coerce $ Map.map Set.singleton
+
+toMap :: Multi k v -> Maybe (Map k v)
+toMap = traverse Set.lookupMin . getMulti
 
 elems :: Multi k v -> [Set v]
 elems = Map.elems . getMulti

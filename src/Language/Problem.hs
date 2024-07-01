@@ -22,9 +22,6 @@ check (Problem signature exs) = do
   examples <- combine xs
   return PolyProblem { signature, examples }
 
-instance Pretty Problem where
-  pretty = prettyNamed "_"
-
 -- Lifts the nth argument out of a problem.
 liftArg :: Nat -> Problem -> Maybe (Text, Mono, [Term], Problem)
 liftArg n (Problem sig@Signature { ctxt } exs)
@@ -51,17 +48,20 @@ data PolyProblem = PolyProblem
   , examples  :: [PolyExample]
   } deriving stock (Eq, Ord, Show)
 
+instance Pretty Problem where
+  pretty = prettyNamed "_"
+
+instance Pretty (Named Problem) where
+  pretty (Named name (Problem sig exs)) = statements (header : examples)
+    where
+      header   = prettyNamed name sig
+      examples = prettyNamed name <$> exs
+
 instance Pretty PolyProblem where
   pretty = prettyNamed "_"
 
 instance Pretty (Named PolyProblem) where
   pretty (Named name (PolyProblem sig exs)) = statements (header : examples)
-    where
-      header   = prettyNamed name sig
-      examples = prettyNamed name <$> exs
-
-instance Pretty (Named Problem) where
-  pretty (Named name (Problem sig exs)) = statements (header : examples)
     where
       header   = prettyNamed name sig
       examples = prettyNamed name <$> exs
