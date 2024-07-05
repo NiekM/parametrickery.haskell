@@ -1,7 +1,7 @@
 {- |
 Module      : Control.Monad.Fresh
-Copyright   : (c) Anonymous 2024
-Maintainer  : Anonymous
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : Niek Mulleners
 
 A Monad transformer for generating fresh integers.
 

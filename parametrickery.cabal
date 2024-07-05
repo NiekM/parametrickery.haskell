@@ -41,10 +41,10 @@ license:            BSD-2-Clause
 license-file:       LICENSE
 
 -- The package author(s).
-author:             Anonymous
+author:             Niek Mulleners
 
 -- An email address to which users can send suggestions, bug reports, and patches.
-maintainer:         Anonymous
+maintainer:         Niek Mulleners
 
 -- A copyright notice.
 -- copyright:

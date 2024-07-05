@@ -1,7 +1,7 @@
 {- |
 Module      : Sketch.Foldr
-Copyright   : (c) Anonymous 2024
-Maintainer  : Anonymous
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : Niek Mulleners
 
 Sketching with 'Data.List.foldr'.
 

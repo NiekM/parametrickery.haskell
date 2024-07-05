@@ -1,7 +1,7 @@
 {- |
 Module      : Unsafe
-Copyright   : (c) Anonymous 2024
-Maintainer  : Anonymous
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : Niek Mulleners
 
 Some unsafe helper functions.
 

@@ -2,8 +2,8 @@
 
 {- |
 Module      : Data.SBV.Depend
-Copyright   : (c) Anonymous 2024
-Maintainer  : Anonymous
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : Niek Mulleners
 
 Dependent types using symbolic representations.
 

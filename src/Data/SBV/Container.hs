@@ -1,7 +1,7 @@
 {- |
 Module      : Data.SBV.Container
-Copyright   : (c) Anonymous 2024
-Maintainer  : Anonymous
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : Niek Mulleners
 
 Datatypes and helper functions for working with symbolic container functors and container morphisms.
 

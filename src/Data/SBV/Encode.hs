@@ -1,7 +1,7 @@
 {- |
 Module      : Data.SBV.Encode
-Copyright   : (c) Anonymous 2024
-Maintainer  : Anonymous
+Copyright   : (c) Niek Mulleners 2024
+Maintainer  : Niek Mulleners
 
 Encoding Haskell values in SBV, for the purpose of modeling
 'Data.SBV.Refine.Ref'inement types and 'Data.SBV.Depend.Dep'endent types.
