@@ -16,10 +16,8 @@ import Language.Container
 
 -- | The container representation of type class relations.
 data Relation
-  -- | The empty relation.
-  = RelNone
   -- | Sets of equivalence classes.
-  | RelEq  (Set (Set Position))
+  = RelEq (Set (Set Position))
   -- | Ordered equivalence classes.
   | RelOrd [Set Position]
   deriving stock (Eq, Ord, Show)
@@ -27,24 +25,20 @@ data Relation
 -- | A relation is only relevant if it has at least 2 elements.
 relevant :: Relation -> Bool
 relevant = \case
-  RelNone    -> False
   RelEq eq   -> Set.size (Set.unions eq) > 1
   RelOrd ord -> Set.size (Set.unions ord) > 1
 
--- We assume that all positions in the map have the same type.
-computeRelation :: Class -> Map Position Term -> Relation
-computeRelation c ps = case c of
-  None -> RelNone
-  Eq   -> RelEq $ Set.fromList order
-  Ord  -> RelOrd order
-  where
-    order = fmap (Set.fromList . NonEmpty.toList . fmap fst)
-      . NonEmpty.groupAllWith snd . Map.assocs $ ps
+order :: Text -> Map Position Term -> [Set Position]
+order a
+  = fmap (Set.fromList . NonEmpty.toList . fmap fst)
+  . NonEmpty.groupAllWith snd
+  . Map.assocs
+  . Map.filterWithKey \Position { var } _ -> a == var
 
-computeRelations :: [(Text, Class)] -> Map Position Term -> Map Text Relation
-computeRelations cs p = Map.fromList $ cs <&>
-  \(v, c) -> (v,) . computeRelation c $ p &
-    Map.filterWithKey \Position { var } _ -> v == var
+computeRelations :: [Constraint] -> Map Position Term -> [Relation]
+computeRelations cs p = cs <&> \case
+  Eq  a -> RelEq . Set.fromList $ order a p
+  Ord a -> RelOrd $ order a p
 
 ------ Pretty ------
 
@@ -53,6 +47,5 @@ eqClass = encloseSep lbrace rbrace " = " . map pretty . Set.toList
 
 instance Pretty Relation where
   pretty = \case
-    RelNone -> "{}"
     RelEq  eq  -> encloseSep mempty mempty " /= " . fmap eqClass $ Set.toList eq
     RelOrd ord -> encloseSep mempty mempty " < " $ fmap eqClass ord

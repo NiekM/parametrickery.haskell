@@ -44,11 +44,12 @@ What exactly do we expect from a refinement?
 
 -- Lifts the nth argument out of a problem.
 liftArg :: Nat -> Problem -> Maybe (Text, Mono, [Term], Problem)
-liftArg n (Declaration sig@Signature { ctxt } exs)
-  | n >= fromIntegral (length ctxt) = Nothing
-  | otherwise = Just (name, mono, exprs, Declaration sig { ctxt = ctxt' } exs')
+liftArg n (Declaration sig@Signature { context } exs)
+  | n >= fromIntegral (length context) = Nothing
+  | otherwise = Just
+    (name, mono, exprs, Declaration sig { context = context' } exs')
   where
-    ((name, mono), ctxt') = pick n ctxt
+    ((name, mono), context') = pick n context
     (exprs, exs') = unzip $ pickEx <$> exs
 
     pickEx (Example (pick n -> (i, ins)) out) = (i, Example ins out)
@@ -60,8 +61,8 @@ liftArg n (Declaration sig@Signature { ctxt } exs)
 
 -- All possible ways to lift one argument from a problem.
 pickApart :: Problem -> [(Text, Mono, [Term], Problem)]
-pickApart p@(Declaration Signature { ctxt } _) =
-  zipWith const [0..] ctxt & mapMaybe \n -> liftArg n p
+pickApart p@(Declaration Signature { context } _) =
+  zipWith const [0..] context & mapMaybe \n -> liftArg n p
 
 type Refinement = Problem -> [[Problem]]
 
@@ -93,7 +94,7 @@ shrinkContext p = pickApart p <&> \(_, _, _, q) -> [q]
 
 elimList :: Refinement
 elimList p = pickApart p & mapMaybe
-  \(v, t, es, Declaration s@(Signature { ctxt }) xs) -> case t of
+  \(v, t, es, Declaration s@(Signature { context }) xs) -> case t of
     List u ->
       let
         (nil, cons) = zip es xs & mapEither \case
@@ -104,7 +105,7 @@ elimList p = pickApart p & mapMaybe
       in Just
         [ Declaration s nil
         -- TODO: generate fresh variables
-        , Declaration s { ctxt = (v <> "_h", u) : (v <> "_t", List u) : ctxt } cons
+        , Declaration s { context = (v <> "_h", u) : (v <> "_t", List u) : context } cons
         ]
     _ -> Nothing
 
@@ -121,7 +122,7 @@ introFoldr :: Refinement
 introFoldr p = pickApart p & mapMaybe
   -- We lift `v : t` out of the problem. `es` are the different values `v` had
   -- in the different examples.
-  \(v, t, es, Declaration s@(Signature { ctxt, goal }) xs) -> case t of
+  \(v, t, es, Declaration s@(Signature { context, goal }) xs) -> case t of
     List u ->
       let
         paired = zip es xs
@@ -157,7 +158,7 @@ introFoldr p = pickApart p & mapMaybe
       in Just
         [ Declaration s nil
         -- TODO: generate fresh variables
-        , Declaration s { ctxt = (v <> "_h", u) : (v <> "_r", goal) : ctxt } cons
+        , Declaration s { context = (v <> "_h", u) : (v <> "_r", goal) : context } cons
         ]
     _ -> Nothing
 

@@ -44,8 +44,9 @@ instance (ToExpr a, ToExpr b) => ToExpr (Either a b) where
 triple :: Problem
 triple = Declaration
   { signature = Signature
-    { vars = [("a", None)]
-    , ctxt = [("x", Free "a"), ("y", Free "a"), ("z", Free "a")]
+    { vars = ["a"]
+    , constraints = []
+    , context = [("x", Free "a"), ("y", Free "a"), ("z", Free "a")]
     , goal = Free "a"
     }
   , bindings =
@@ -67,7 +68,8 @@ triple = Declaration
 
 constant :: Problem
 constant = Declaration
-  { signature = Signature { vars = [], ctxt = [], goal = Base Int }
+  { signature = Signature
+    { vars = [], constraints = [], context = [], goal = Base Int }
   , bindings = [Example [] (toVal @Int 4)]
   }
 
@@ -78,8 +80,9 @@ constant = Declaration
 pairExample :: Problem
 pairExample = Declaration
   { signature = Signature
-    { vars = [("a", None), ("b", None)]
-    , ctxt = [("x", Free "a"), ("y", Free "b")]
+    { vars = ["a", "b"]
+    , constraints = []
+    , context = [("x", Free "a"), ("y", Free "b")]
     , goal = Tup (Free "a") (Free "b")
     }
   , bindings =
@@ -111,8 +114,9 @@ introPairExample = introPair pairExample
 zipExample :: Problem
 zipExample = Declaration
   { signature = Signature
-    { vars = [("a", None), ("b", None)]
-    , ctxt = [("xs", List (Free "a")), ("ys", List (Free "b"))]
+    { vars = ["a", "b"]
+    , constraints = []
+    , context = [("xs", List (Free "a")), ("ys", List (Free "b"))]
     , goal = List (Tup (Free "a") (Free "b"))
     }
   , bindings =
@@ -128,8 +132,9 @@ zipExample = Declaration
 lenExample :: Problem
 lenExample = Declaration
   { signature = Signature
-    { vars = [("a", None)]
-    , ctxt = [("xs", List (Free "a"))]
+    { vars = ["a"]
+    , constraints = []
+    , context = [("xs", List (Free "a"))]
     , goal = Base Int
     }
   , bindings =
@@ -143,8 +148,9 @@ lenExample = Declaration
 tailExample :: Problem
 tailExample = Declaration
   { signature = Signature
-    { vars = [("a", None)]
-    , ctxt = [("xs", List (Free "a"))]
+    { vars = ["a"]
+    , constraints = []
+    , context = [("xs", List (Free "a"))]
     , goal = List (Free "a")
     }
   , bindings =
@@ -158,8 +164,9 @@ tailExample = Declaration
 sortExample :: Problem
 sortExample = Declaration
   { signature = Signature
-    { vars = [("a", Ord)]
-    , ctxt = [("xs", List (Free "a"))]
+    { vars = ["a"]
+    , constraints = [Ord "a"]
+    , context = [("xs", List (Free "a"))]
     , goal = List (Free "a")
     }
   , bindings =
@@ -178,8 +185,9 @@ sortExample = Declaration
 twoRelations :: Problem
 twoRelations = Declaration
   { signature = Signature
-    { vars = [("a", Ord), ("b", Eq)]
-    , ctxt = [("xs", List (Tup (Free "a") (Free "b")))]
+    { vars = ["a", "b"]
+    , constraints = [Ord "a", Eq "b"]
+    , context = [("xs", List (Tup (Free "a") (Free "b")))]
     , goal = Tup (List (Free "a")) (List (Free "b"))
     }
   , bindings =
@@ -198,8 +206,7 @@ isFold p = introFoldr p <&> traverse check
 -- TODO: check if this behaves as expected
 -- It is a bit random that this one works on Containers and applyExamples works
 -- on Terms.
-applyExample :: Map Text Relation -> [Container] ->
-  PolyExample -> Maybe Container
+applyExample :: [Relation] -> [Container] -> PolyExample -> Maybe Container
 applyExample rels inputs PolyExample { relations, inShapes, outShape, origins }
   | inShapes == map shape inputs
   , relations == rels
@@ -220,19 +227,19 @@ applyPoly containers Declaration { signature, bindings } =
   altMap (applyExample relations containers) bindings
     where
       p = foldMap positions containers
-      relations = computeRelations (vars signature) p
+      relations = computeRelations (constraints signature) p
 
 
--- -- TODO: check if this behaves as expected
+-- TODO: check if this behaves as expected
 -- applyExamples :: Signature -> [PolyExample] -> [Term] -> Maybe Term
--- applyExamples Signature { vars, ctxt } exs ins
+-- applyExamples Signature { constraints, context } exs ins
 --   = fmap fromContainer
 --   . asum
 --   $ exs <&> \ex -> applyExample ex relations containers
 --   where
---     containers = toContainers $ zip (map snd ctxt) ins
+--     containers = toContainers $ zip (map snd context) ins
 --     p = foldMap positions containers
---     relations = computeRelations vars p
+--     relations = computeRelations constraints p
 
 -- res2may :: Result a -> Maybe a
 -- res2may (Result res) = case res of

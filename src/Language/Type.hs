@@ -22,14 +22,14 @@ data Mono where
 data Base = Int | Bool
   deriving stock (Eq, Ord, Show)
 
--- Type classes
-data Class = None | Eq | Ord
+data Constraint = Eq Text | Ord Text
   deriving stock (Eq, Ord, Show)
 
 data Signature = Signature
-  { vars :: [(Text, Class)]
-  , ctxt :: [(Text, Mono)]
-  , goal :: Mono
+  { vars        :: [Text]
+  , constraints :: [Constraint]
+  , context     :: [(Text, Mono)]
+  , goal        :: Mono
   } deriving stock (Eq, Ord, Show)
 
 ------ Pretty ------
@@ -37,8 +37,10 @@ data Signature = Signature
 instance Pretty Base where
   pretty = viaShow
 
-instance Pretty Class where
-  pretty = viaShow
+instance Pretty Constraint where
+  pretty = \case
+    Eq a -> "Eq" <+> pretty a
+    Ord a -> "Ord" <+> pretty a
 
 instance Pretty Mono where
   pretty = prettyMinPrec
@@ -53,17 +55,16 @@ instance Pretty (Prec Mono) where
     Base b  -> pretty b
 
 instance Pretty Signature where
-  pretty (Signature vars ctxt goal) = cat
-    [ quantifiers (fst <$> vars)
-    , constraints (filter ((/= None) . snd) vars)
-    , arguments ctxt
+  pretty Signature { vars, constraints, context, goal } = cat
+    [ quantifiers vars
+    , constrs constraints
+    , arguments context
     , pretty goal
     ] where
       quantifiers [] = ""
       quantifiers xs = sep ("forall" : map pretty xs) <> ". "
-      constraints [] = ""
-      constraints xs =
-        tupled (xs <&> \(x, c) -> pretty c <+> pretty x) <+> "=> "
+      constrs [] = ""
+      constrs xs = tupled (map pretty xs) <+> "=> "
       arguments [] = ""
       arguments xs = encloseSep lbrace rbrace ", "
         (xs <&> \(x, t) -> pretty x <+> ":" <+> pretty t) <+> "-> "
