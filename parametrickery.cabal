@@ -64,7 +64,7 @@ library
     , Language.Container
     , Language.Container.Morphism
     , Language.Container.Relation
-    , Language.Problem
+    , Language.Declaration
     , Refinements
 
   -- Modules included in this library but not exported.

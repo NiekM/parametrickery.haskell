@@ -7,15 +7,21 @@
 
 module Test where
 
+import Control.Applicative (Alternative)
+import Data.Coerce (coerce)
+import Data.Either (isRight)
+import Data.Foldable (asum)
+import Data.Monoid (Alt(..))
+
 import Base
+import Data.Map.Multi qualified as Multi
 import Language.Type
 import Language.Expr
 import Language.Container
 import Language.Container.Morphism
-import Language.Problem
+import Language.Container.Relation
+import Language.Declaration
 import Refinements
-
-import Data.Either (isRight)
 
 ------
 
@@ -36,13 +42,13 @@ instance (ToExpr a, ToExpr b) => ToExpr (Either a b) where
 ------ Examples ------
 
 triple :: Problem
-triple = Problem
+triple = Declaration
   { signature = Signature
     { vars = [("a", None)]
     , ctxt = [("x", Free "a"), ("y", Free "a"), ("z", Free "a")]
     , goal = Free "a"
     }
-  , examples =
+  , bindings =
     [ Example [v1, v2, v2] v2
     , Example [v2, v1, v2] v2
     , Example [v2, v2, v1] v2
@@ -57,12 +63,12 @@ triple = Problem
 -- _ 2 2 1 = 2
 
 -- >>> pretty <$> check triple
--- Left PositionConflict
+-- Result (Left PositionConflict)
 
 constant :: Problem
-constant = Problem
+constant = Declaration
   { signature = Signature { vars = [], ctxt = [], goal = Base Int }
-  , examples = [Example [] (toVal @Int 4)]
+  , bindings = [Example [] (toVal @Int 4)]
   }
 
 -- >>> pretty constant
@@ -70,13 +76,13 @@ constant = Problem
 -- _ = 4
 
 pairExample :: Problem
-pairExample = Problem
+pairExample = Declaration
   { signature = Signature
     { vars = [("a", None), ("b", None)]
     , ctxt = [("x", Free "a"), ("y", Free "b")]
     , goal = Tup (Free "a") (Free "b")
     }
-  , examples =
+  , bindings =
     [ Example [toVal @Int 1, toVal True ] $ toVal @(Int, Bool) (1,  True)
     , Example [toVal False, toVal @Int 3] $ toVal @(Bool, Int) (False, 3)
     ]
@@ -84,11 +90,11 @@ pairExample = Problem
 
 -- >>> pretty pairExample
 -- _ : forall a b. {x : a, y : b} -> a * b
--- _ 1 True = 1 , True
--- _ False 3 = False , 3
+-- _ 1 True = (1, True)
+-- _ False 3 = (False, 3)
 
--- >>> pretty <$> check pairExample
--- Right _ : forall a b. {x : a, y : b} -> a * b
+-- >>> pretty $ check pairExample
+-- _ : forall a b. {x : a, y : b} -> a * b
 -- _ a0 b0 = ({a0}, {b0})
 
 introPairExample :: [[Problem]]
@@ -103,13 +109,13 @@ introPairExample = introPair pairExample
 --   _ False 3 = 3 ] ]
 
 zipExample :: Problem
-zipExample = Problem
+zipExample = Declaration
   { signature = Signature
     { vars = [("a", None), ("b", None)]
     , ctxt = [("xs", List (Free "a")), ("ys", List (Free "b"))]
     , goal = List (Tup (Free "a") (Free "b"))
     }
-  , examples =
+  , bindings =
     [ Example [toVal @[Int] [], toVal @[Int] []] (toVal @[(Int, Int)] [])
     , Example [toVal @[Int] [1], toVal @[Int] [2]] (toVal @[(Int, Int)] [(1,2)])
     , Example [toVal @[Int] [1,2], toVal @[Int] [3,4,5]]
@@ -120,13 +126,13 @@ zipExample = Problem
   }
 
 lenExample :: Problem
-lenExample = Problem
+lenExample = Declaration
   { signature = Signature
     { vars = [("a", None)]
     , ctxt = [("xs", List (Free "a"))]
     , goal = Base Int
     }
-  , examples =
+  , bindings =
     [ Example [toVal @[Int] []] (toVal @Int 0)
     , Example [toVal @[Int] [3]] (toVal @Int 1)
     , Example [toVal @[Int] [2,3]] (toVal @Int 2)
@@ -135,13 +141,13 @@ lenExample = Problem
   }
 
 tailExample :: Problem
-tailExample = Problem
+tailExample = Declaration
   { signature = Signature
     { vars = [("a", None)]
     , ctxt = [("xs", List (Free "a"))]
     , goal = List (Free "a")
     }
-  , examples =
+  , bindings =
     [ Example [toVal @[Int] []] (toVal @[Int] [])
     , Example [toVal @[Int] [3]] (toVal @[Int] [])
     , Example [toVal @[Int] [2,3]] (toVal @[Int] [3])
@@ -150,13 +156,13 @@ tailExample = Problem
   }
 
 sortExample :: Problem
-sortExample = Problem
+sortExample = Declaration
   { signature = Signature
     { vars = [("a", Ord)]
     , ctxt = [("xs", List (Free "a"))]
     , goal = List (Free "a")
     }
-  , examples =
+  , bindings =
     [ Example [toVal @[Int] []] (toVal @[Int] [])
     , Example [toVal @[Int] [3]] (toVal @[Int] [3])
     , Example [toVal @[Int] [3,2]] (toVal @[Int] [2,3])
@@ -170,13 +176,13 @@ sortExample = Problem
   }
 
 twoRelations :: Problem
-twoRelations = Problem
+twoRelations = Declaration
   { signature = Signature
     { vars = [("a", Ord), ("b", Eq)]
     , ctxt = [("xs", List (Tup (Free "a") (Free "b")))]
     , goal = Tup (List (Free "a")) (List (Free "b"))
     }
-  , examples =
+  , bindings =
     [ Example [toVal @[(Int, Int)] [(1,2),(3,4)]] (toVal @([Int], [Int]) ([1,3], [2,4]))
     , Example [toVal @[(Int, Int)] [(1,2)]] (toVal @([Int], [Int]) ([1], [2]))
     , Example [toVal @[(Int, Int)] [(1,2),(1,2),(1,2)]] (toVal @([Int], [Int]) ([1], [2]))
@@ -185,3 +191,50 @@ twoRelations = Problem
 
 isFold :: Problem -> [Result [PolyProblem]]
 isFold p = introFoldr p <&> traverse check
+
+-- New functions
+
+
+-- TODO: check if this behaves as expected
+-- It is a bit random that this one works on Containers and applyExamples works
+-- on Terms.
+applyExample :: Map Text Relation -> [Container] ->
+  PolyExample -> Maybe Container
+applyExample rels inputs PolyExample { relations, inShapes, outShape, origins }
+  | inShapes == map shape inputs
+  , relations == rels
+  , Just outPos <- outPositions = Just Container
+    { shape = outShape
+    , positions = outPos
+    }
+  | otherwise = Nothing
+  where
+    inPositions = Multi.fromMap $ foldMap positions inputs
+    outPositions = Multi.toMap $ Multi.compose inPositions origins
+
+altMap :: (Foldable f, Alternative m) => (a -> m b) -> f a -> m b
+altMap f = getAlt . foldMap (Alt . f)
+
+applyPoly :: [Container] -> PolyProblem -> Maybe Container
+applyPoly containers Declaration { signature, bindings } =
+  altMap (applyExample relations containers) bindings
+    where
+      p = foldMap positions containers
+      relations = computeRelations (vars signature) p
+
+
+-- -- TODO: check if this behaves as expected
+-- applyExamples :: Signature -> [PolyExample] -> [Term] -> Maybe Term
+-- applyExamples Signature { vars, ctxt } exs ins
+--   = fmap fromContainer
+--   . asum
+--   $ exs <&> \ex -> applyExample ex relations containers
+--   where
+--     containers = toContainers $ zip (map snd ctxt) ins
+--     p = foldMap positions containers
+--     relations = computeRelations vars p
+
+-- res2may :: Result a -> Maybe a
+-- res2may (Result res) = case res of
+--   Left _ -> Nothing
+--   Right x -> Just x

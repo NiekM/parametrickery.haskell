@@ -1,9 +1,10 @@
+-- TODO: perhaps rename to Language.Container.Example?
+--       although it is a bit confusing...
 module Language.Container.Morphism where
 
 import Control.Monad.Error.Class
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
 
 import Base
 import Data.Map.Multi (Multi)
@@ -64,20 +65,6 @@ combine = traverse merge . NonEmpty.groupAllWith input
 consistent :: NonEmpty Origins -> Maybe Origins
 consistent = Multi.consistent . foldl1 Multi.intersection
 
--- applyMorph :: Signature -> [PolyExample] -> [Expr Void] -> Maybe (Expr Void)
--- applyMorph (Signature vars ctxt _) m ins = case out of
---   Nothing -> Nothing
---   Just PolyExample { outShape, origins } -> fmap join $ shapeOut &
---     traverse \p@Position { var } -> do
---       os <- Map.lookup var origins
---       q <- Set.lookupMin $ Multi.lookup p os
---       positions <- Map.lookup var ps
---       Map.lookup q positions
---   where
---     RelContainer ss rs ps = toRelContainer vars (snd <$> ctxt) ins
---     out = m & List.find \PolyExample { inShapes, relations } ->
---       shapeIns == ss && relations == rs
-
 newtype Result a = Result (Either Conflict a)
   deriving stock (Eq, Ord, Show)
   deriving newtype (Functor, Foldable, Applicative, Monad, MonadError Conflict)
@@ -112,6 +99,4 @@ instance Pretty Conflict where
   pretty = viaShow
 
 instance Pretty a => Pretty (Result a) where
-  pretty (Result res) = case res of
-    Left e -> pretty e
-    Right x -> pretty x
+  pretty (Result res) = either pretty pretty res

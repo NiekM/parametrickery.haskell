@@ -5,7 +5,7 @@ import Data.List qualified as List
 import Base
 import Language.Type
 import Language.Expr
-import Language.Problem
+import Language.Declaration
 -- import Language.Container.Morphism
 
 import Utils
@@ -42,6 +42,27 @@ What exactly do we expect from a refinement?
 
 -}
 
+-- Lifts the nth argument out of a problem.
+liftArg :: Nat -> Problem -> Maybe (Text, Mono, [Term], Problem)
+liftArg n (Declaration sig@Signature { ctxt } exs)
+  | n >= fromIntegral (length ctxt) = Nothing
+  | otherwise = Just (name, mono, exprs, Declaration sig { ctxt = ctxt' } exs')
+  where
+    ((name, mono), ctxt') = pick n ctxt
+    (exprs, exs') = unzip $ pickEx <$> exs
+
+    pickEx (Example (pick n -> (i, ins)) out) = (i, Example ins out)
+
+    pick :: Nat -> [a] -> (a, [a])
+    pick i xs = case splitAt (fromIntegral i) xs of
+      (ys, z:zs) -> (z, ys ++ zs)
+      _ -> error "Error"
+
+-- All possible ways to lift one argument from a problem.
+pickApart :: Problem -> [(Text, Mono, [Term], Problem)]
+pickApart p@(Declaration Signature { ctxt } _) =
+  zipWith const [0..] ctxt & mapMaybe \n -> liftArg n p
+
 type Refinement = Problem -> [[Problem]]
 
 -- NOTE: this is mostly a test refinement. I don't know how precise we have to
@@ -50,12 +71,12 @@ type Refinement = Problem -> [[Problem]]
 -- use a realizability technique as well as some usefulness measure to decide
 -- whether to continue refining or call an external synthesizer.
 introPair :: Refinement
-introPair (Problem sig@Signature { goal } exs) = case goal of
+introPair (Declaration sig@Signature { goal } exs) = case goal of
   Tup t u -> return
-    [ Problem sig { goal = t } $ exs <&> \case
+    [ Declaration sig { goal = t } $ exs <&> \case
       Example ins (Pair a _) -> Example ins a
       _ -> error "Type mismatch"
-    , Problem sig { goal = u } $ exs <&> \case
+    , Declaration sig { goal = u } $ exs <&> \case
       Example ins (Pair _ b) -> Example ins b
       _ -> error "Type mismatch"
     ]
@@ -72,7 +93,7 @@ shrinkContext p = pickApart p <&> \(_, _, _, q) -> [q]
 
 elimList :: Refinement
 elimList p = pickApart p & mapMaybe
-  \(v, t, es, Problem s@(Signature { ctxt }) xs) -> case t of
+  \(v, t, es, Declaration s@(Signature { ctxt }) xs) -> case t of
     List u ->
       let
         (nil, cons) = zip es xs & mapEither \case
@@ -81,11 +102,15 @@ elimList p = pickApart p & mapMaybe
             Right $ Example (y : Lst ys : ins) out
           _ -> error "Expected a list!"
       in Just
-        [ Problem s nil
+        [ Declaration s nil
         -- TODO: generate fresh variables
-        , Problem s { ctxt = (v <> "_h", u) : (v <> "_t", List u) : ctxt } cons
+        , Declaration s { ctxt = (v <> "_h", u) : (v <> "_t", List u) : ctxt } cons
         ]
     _ -> Nothing
+
+-- TODO: maybe first make it work not as a refinement, but using a more
+-- restricted way to introduce foldr, similar to what we did in the paper. So without using `pickApart`
+
 
 -- TODO: make this work for shape complete example sets!
 -- Currently it only works for exactly trace complete sets...
@@ -94,13 +119,22 @@ elimList p = pickApart p & mapMaybe
 -- TODO: how do we recover which argument the fold was applied to?
 introFoldr :: Refinement
 introFoldr p = pickApart p & mapMaybe
-  \(v, t, es, Problem s@(Signature { ctxt, goal }) xs) -> case t of
+  -- We lift `v : t` out of the problem. `es` are the different values `v` had
+  -- in the different examples.
+  \(v, t, es, Declaration s@(Signature { ctxt, goal }) xs) -> case t of
     List u ->
       let
         paired = zip es xs
+        -- We compute the constraints for the nil and the cons case.
         (nil, cons) = paired & mapEither \case
           (Lst [], ex) -> Left ex
           (Lst (y:ys), Example ins out) ->
+
+            -- Here, instead of searching in paired, we want to compute the
+            -- polymorphic examples represented by `paired` and then try to
+            -- apply those PolyExamples to (ys : xs). If that succeeds, it is
+            -- shape complete.
+
             case List.lookup (Lst ys) paired of
             -- TODO: perhaps we can compute the morphisms of the examples and
             -- use those to figure out the right monomorphic recursive call.
@@ -114,12 +148,16 @@ introFoldr p = pickApart p & mapMaybe
             -- expression if the input and relation matches.
             Just (Example i o) | i == ins -> do
               Right $ Example (y : o : ins) out
+
+            -- How do we deal with trace/shape incompleteness? We can't just
+            -- call an error...
+
             _ -> error "Trace incomplete!"
           _ -> error "Expected a list!"
       in Just
-        [ Problem s nil
+        [ Declaration s nil
         -- TODO: generate fresh variables
-        , Problem s { ctxt = (v <> "_h", u) : (v <> "_r", goal) : ctxt } cons
+        , Declaration s { ctxt = (v <> "_h", u) : (v <> "_r", goal) : ctxt } cons
         ]
     _ -> Nothing
 

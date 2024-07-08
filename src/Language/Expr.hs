@@ -42,7 +42,7 @@ accept = \case
   Pair x y -> Pair (accept x) (accept y)
   Inl x    -> Inl (accept x)
   Inr y    -> Inr (accept y)
-  Lst xs   -> Lst (accept <$> xs)
+  Lst xs   -> Lst (map accept xs)
   Lit l    -> Lit l
   Hole e   -> e
 
@@ -83,7 +83,7 @@ instance Pretty h => Pretty (Prec (Expr h)) where
     Pair x y -> parens (prettyPrec 2 x <> "," <+> prettyPrec 2 y)
     Inl x    -> parensIf (p > 2) ("inl" <+> prettyPrec 3 x)
     Inr y    -> parensIf (p > 2) ("inr" <+> prettyPrec 3 y)
-    Lst xs   -> list $ map (prettyPrec 0) xs
+    Lst xs   -> pretty xs
     Lit l    -> pretty l
     Hole v   -> pretty v
 
