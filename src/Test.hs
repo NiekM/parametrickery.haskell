@@ -16,6 +16,7 @@ import Data.Maybe (fromJust)
 
 import Base
 import Data.Map.Multi qualified as Multi
+import Data.Named
 import Language.Type
 import Language.Expr
 import Language.Container
@@ -24,7 +25,6 @@ import Language.Container.Relation
 import Language.Declaration
 import Language.Parser
 import Refinements
-import Prettyprinter.Utils
 
 ------
 

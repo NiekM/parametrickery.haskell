@@ -1,7 +1,7 @@
 module Language.Type where
 
 import Base
-
+import Data.Named
 import Prettyprinter.Utils
 
 -- We could try to design our framework to be generic over the types and
@@ -28,7 +28,7 @@ data Constraint = Eq Text | Ord Text
 data Signature = Signature
   { vars        :: [Text]
   , constraints :: [Constraint]
-  , context     :: [(Text, Mono)]
+  , context     :: [Named Mono]
   , goal        :: Mono
   } deriving stock (Eq, Ord, Show)
 
@@ -44,6 +44,9 @@ instance Pretty Constraint where
 
 instance Pretty Mono where
   pretty = prettyMinPrec
+
+instance Pretty (Named Mono) where
+  pretty (Named x t) = pretty x <+> ":" <+> pretty t
 
 instance Pretty (Prec Mono) where
   pretty (Prec p m) = case m of
@@ -67,8 +70,7 @@ instance Pretty Signature where
       constrs [x] = pretty x <+> "=> "
       constrs xs = tupled (map pretty xs) <+> "=> "
       arguments [] = ""
-      arguments xs = encloseSep lbrace rbrace ", "
-        (xs <&> \(x, t) -> pretty x <+> ":" <+> pretty t) <+> "-> "
+      arguments xs = encloseSep lbrace rbrace ", " (map pretty xs) <+> "-> "
 
 instance Pretty (Named Signature) where
   pretty (Named name sig) = sep [pretty name, ":", pretty sig]

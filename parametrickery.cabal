@@ -59,7 +59,8 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
-      Language.Type
+      Data.Named
+    , Language.Type
     , Language.Expr
     , Language.Container
     , Language.Container.Morphism

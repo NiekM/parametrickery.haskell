@@ -5,12 +5,12 @@ import Data.Text (pack)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Foldable1
 import Text.Megaparsec
-import Text.Megaparsec.Char
+import Text.Megaparsec.Char hiding (newline)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Set qualified as Set
-import Prettyprinter.Utils
 
 import Base hiding (brackets, sep)
+import Data.Named
 import Language.Type
 import Language.Expr
 import Language.Declaration
@@ -110,6 +110,9 @@ alt1 p q = (:|) <$> p <*> many (q *> p)
 parseList :: Shape -> Parser a -> Parser [a]
 parseList b p = brackets b (alt p (sep ","))
 
+statementSep :: Parser Lexeme
+statementSep = newline 0 <|> sep ";"
+
 identifier :: Parser Text
 identifier = flip token Set.empty \case
   Identifier i -> Just i
@@ -137,6 +140,9 @@ key = single . Keyword
 
 ctr :: Text -> Parser Lexeme
 ctr = single . Constructor
+
+newline :: Int -> Parser Lexeme
+newline = single . Newline
 
 class Parse a where
   parser :: Parser a
@@ -186,7 +192,7 @@ instance Parse Signature where
       , mempty
       ]
     context <- choice
-      [ parseList Curly ((,) <$> identifier <* op ":" <*> parser) <* op "->"
+      [ parseList Curly (Named <$> identifier <* op ":" <*> parser) <* op "->"
       , mempty
       ]
     goal <- parser
@@ -246,10 +252,9 @@ instance Parse Problem where
 
 instance Parse (Named Problem) where
   parser = do
-    Named name signature <- parser
-    _ <- single (Newline 0)
-    bs <- alt1 parser (single $ Newline 0)
-    bindings <- NonEmpty.toList <$> forM bs \(Named name' b) -> do
+    Named name signature <- parser <* statementSep
+    bs <- NonEmpty.toList <$> alt1 parser statementSep
+    bindings <- forM bs \(Named name' b) -> do
       guard $ name == name'
       return b
     return $ Named name Declaration { signature, bindings }

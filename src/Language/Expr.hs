@@ -3,7 +3,7 @@ module Language.Expr where
 import Data.Map.Strict qualified as Map
 
 import Base
-
+import Data.Named
 import Prettyprinter.Utils
 
 data Lit = MkInt Int | MkBool Bool

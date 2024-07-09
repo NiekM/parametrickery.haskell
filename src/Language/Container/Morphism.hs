@@ -9,6 +9,7 @@ import Control.Arrow ((&&&))
 import Base
 import Data.Map.Multi (Multi)
 import Data.Map.Multi qualified as Multi
+import Data.Named
 import Prettyprinter.Utils
 import Utils
 
@@ -41,7 +42,7 @@ checkExample Signature { constraints, context, goal } Example { inputs, output }
   where
     Container outShape q = toContainer goal output
 
-    ins      = toContainers $ zip (snd <$> context) inputs
+    ins      = toContainers $ zip (value <$> context) inputs
     inShapes = shape <$> ins
     p        = foldMap positions ins
 
@@ -92,7 +93,6 @@ instance Pretty (Named PolyExample) where
       output = pretty $ t <&> \p -> PrettySet $ Multi.lookup p o
 
 instance Pretty Conflict where
-  -- TODO: we can make this nicer
   pretty = viaShow
 
 instance Pretty a => Pretty (Result a) where

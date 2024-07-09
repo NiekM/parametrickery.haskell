@@ -1,6 +1,5 @@
 module Prettyprinter.Utils where
 
-import Data.Text
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Prettyprinter
@@ -19,12 +18,6 @@ instance Pretty a => Pretty (PrettySet a) where
     . fmap pretty
     . Set.toList
     . unPrettySet
-
--- Used for pretty printing things with a name.
-data Named a = Named Text a
-
-prettyNamed :: Pretty (Named a) => Text -> a -> Doc ann
-prettyNamed name = pretty . Named name
 
 -- Used for pretty printing things with precedence.
 data Prec a = Prec Int a

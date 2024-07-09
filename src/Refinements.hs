@@ -3,10 +3,10 @@ module Refinements where
 import Data.List qualified as List
 
 import Base
+import Data.Named
 import Language.Type
 import Language.Expr
 import Language.Declaration
--- import Language.Container.Morphism
 
 import Utils
 
@@ -49,7 +49,7 @@ liftArg n (Declaration sig@Signature { context } exs)
   | otherwise = Just
     (name, mono, exprs, Declaration sig { context = context' } exs')
   where
-    ((name, mono), context') = pick n context
+    (Named name mono, context') = pick n context
     (exprs, exs') = unzip $ pickEx <$> exs
 
     pickEx (Example (pick n -> (i, ins)) out) = (i, Example ins out)
@@ -62,7 +62,7 @@ liftArg n (Declaration sig@Signature { context } exs)
 -- All possible ways to lift one argument from a problem.
 pickApart :: Problem -> [(Text, Mono, [Term], Problem)]
 pickApart p@(Declaration Signature { context } _) =
-  zipWith const [0..] context & mapMaybe \n -> liftArg n p
+  zipWith const [0..] context & mapMaybe (`liftArg` p)
 
 type Refinement = Problem -> [[Problem]]
 
@@ -105,7 +105,10 @@ elimList p = pickApart p & mapMaybe
       in Just
         [ Declaration s nil
         -- TODO: generate fresh variables
-        , Declaration s { context = (v <> "_h", u) : (v <> "_t", List u) : context } cons
+        , Declaration s
+          { context =
+            Named (v <> "_h") u : Named (v <> "_t") (List u) : context
+          } cons
         ]
     _ -> Nothing
 
@@ -158,7 +161,9 @@ introFoldr p = pickApart p & mapMaybe
       in Just
         [ Declaration s nil
         -- TODO: generate fresh variables
-        , Declaration s { context = (v <> "_h", u) : (v <> "_r", goal) : context } cons
+        , Declaration s
+          { context = Named (v <> "_h") u : Named (v <> "_r") goal : context }
+          cons
         ]
     _ -> Nothing
 
