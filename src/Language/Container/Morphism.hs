@@ -40,7 +40,7 @@ data PolyExample = PolyExample
 -- output values are a subset (and if they are not, this is already a conflict).
 checkExample :: Signature -> Example -> Result PolyExample
 checkExample Signature { constraints, context, goal } Example { inputs, output }
-  | conflict  = throwError PositionConflict
+  | conflict  = throwError MagicOutput
   | otherwise = return PolyExample { relations, inShapes, outShape, origins }
   where
     Container outShape q = toContainer goal output
@@ -71,7 +71,7 @@ newtype Result a = Result (Either Conflict a)
   deriving newtype (Functor, Foldable, Applicative, Monad, MonadError Conflict)
 
 -- TODO: do something with these conflicts.
-data Conflict = ShapeConflict | PositionConflict
+data Conflict = ShapeConflict | MagicOutput | PositionConflict
   deriving stock (Eq, Ord, Show)
 
 ------ Pretty ------
