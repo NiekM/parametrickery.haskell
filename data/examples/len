@@ -1,0 +1,5 @@
+len : forall a. {xs : [a]} -> Int
+len [] = 0
+len [3] = 1
+len [2, 3] = 2
+len [1, 2, 3] = 3

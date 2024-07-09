@@ -1,0 +1,2 @@
+constant : Int
+constant = 4

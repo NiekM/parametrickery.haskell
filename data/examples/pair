@@ -1,0 +1,3 @@
+pair : forall a b. {x : a, y : b} -> a * b
+pair 1 True = (1, True)
+pair False 3 = (False, 3)

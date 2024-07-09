@@ -8,6 +8,8 @@ import Data.Either (isRight)
 import Data.Foldable (asum)
 import Data.Monoid (Alt(..))
 import Data.Maybe (fromJust)
+import Data.Text.IO qualified as Text
+import System.IO.Unsafe qualified as Unsafe
 
 import Base
 import Data.Map.Multi qualified as Multi
@@ -39,29 +41,25 @@ instance (ToExpr a, ToExpr b) => ToExpr (Either a b) where
 
 ------ Examples ------
 
+loadProblem :: String -> Problem
+loadProblem file = Unsafe.unsafePerformIO do
+  t <- Text.readFile $ "data/examples/" <> file
+  return . value $ parse t
+
 parse :: Parse a => Text -> a
 parse = fromJust . lexParse parser
 
 triple :: Problem
-triple = parse
-  "_ : forall a. {x : a, y : a, z : a} -> a\n\
-  \_ 1 2 2 = 2\n\
-  \_ 2 1 2 = 2\n\
-  \_ 2 2 1 = 2"
+triple = loadProblem "triple"
 
 -- >>> pretty <$> check triple
 -- PositionConflict
 
 constant :: Problem
-constant = parse
-  "_ : Int\n\
-  \_ = 4"
+constant = loadProblem "constant"
 
 pairExample :: Problem
-pairExample = parse
-  "_ : forall a b. {x : a, y : b} -> a * b\n\
-  \_ 1 True = (1, True)\n\
-  \_ False 3 = (False, 3)"
+pairExample = loadProblem "pair"
 
 -- >>> pretty $ check pairExample
 -- _ : forall a b. {x : a, y : b} -> a * b
@@ -79,41 +77,16 @@ introPairExample = introPair pairExample
 --   _ False 3 = 3 ] ]
 
 zipExample :: Problem
-zipExample = parse
-  "_ : forall a b. {xs : [a], ys : [b]} -> [a * b]\n\
-  \_ [] [] = []\n\
-  \_ [1] [2] = [(1, 2)]\n\
-  \_ [1, 2] [3, 4, 5] = [(1, 3), (2, 4)]\n\
-  \_ [1, 2, 3] [4, 5] = [(1, 4), (2, 5)]"
+zipExample = loadProblem "zip"
 
 lenExample :: Problem
-lenExample = parse
-  "_ : forall a. {xs : [a]} -> Int\n\
-  \_ [] = 0\n\
-  \_ [3] = 1\n\
-  \_ [2, 3] = 2\n\
-  \_ [1, 2, 3] = 3"
+lenExample = loadProblem "len"
 
 tailExample :: Problem
-tailExample = parse
-  "_ : forall a. {xs : [a]} -> [a]\n\
-  \_ [] = []\n\
-  \_ [3] = []\n\
-  \_ [2, 3] = [3]\n\
-  \_ [1, 2, 3] = [2, 3]"
+tailExample = loadProblem "tail"
 
 sortExample :: Problem
-sortExample = parse
-  "_ : forall a. Ord a => {xs : [a]} -> [a]\n\
-  \_ [] = []\n\
-  \_ [3] = [3]\n\
-  \_ [3, 2] = [2, 3]\n\
-  \_ [1, 2] = [1, 2]\n\
-  \_ [4, 4] = [4, 4]\n\
-  \_ [2, 1, 2] = [1, 2, 2]\n\
-  \_ [1, 3, 2] = [1, 2, 3]\n\
-  \_ [3, 2, 1] = [1, 2, 3]\n\
-  \_ [2, 3, 1] = [1, 2, 3]"
+sortExample = loadProblem "sort"
 
 twoRelations :: Problem
 twoRelations = parse
