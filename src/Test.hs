@@ -1,9 +1,4 @@
 {-# OPTIONS_GHC -Wno-unused-imports #-}
--- Exploring a deep embedding of the language. The shallow embedding (at
--- different depths) runs into the issue that we cannot easily inspect the
--- types, at least not without introducing various singleton types etc. A deep
--- embedding allows for example easy inspecting of types, including constraints,
--- as well as multiple type variables.
 
 module Test where
 
@@ -26,8 +21,8 @@ import Language.Declaration
 import Language.Parser
 import Refinements
 
-------
-
+-- ToExpr is no longer really necessary now that we have parsing, but it's still
+-- useful sometimes.
 class    ToExpr a    where toVal :: a -> Expr h
 instance ToExpr Int  where toVal = Lit . MkInt
 instance ToExpr Bool where toVal = Lit . MkBool
@@ -54,34 +49,19 @@ triple = parse
   \_ 2 1 2 = 2\n\
   \_ 2 2 1 = 2"
 
--- >>> pretty triple
--- _ : forall a. {x : a, y : a, z : a} -> a
--- _ 1 2 2 = 2
--- _ 2 1 2 = 2
--- _ 2 2 1 = 2
-
 -- >>> pretty <$> check triple
--- Result (Left PositionConflict)
+-- PositionConflict
 
 constant :: Problem
 constant = parse
   "_ : Int\n\
   \_ = 4"
 
--- >>> pretty constant
--- _ : Int
--- _ = 4
-
 pairExample :: Problem
 pairExample = parse
   "_ : forall a b. {x : a, y : b} -> a * b\n\
   \_ 1 True = (1, True)\n\
   \_ False 3 = (False, 3)"
-
--- >>> pretty pairExample
--- _ : forall a b. {x : a, y : b} -> a * b
--- _ 1 True = (1, True)
--- _ False 3 = (False, 3)
 
 -- >>> pretty $ check pairExample
 -- _ : forall a b. {x : a, y : b} -> a * b

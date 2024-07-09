@@ -24,7 +24,7 @@ data Container = Container
 -- variables.
 poly :: Mono -> Expr a -> Expr (Text, Expr a)
 poly = \cases
-  (Free  v) x          -> Hole (v, x)
+  (Free  v) x          -> return (v, x)
   Top       Unit       -> Unit
   (Tup t u) (Pair x y) -> Pair (poly t x) (poly u y)
   (Sum t _) (Inl x)    -> Inl (poly t x)
@@ -60,6 +60,9 @@ fromContainer Container { shape, positions } =
 
 instance Pretty Position where
   pretty (Position a n) = pretty a <> pretty n
+
+instance Pretty (Hole Position) where
+  pretty (MkHole p) = pretty p
 
 instance Pretty Container where
   pretty (Container s p) = pretty s <+> encloseSep lbrace rbrace ", " xs

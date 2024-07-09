@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 module Language.Parser (Parse(..), lexParse) where
 
 import Prelude hiding (foldr1)
@@ -208,7 +209,18 @@ instance Parse Lit where
     , MkInt <$> int
     ]
 
-instance Parse h => Parse (Expr h) where
+instance Parse (Hole Void) where
+  parser = mzero
+
+instance Parse (Hole ()) where
+  parser = MkHole <$> do
+    "_" <- identifier
+    return ()
+
+instance Parse (Hole h) => Parse (Hole (Expr h)) where
+  parser = MkHole <$> brackets Curly parser
+
+instance Parse (Hole h) => Parse (Expr h) where
   parser = choice
     [ Unit <$ op "-"
     , brackets Round do
@@ -220,10 +232,10 @@ instance Parse h => Parse (Expr h) where
     , Inr <$ key "inr" <*> parser
     , Lst <$> parseList Square parser
     , Lit <$> parser
-    , Hole <$> brackets Curly parser
+    , Hole <$> parser
     ]
 
-spacedExprUntil :: Parse h => Lexeme -> Parser [Expr h]
+spacedExprUntil :: Parse (Hole h) => Lexeme -> Parser [Expr h]
 spacedExprUntil l = many $ choice
   [ brackets Round parser
   , Lst <$> parseList Square parser

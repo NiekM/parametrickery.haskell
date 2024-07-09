@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module Language.Expr where
 
 import Data.Map.Strict qualified as Map
@@ -9,6 +11,11 @@ import Prettyprinter.Utils
 data Lit = MkInt Int | MkBool Bool
   deriving stock (Eq, Ord, Show)
 
+-- Used for pretty printing
+newtype Hole h = MkHole { getHole :: h }
+  deriving stock (Eq, Ord, Show)
+  deriving stock (Functor, Foldable, Traversable)
+
 -- TODO: we could replace Unit and Pair with an n-ary tuple [Expr h];
 --       and remove Inl and Inr in favor of some Ctr :: Text -> Expr h -> Expr h
 data Expr h where
@@ -18,7 +25,7 @@ data Expr h where
   Inr  :: Expr h -> Expr h
   Lst  :: [Expr h] -> Expr h
   Lit  :: Lit -> Expr h
-  Hole :: h -> Expr h
+  Hole :: Hole h -> Expr h
   deriving stock (Eq, Ord, Show)
   deriving stock (Functor, Foldable, Traversable)
 
@@ -26,7 +33,7 @@ type Term = Expr Void
 
 instance Applicative Expr where
   pure :: a -> Expr a
-  pure = Hole
+  pure = Hole . MkHole
 
   liftA2 :: (a -> b -> c) -> Expr a -> Expr b -> Expr c
   liftA2 f x y = x >>= \a -> y >>= \b -> pure $ f a b
@@ -44,7 +51,7 @@ accept = \case
   Inr y    -> Inr (accept y)
   Lst xs   -> Lst (map accept xs)
   Lit l    -> Lit l
-  Hole e   -> e
+  Hole e   -> getHole e
 
 match :: Ord a => Expr a -> Expr b -> Maybe (Map a (Expr b))
 match = \cases
@@ -55,7 +62,7 @@ match = \cases
   (Lst xs)   (Lst as) | length xs == length as ->
     Map.unions <$> zipWithM match xs as
   (Lit l)    (Lit m)  | l == m -> Just mempty
-  (Hole h)   e          -> Just $ Map.singleton h e
+  (Hole h)   e          -> Just $ Map.singleton (getHole h) e
   _ _ -> Nothing
 
 -- A monomorphic input-output example according to some function signature. We
@@ -74,10 +81,19 @@ instance Pretty Lit where
     MkInt  n -> pretty n
     MkBool b -> pretty b
 
-instance Pretty h => Pretty (Expr h) where
+instance Pretty (Hole Void) where
+  pretty = absurd . getHole
+
+instance Pretty (Hole ()) where
+  pretty = const "_"
+
+instance Pretty (Hole h) => Pretty (Hole (Expr h)) where
+  pretty = braces . pretty . getHole
+
+instance Pretty (Hole h) => Pretty (Expr h) where
   pretty = prettyMinPrec
 
-instance Pretty h => Pretty (Prec (Expr h)) where
+instance Pretty (Hole h) => Pretty (Prec (Expr h)) where
   pretty (Prec p e) = case e of
     Unit     -> "-"
     Pair x y -> parens (prettyPrec 2 x <> "," <+> prettyPrec 2 y)
@@ -85,7 +101,9 @@ instance Pretty h => Pretty (Prec (Expr h)) where
     Inr y    -> parensIf (p > 2) ("inr" <+> prettyPrec 3 y)
     Lst xs   -> pretty xs
     Lit l    -> pretty l
-    Hole v   -> braces (pretty v)
+    -- TODO: using curly brackets for holes messes a bit with the way we pretty
+    -- print polymorphic examples.
+    Hole v   -> pretty v
 
 instance Pretty Example where
   pretty (Example [] out) = pretty out

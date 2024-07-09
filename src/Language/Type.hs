@@ -52,8 +52,8 @@ instance Pretty (Prec Mono) where
   pretty (Prec p m) = case m of
     Free v  -> pretty v
     Top     -> "1"
-    Tup t u -> parensIf (p > 2) $ sep [prettyPrec 3 t, "*", prettyPrec 2 u]
-    Sum t u -> parensIf (p > 1) $ sep [prettyPrec 2 t, "+", prettyPrec 1 u]
+    Tup t u -> parensIf (p > 2) $ prettyPrec 3 t <+> "*" <+> prettyPrec 2 u
+    Sum t u -> parensIf (p > 1) $ prettyPrec 2 t <+> "+" <+> prettyPrec 1 u
     List t  -> brackets $ pretty t
     Base b  -> pretty b
 
@@ -73,4 +73,4 @@ instance Pretty Signature where
       arguments xs = encloseSep lbrace rbrace ", " (map pretty xs) <+> "-> "
 
 instance Pretty (Named Signature) where
-  pretty (Named name sig) = sep [pretty name, ":", pretty sig]
+  pretty (Named name sig) = pretty name <+> ":" <+> pretty sig

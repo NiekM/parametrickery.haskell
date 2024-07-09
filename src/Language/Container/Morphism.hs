@@ -1,10 +1,13 @@
 -- TODO: perhaps rename to Language.Container.Example?
 --       although it is a bit confusing...
+
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Language.Container.Morphism where
 
 import Control.Monad.Error.Class
 import Data.List.NonEmpty qualified as NonEmpty
 import Control.Arrow ((&&&))
+import Data.Set qualified as Set
 
 import Base
 import Data.Map.Multi (Multi)
@@ -73,12 +76,18 @@ data Conflict = ShapeConflict | PositionConflict
 
 ------ Pretty ------
 
+instance Pretty (Hole (Set Position)) where
+  pretty = encloseSep lbrace rbrace ", "
+    . fmap pretty
+    . Set.toList
+    . getHole
+
 instance Pretty PolyExample where
   pretty (PolyExample _ [] t _) = pretty t
   pretty (PolyExample r s t o) =
-    barred (inputs : relations) <+> "->" <+> pretty t'
+    barred (inputs : relations) <+> "->" <+> output
     where
-      t' = t <&> \p -> PrettySet $ Multi.lookup p o
+      output = pretty $ fmap (`Multi.lookup` o) t
       inputs = sep (map prettyMaxPrec s)
       relations = map pretty $ filter relevant r
       barred = encloseSep mempty mempty " | "
@@ -90,7 +99,7 @@ instance Pretty (Named PolyExample) where
     where
       arguments = sep (pretty name : map prettyMaxPrec ss)
       relations = map pretty $ filter relevant r
-      output = pretty $ t <&> \p -> PrettySet $ Multi.lookup p o
+      output = pretty $ fmap (`Multi.lookup` o) t
 
 instance Pretty Conflict where
   pretty = viaShow

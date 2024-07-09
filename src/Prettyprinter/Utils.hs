@@ -1,7 +1,5 @@
 module Prettyprinter.Utils where
 
-import Data.Set (Set)
-import Data.Set qualified as Set
 import Prettyprinter
 
 statements :: [Doc ann] -> Doc ann
@@ -9,15 +7,6 @@ statements = concatWith \x y -> x <> flatAlt line "; " <> y
 
 parensIf :: Bool -> Doc ann -> Doc ann
 parensIf p = if p then parens else id
-
-newtype PrettySet a = PrettySet { unPrettySet :: Set a }
-  deriving newtype (Eq, Ord, Show)
-
-instance Pretty a => Pretty (PrettySet a) where
-  pretty = encloseSep lbrace rbrace ", "
-    . fmap pretty
-    . Set.toList
-    . unPrettySet
 
 -- Used for pretty printing things with precedence.
 data Prec a = Prec Int a
