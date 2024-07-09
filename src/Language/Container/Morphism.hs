@@ -30,8 +30,8 @@ computeOrigins p q = Multi.remapping (Multi.fromMap q) (Multi.fromMap p)
 -- A polymorphic input-output example, i.e. an input-output example for
 -- container morphisms.
 data PolyExample = PolyExample
-  { relations :: [Relation]
-  , inShapes  :: [Shape]
+  { inShapes  :: [Shape]
+  , relations :: [Relation]
   , outShape  :: Shape
   , origins   :: Origins
   } deriving stock (Eq, Ord, Show)
@@ -77,29 +77,28 @@ data Conflict = ShapeConflict | PositionConflict
 ------ Pretty ------
 
 instance Pretty (Hole (Set Position)) where
-  pretty = encloseSep lbrace rbrace ", "
-    . fmap pretty
-    . Set.toList
-    . getHole
+  pretty (MkHole ps) = case Set.toList ps of
+    [x] -> pretty x
+    xs  -> encloseSep lbrace rbrace ", " $ map pretty xs
 
 instance Pretty PolyExample where
-  pretty (PolyExample _ [] t _) = pretty t
-  pretty (PolyExample r s t o) =
-    barred (inputs : relations) <+> "->" <+> output
-    where
-      output = pretty $ fmap (`Multi.lookup` o) t
-      inputs = sep (map prettyMaxPrec s)
-      relations = map pretty $ filter relevant r
-      barred = encloseSep mempty mempty " | "
+  pretty PolyExample { inShapes, relations, outShape, origins }
+    | null inShapes = pretty outShape
+    | otherwise = barred (inputs : rels) <+> "->" <+> output
+      where
+        output = pretty $ fmap (`Multi.lookup` origins) outShape
+        inputs = sep (map prettyMaxPrec inShapes)
+        rels = map pretty $ filter relevant relations
+        barred = encloseSep mempty mempty " | "
 
 instance Pretty (Named PolyExample) where
-  pretty (Named name (PolyExample r ss t o))
-    | null relations = arguments <+> "=" <+> output
-    | otherwise = arguments <+> encloseSep "| " " =" ", " relations <+> output
+  pretty (Named name PolyExample { inShapes, relations, outShape, origins })
+    | null rels = args <+> "=" <+> output
+    | otherwise = args <+> encloseSep "| " " =" ", " rels <+> output
     where
-      arguments = sep (pretty name : map prettyMaxPrec ss)
-      relations = map pretty $ filter relevant r
-      output = pretty $ fmap (`Multi.lookup` o) t
+      args = sep (pretty name : map prettyMaxPrec inShapes)
+      rels = map pretty $ filter relevant relations
+      output = pretty $ fmap (`Multi.lookup` origins) outShape
 
 instance Pretty Conflict where
   pretty = viaShow

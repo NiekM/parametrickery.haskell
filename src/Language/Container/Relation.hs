@@ -43,7 +43,9 @@ computeRelations cs p = cs <&> \case
 ------ Pretty ------
 
 eqClass :: Pretty a => Set a -> Doc ann
-eqClass = encloseSep lbrace rbrace " = " . map pretty . Set.toList
+eqClass s = case Set.toList s of
+  [x] -> pretty x
+  xs  -> encloseSep lbrace rbrace " = " $ map pretty xs
 
 instance Pretty Relation where
   pretty = \case

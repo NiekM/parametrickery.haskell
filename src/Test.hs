@@ -65,7 +65,7 @@ pairExample = parse
 
 -- >>> pretty $ check pairExample
 -- _ : forall a b. {x : a, y : b} -> a * b
--- _ a0 b0 = ({a0}, {b0})
+-- _ a0 b0 = (a0, b0)
 
 introPairExample :: [[Problem]]
 introPairExample = introPair pairExample
@@ -108,6 +108,11 @@ sortExample = parse
   \_ [] = []\n\
   \_ [3] = [3]\n\
   \_ [3, 2] = [2, 3]\n\
+  \_ [1, 2] = [1, 2]\n\
+  \_ [4, 4] = [4, 4]\n\
+  \_ [2, 1, 2] = [1, 2, 2]\n\
+  \_ [1, 3, 2] = [1, 2, 3]\n\
+  \_ [3, 2, 1] = [1, 2, 3]\n\
   \_ [2, 3, 1] = [1, 2, 3]"
 
 twoRelations :: Problem
@@ -148,20 +153,3 @@ applyPoly containers Declaration { signature, bindings } =
     where
       p = foldMap positions containers
       relations = computeRelations (constraints signature) p
-
-
--- TODO: check if this behaves as expected
--- applyExamples :: Signature -> [PolyExample] -> [Term] -> Maybe Term
--- applyExamples Signature { constraints, context } exs ins
---   = fmap fromContainer
---   . asum
---   $ exs <&> \ex -> applyExample ex relations containers
---   where
---     containers = toContainers $ zip (map snd context) ins
---     p = foldMap positions containers
---     relations = computeRelations constraints p
-
--- res2may :: Result a -> Maybe a
--- res2may (Result res) = case res of
---   Left _ -> Nothing
---   Right x -> Just x
