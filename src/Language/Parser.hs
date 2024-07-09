@@ -107,11 +107,8 @@ alt p q = NonEmpty.toList <$> alt1 p q <|> mempty
 alt1 :: Parser a -> Parser b -> Parser (NonEmpty a)
 alt1 p q = (:|) <$> p <*> many (q *> p)
 
-class Parse a where
-  parser :: Parser a
-
-lexParse :: Parser a -> Text -> Maybe a
-lexParse p t = parseMaybe Language.Parser.lex t >>= parseMaybe p
+parseList :: Shape -> Parser a -> Parser [a]
+parseList b p = brackets b (alt p (sep ","))
 
 identifier :: Parser Text
 identifier = flip token Set.empty \case
@@ -140,6 +137,12 @@ key = single . Keyword
 
 ctr :: Text -> Parser Lexeme
 ctr = single . Constructor
+
+class Parse a where
+  parser :: Parser a
+
+lexParse :: Parser a -> Text -> Maybe a
+lexParse p t = parseMaybe Language.Parser.lex t >>= parseMaybe p
 
 instance Parse Base where
   parser = choice
@@ -214,9 +217,8 @@ instance Parse h => Parse (Expr h) where
     , Hole <$> brackets Curly parser
     ]
 
-
-spaceSeparatedUntil :: Parse h => Lexeme -> Parser [Expr h]
-spaceSeparatedUntil l = many $ choice
+spacedExprUntil :: Parse h => Lexeme -> Parser [Expr h]
+spacedExprUntil l = many $ choice
   [ brackets Round parser
   , Lst <$> parseList Square parser
   , do
@@ -226,7 +228,7 @@ spaceSeparatedUntil l = many $ choice
 
 instance Parse Example where
   parser = do
-    inputs <- spaceSeparatedUntil (Operator "->")
+    inputs <- spacedExprUntil (Operator "->")
     output <- optional (op "->" *> parser)
     case (inputs, output) of
       ([out], Nothing ) -> return $ Example [] out
@@ -235,7 +237,7 @@ instance Parse Example where
 
 instance Parse (Named Example) where
   parser = Named <$> identifier <*> do
-    Example <$> spaceSeparatedUntil (Operator "=") <* op "=" <*> parser
+    Example <$> spacedExprUntil (Operator "=") <* op "=" <*> parser
 
 instance Parse Problem where
   parser = do
@@ -254,163 +256,3 @@ instance Parse (Named Problem) where
 
 instance Parse Void where
   parser = mzero
-
--- instance Parse Unit where
---   parser = mempty
-
--- instance Parse Var where
---   parser = MkVar <$> identifier
-
--- instance Parse Ctr where
---   parser = MkCtr <$> constructor
-
--- instance Parse Hole where
---   parser = MkHole . fromIntegral <$> int
-
--- instance Parse Free where
---   parser = MkFree <$> identifier
-
--- class ParseAtom l where
---   parseAtom :: Parser (Expr l)
-
--- parseNat :: HasCtr l => Parser (Expr l)
--- parseNat = nat <$> int
-
-parseList :: Shape -> Parser a -> Parser [a]
-parseList b p = brackets b (alt p (sep ","))
-
--- parseBranch :: Parse h => Parser (Ctr, Term h)
--- parseBranch = (,) <$> parser <*> (lams <$> many parser <* op "->" <*> parser)
-
--- indent :: Parser Int
--- indent = flip token Set.empty \case
---   Newline n -> Just n
---   _ -> Nothing
-
--- parseBranches :: Parse h => Parser [(Ctr, Term h)]
--- parseBranches = choice
---   [ do
---     n <- indent
---     guard $ n > 0
---     alt parseBranch (single (Newline n))
---   , alt parseBranch (sep ";")
---   ]
-
--- instance Parse h => ParseAtom ('Term h) where
---   parseAtom = choice
---     [ lams <$ op "\\" <*> some parser <* op "->" <*> parser
---     , Case <$ key "case" <*> parser <* key "of" <*> parseBranches
---     , Let <$ key "let" <*> parser <*>
---       (lams <$> many parser <* op "=" <*> parser) <* key "in" <*> parser
---     , Hole <$> brackets Curly parser
---     , Hole <$ single Underscore <*> parser
---     , Var <$> parser
---     , flip Ctr [] <$> parser
---     , Fix <$ key "fix"
---     , parseNat
---     , parseList parser
---     ]
-
--- instance ParseAtom 'Type where
---   parseAtom = choice
---     [ Var <$> parser
---     , flip Ctr [] <$> parser
---     ]
-
--- instance ParseAtom 'Value where
---   parseAtom = choice
---     [ flip Ctr [] <$> parser
---     , parseNat
---     , parseList parser
---     ]
-
--- instance ParseAtom 'Example where
---   parseAtom = choice
---     [ lams <$ op "\\" <*> some (brackets Round parser <|> parseAtom)
---       <* op "->" <*> parser
---     , Hole <$> brackets Curly parser
---     , Hole <$ single Underscore <*> parser
---     , flip Ctr [] <$> parser
---     , parseNat
---     , parseList parser
---     ]
-
--- -- TODO: we can do the parsing much nicer
--- parseApps :: (May Parse (Hole' l), HasApp l, HasCtr l, ParseAtom l)
---   => Parser (Expr l)
--- parseApps = apps' <$> atom <*> many atom
---   where
---     apps' :: HasApp l => Expr l -> [Expr l] -> Expr l
---     apps' f xs = case f of
---       Ctr c [] -> Ctr c xs
---       _ -> apps f xs
---     atom = brackets Round parseApps <|> parseAtom
-
--- instance Parse h => Parse (Term h) where
---   parser = parseApps
-
--- parseArrs :: HasArr l => Parser (Expr l) -> Parser (Expr l)
--- parseArrs p = arrs <$> alt1 p' (op "->") <|> p'
---   where p' = brackets Round (parseArrs p) <|> p
-
--- instance Parse Mono where
---   parser = parseArrs (parseCtrs parseAtom)
-
--- parseCtrs :: HasCtr l => Parser (Expr l) -> Parser (Expr l)
--- parseCtrs p = Ctr <$> parser <*> many p' <|> p'
---   where p' = brackets Round (parseCtrs p) <|> p
-
--- instance Parse Value where
---   parser = parseCtrs parseAtom
-
--- instance Parse Example where
---   parser = parseApps
-
--- instance Parse Poly where
---   parser = Poly <$ key "forall" <*> many parser <* op "." <*> parser
---     <|> poly <$> parser
-
--- instance Parse Datatype where
---   parser = MkDatatype <$ key "data" <*> parser <*> many parser <*> choice
---     [ do
---       _ <- op "="
---       cs <- alt1
---         ((,) <$> parser <*> many (brackets Round parser <|> parseAtom))
---         (op "|")
---       return . toList $ cs
---     , mempty
---     ]
-
--- instance Parse Import where
---   parser = MkImport <$ key "import" <*> constructor <*> choice
---     [ return <$> brackets Round (alt parser (sep ","))
---     , mempty
---     ]
-
--- instance Parse Pragma where
---   parser = brackets Fancy $ choice
---     [ Desc . fromString <$ ctr "DESC" <*> str
---     , Forbid <$ ctr "FORBID" <*> parser
---     , Include <$ ctr "INCLUDE" <*>
---       alt1 ((,) <$> parser <*> optional (op "::" *> parser)) (sep ",")
---     ]
-
--- instance Parse Assert where
---   parser = MkAssert <$> parser <* op "<==" <*> parser
-
--- instance Parse a => Parse (Def a) where
---   parser = choice
---     [ Datatype <$> parser
---     , Import <$> parser
---     , Pragma <$> parser
---     , Assert <$ key "assert" <*> parser
---     , do
---       x <- parser
---       choice
---         [ Signature . MkSignature x <$ op "::" <*> parser
---         , Binding . MkBinding x <$> (lams <$> many parser <* op "=" <*> parser)
---         ]
---     ]
-
--- instance Parse a => Parse (Defs a) where
---   parser = Defs . catMaybes <$> alt (optional parser) (single $ Newline 0)
