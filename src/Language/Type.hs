@@ -39,7 +39,7 @@ instance Pretty Base where
 
 instance Pretty Constraint where
   pretty = \case
-    Eq a -> "Eq" <+> pretty a
+    Eq  a -> "Eq"  <+> pretty a
     Ord a -> "Ord" <+> pretty a
 
 instance Pretty Mono where
@@ -64,6 +64,7 @@ instance Pretty Signature where
       quantifiers [] = ""
       quantifiers xs = sep ("forall" : map pretty xs) <> ". "
       constrs [] = ""
+      constrs [x] = pretty x <+> "=> "
       constrs xs = tupled (map pretty xs) <+> "=> "
       arguments [] = ""
       arguments xs = encloseSep lbrace rbrace ", "

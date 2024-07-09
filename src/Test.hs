@@ -12,6 +12,7 @@ import Data.Coerce (coerce)
 import Data.Either (isRight)
 import Data.Foldable (asum)
 import Data.Monoid (Alt(..))
+import Data.Maybe (fromJust)
 
 import Base
 import Data.Map.Multi qualified as Multi
@@ -21,7 +22,9 @@ import Language.Container
 import Language.Container.Morphism
 import Language.Container.Relation
 import Language.Declaration
+import Language.Parser
 import Refinements
+import Prettyprinter.Utils
 
 ------
 
@@ -41,21 +44,15 @@ instance (ToExpr a, ToExpr b) => ToExpr (Either a b) where
 
 ------ Examples ------
 
+parse :: Parse a => Text -> a
+parse = fromJust . lexParse parser
+
 triple :: Problem
-triple = Declaration
-  { signature = Signature
-    { vars = ["a"]
-    , constraints = []
-    , context = [("x", Free "a"), ("y", Free "a"), ("z", Free "a")]
-    , goal = Free "a"
-    }
-  , bindings =
-    [ Example [v1, v2, v2] v2
-    , Example [v2, v1, v2] v2
-    , Example [v2, v2, v1] v2
-    ]
-  } where
-    v1 = toVal @Int 1; v2 = toVal @Int 2
+triple = parse
+  "_ : forall a. {x : a, y : a, z : a} -> a\n\
+  \_ 1 2 2 = 2\n\
+  \_ 2 1 2 = 2\n\
+  \_ 2 2 1 = 2"
 
 -- >>> pretty triple
 -- _ : forall a. {x : a, y : a, z : a} -> a
@@ -67,29 +64,19 @@ triple = Declaration
 -- Result (Left PositionConflict)
 
 constant :: Problem
-constant = Declaration
-  { signature = Signature
-    { vars = [], constraints = [], context = [], goal = Base Int }
-  , bindings = [Example [] (toVal @Int 4)]
-  }
+constant = parse
+  "_ : Int\n\
+  \_ = 4"
 
 -- >>> pretty constant
 -- _ : Int
 -- _ = 4
 
 pairExample :: Problem
-pairExample = Declaration
-  { signature = Signature
-    { vars = ["a", "b"]
-    , constraints = []
-    , context = [("x", Free "a"), ("y", Free "b")]
-    , goal = Tup (Free "a") (Free "b")
-    }
-  , bindings =
-    [ Example [toVal @Int 1, toVal True ] $ toVal @(Int, Bool) (1,  True)
-    , Example [toVal False, toVal @Int 3] $ toVal @(Bool, Int) (False, 3)
-    ]
-  }
+pairExample = parse
+  "_ : forall a b. {x : a, y : b} -> a * b\n\
+  \_ 1 True = (1, True)\n\
+  \_ False 3 = (False, 3)"
 
 -- >>> pretty pairExample
 -- _ : forall a b. {x : a, y : b} -> a * b
@@ -112,90 +99,43 @@ introPairExample = introPair pairExample
 --   _ False 3 = 3 ] ]
 
 zipExample :: Problem
-zipExample = Declaration
-  { signature = Signature
-    { vars = ["a", "b"]
-    , constraints = []
-    , context = [("xs", List (Free "a")), ("ys", List (Free "b"))]
-    , goal = List (Tup (Free "a") (Free "b"))
-    }
-  , bindings =
-    [ Example [toVal @[Int] [], toVal @[Int] []] (toVal @[(Int, Int)] [])
-    , Example [toVal @[Int] [1], toVal @[Int] [2]] (toVal @[(Int, Int)] [(1,2)])
-    , Example [toVal @[Int] [1,2], toVal @[Int] [3,4,5]]
-      (toVal @[(Int, Int)] [(1,3),(2,4)])
-    , Example [toVal @[Int] [1,2,3], toVal @[Int] [4,5]]
-      (toVal @[(Int, Int)] [(1,4),(2,5)])
-    ]
-  }
+zipExample = parse
+  "_ : forall a b. {xs : [a], ys : [b]} -> [a * b]\n\
+  \_ [] [] = []\n\
+  \_ [1] [2] = [(1, 2)]\n\
+  \_ [1, 2] [3, 4, 5] = [(1, 3), (2, 4)]\n\
+  \_ [1, 2, 3] [4, 5] = [(1, 4), (2, 5)]"
 
 lenExample :: Problem
-lenExample = Declaration
-  { signature = Signature
-    { vars = ["a"]
-    , constraints = []
-    , context = [("xs", List (Free "a"))]
-    , goal = Base Int
-    }
-  , bindings =
-    [ Example [toVal @[Int] []] (toVal @Int 0)
-    , Example [toVal @[Int] [3]] (toVal @Int 1)
-    , Example [toVal @[Int] [2,3]] (toVal @Int 2)
-    , Example [toVal @[Int] [1,2,3]] (toVal @Int 3)
-    ]
-  }
+lenExample = parse
+  "_ : forall a. {xs : [a]} -> Int\n\
+  \_ [] = 0\n\
+  \_ [3] = 1\n\
+  \_ [2, 3] = 2\n\
+  \_ [1, 2, 3] = 3"
 
 tailExample :: Problem
-tailExample = Declaration
-  { signature = Signature
-    { vars = ["a"]
-    , constraints = []
-    , context = [("xs", List (Free "a"))]
-    , goal = List (Free "a")
-    }
-  , bindings =
-    [ Example [toVal @[Int] []] (toVal @[Int] [])
-    , Example [toVal @[Int] [3]] (toVal @[Int] [])
-    , Example [toVal @[Int] [2,3]] (toVal @[Int] [3])
-    , Example [toVal @[Int] [1,2,3]] (toVal @[Int] [2,3])
-    ]
-  }
+tailExample = parse
+  "_ : forall a. {xs : [a]} -> [a]\n\
+  \_ [] = []\n\
+  \_ [3] = []\n\
+  \_ [2, 3] = [3]\n\
+  \_ [1, 2, 3] = [2, 3]"
 
 sortExample :: Problem
-sortExample = Declaration
-  { signature = Signature
-    { vars = ["a"]
-    , constraints = [Ord "a"]
-    , context = [("xs", List (Free "a"))]
-    , goal = List (Free "a")
-    }
-  , bindings =
-    [ Example [toVal @[Int] []] (toVal @[Int] [])
-    , Example [toVal @[Int] [3]] (toVal @[Int] [3])
-    , Example [toVal @[Int] [3,2]] (toVal @[Int] [2,3])
-    , Example [toVal @[Int] [2,3,1]] (toVal @[Int] [1,2,3])
-    ]
-    -- [ ([], [])
-    -- , ([3], [3])
-    -- , ([3,2], [2,3])
-    -- , ([2,3,1], [1,2,3])
-    -- ] <&> \(i, o) -> Example [toVal @[Int] i] (toVal @[Int] o)
-  }
+sortExample = parse
+  "_ : forall a. Ord a => {xs : [a]} -> [a]\n\
+  \_ [] = []\n\
+  \_ [3] = [3]\n\
+  \_ [3, 2] = [2, 3]\n\
+  \_ [2, 3, 1] = [1, 2, 3]"
 
 twoRelations :: Problem
-twoRelations = Declaration
-  { signature = Signature
-    { vars = ["a", "b"]
-    , constraints = [Ord "a", Eq "b"]
-    , context = [("xs", List (Tup (Free "a") (Free "b")))]
-    , goal = Tup (List (Free "a")) (List (Free "b"))
-    }
-  , bindings =
-    [ Example [toVal @[(Int, Int)] [(1,2),(3,4)]] (toVal @([Int], [Int]) ([1,3], [2,4]))
-    , Example [toVal @[(Int, Int)] [(1,2)]] (toVal @([Int], [Int]) ([1], [2]))
-    , Example [toVal @[(Int, Int)] [(1,2),(1,2),(1,2)]] (toVal @([Int], [Int]) ([1], [2]))
-    ]
-  }
+twoRelations = parse
+  "_ : forall a b. (Ord a, Eq b) => {xs : [a * b]} -> [a] * [b]\n\
+  \_ [(1, 2), (3, 4)] = ([1, 3], [2, 4])\n\
+  \_ [(1, 2)] = ([1], [2])\n\
+  \_ [(1, 2), (1, 2), (1, 2)] = ([1], [2])"
 
 isFold :: Problem -> [Result [PolyProblem]]
 isFold p = introFoldr p <&> traverse check

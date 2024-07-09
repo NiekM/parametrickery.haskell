@@ -9,6 +9,7 @@ import Language.Type
 import Language.Container.Morphism
 
 -- | A declaration consists of a signature with some bindings.
+-- TODO: should this maybe be a nonempty amount of bindings?
 data Declaration binding = Declaration
   { signature :: Signature
   , bindings  :: [binding]

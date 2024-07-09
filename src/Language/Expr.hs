@@ -85,7 +85,7 @@ instance Pretty h => Pretty (Prec (Expr h)) where
     Inr y    -> parensIf (p > 2) ("inr" <+> prettyPrec 3 y)
     Lst xs   -> pretty xs
     Lit l    -> pretty l
-    Hole v   -> pretty v
+    Hole v   -> braces (pretty v)
 
 instance Pretty Example where
   pretty (Example [] out) = pretty out
