@@ -45,9 +45,9 @@ computeRelations cs p = cs <&> \case
 eqClass :: Pretty a => Set a -> Doc ann
 eqClass s = case Set.toList s of
   [x] -> pretty x
-  xs  -> encloseSep lbrace rbrace " = " $ map pretty xs
+  xs  -> encloseSep mempty mempty " ≡ " $ map pretty xs
 
 instance Pretty Relation where
   pretty = \case
-    RelEq  eq  -> encloseSep mempty mempty " /= " . fmap eqClass $ Set.toList eq
+    RelEq  eq  -> encloseSep mempty mempty " ≢ " . fmap eqClass $ Set.toList eq
     RelOrd ord -> encloseSep mempty mempty " < " $ fmap eqClass ord

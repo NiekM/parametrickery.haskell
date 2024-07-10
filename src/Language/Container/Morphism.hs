@@ -55,7 +55,7 @@ checkExample Signature { constraints, context, goal } Example { inputs, output }
 
 -- | Combine multiple examples, checking if there are no conflicts.
 combine :: [PolyExample] -> Result [PolyExample]
-combine = traverse merge . NonEmpty.groupAllWith (relations &&& inShapes)
+combine = traverse merge . NonEmpty.groupAllWith (inShapes &&& relations)
   where
     merge :: NonEmpty PolyExample -> Result PolyExample
     merge xs = do

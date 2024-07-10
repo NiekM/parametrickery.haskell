@@ -29,15 +29,15 @@ data Lexeme
   | IntLit Int
   | StringLit String
   | Newline Int
-  deriving (Eq, Ord, Show, Read)
+  deriving stock (Eq, Ord, Show, Read)
 
 type Bracket = (Shape, Position)
 
 data Shape = Fancy | Round | Curly | Square
-  deriving (Eq, Ord, Show, Read)
+  deriving stock (Eq, Ord, Show, Read)
 
 data Position = Open | Close
-  deriving (Eq, Ord, Show, Read)
+  deriving stock (Eq, Ord, Show, Read)
 
 sc :: Lexer ()
 sc = L.space hspace1 (L.skipLineComment "--") empty

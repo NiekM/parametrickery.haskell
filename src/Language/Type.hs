@@ -27,6 +27,10 @@ data Constraint = Eq Text | Ord Text
 
 data Signature = Signature
   { vars        :: [Text]
+  -- ^ TODO: it seems these are only used in printing, we can ignore them,
+  -- right? Since type variables may be quantified further up. But what about
+  -- constraints? It's okay to still have them in scope, since we can also
+  -- forget them.
   , constraints :: [Constraint]
   , context     :: [Named Mono]
   , goal        :: Mono
