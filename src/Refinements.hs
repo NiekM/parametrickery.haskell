@@ -125,7 +125,7 @@ introFoldr :: Refinement
 introFoldr p = pickApart p & mapMaybe
   -- We lift `v : t` out of the problem. `es` are the different values `v` had
   -- in the different examples.
-  \(v, t, es, Declaration s@(Signature { context, goal }) xs) -> case t of
+  \(v, t, es, Declaration s@Signature { context, goal } xs) -> case t of
     List u ->
       let
         paired = zip es xs

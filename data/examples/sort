@@ -1,4 +1,4 @@
-sort : forall a. Ord a => {xs : [a]} -> [a]
+sort : Ord a => {xs : [a]} -> [a]
 sort [] = []
 sort [3] = [3]
 sort [3, 2] = [2, 3]

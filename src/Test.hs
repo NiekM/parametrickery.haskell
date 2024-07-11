@@ -44,7 +44,7 @@ instance (ToExpr a, ToExpr b) => ToExpr (Either a b) where
 loadProblem :: String -> Problem
 loadProblem file = Unsafe.unsafePerformIO do
   t <- Text.readFile $ "data/examples/" <> file
-  return . value $ parse t
+  return $ parse t
 
 parse :: Parse a => Text -> a
 parse = fromJust . lexParse parser
@@ -76,6 +76,9 @@ introPairExample = introPair pairExample
 --   _ 1 True = True
 --   _ False 3 = 3 ] ]
 
+revExample :: Problem
+revExample = loadProblem "rev"
+
 zipExample :: Problem
 zipExample = loadProblem "zip"
 
@@ -84,6 +87,9 @@ lenExample = loadProblem "len"
 
 tailExample :: Problem
 tailExample = loadProblem "tail"
+
+nubExample :: Problem
+nubExample = loadProblem "nub"
 
 sortExample :: Problem
 sortExample = loadProblem "sort"

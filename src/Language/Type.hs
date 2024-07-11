@@ -26,12 +26,7 @@ data Constraint = Eq Text | Ord Text
   deriving stock (Eq, Ord, Show)
 
 data Signature = Signature
-  { vars        :: [Text]
-  -- ^ TODO: it seems these are only used in printing, we can ignore them,
-  -- right? Since type variables may be quantified further up. But what about
-  -- constraints? It's okay to still have them in scope, since we can also
-  -- forget them.
-  , constraints :: [Constraint]
+  { constraints :: [Constraint]
   , context     :: [Named Mono]
   , goal        :: Mono
   } deriving stock (Eq, Ord, Show)
@@ -62,14 +57,11 @@ instance Pretty (Prec Mono) where
     Base b  -> pretty b
 
 instance Pretty Signature where
-  pretty Signature { vars, constraints, context, goal } = cat
-    [ quantifiers vars
-    , constrs constraints
+  pretty Signature { constraints, context, goal } = cat
+    [ constrs constraints
     , arguments context
     , pretty goal
     ] where
-      quantifiers [] = ""
-      quantifiers xs = sep ("forall" : map pretty xs) <> ". "
       constrs [] = ""
       constrs [x] = pretty x <+> "=> "
       constrs xs = tupled (map pretty xs) <+> "=> "

@@ -25,7 +25,7 @@ data Relation
 -- | A relation is only relevant if it has at least 2 elements.
 relevant :: Relation -> Bool
 relevant = \case
-  RelEq eq   -> Set.size (Set.unions eq) > 1
+  RelEq  eq  -> Set.size (Set.unions eq ) > 1
   RelOrd ord -> Set.size (Set.unions ord) > 1
 
 order :: Text -> Map Position Term -> [Set Position]
@@ -45,9 +45,9 @@ computeRelations cs p = cs <&> \case
 eqClass :: Pretty a => Set a -> Doc ann
 eqClass s = case Set.toList s of
   [x] -> pretty x
-  xs  -> encloseSep mempty mempty " ≡ " $ map pretty xs
+  xs  -> encloseSep mempty mempty " == " $ map pretty xs
 
 instance Pretty Relation where
   pretty = \case
-    RelEq  eq  -> encloseSep mempty mempty " ≢ " . fmap eqClass $ Set.toList eq
-    RelOrd ord -> encloseSep mempty mempty " < " $ fmap eqClass ord
+    RelEq  eq  -> encloseSep mempty mempty " /= " . fmap eqClass $ Set.toList eq
+    RelOrd ord -> encloseSep mempty mempty " < "  $ fmap eqClass ord

@@ -1,4 +1,4 @@
-triple : forall a. {x : a, y : a, z : a} -> a
+triple : {x : a, y : a, z : a} -> a
 triple 1 2 2 = 2
 triple 2 1 2 = 2
 triple 2 2 1 = 2

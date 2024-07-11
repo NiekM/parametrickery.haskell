@@ -52,7 +52,7 @@ identChar :: Lexer Char
 identChar = alphaNumChar <|> char '_' <|> char '\''
 
 keywords :: [Text]
-keywords = ["forall", "inl", "inr"]
+keywords = ["inl", "inr"]
 
 ident :: Lexer Char -> Lexer Text
 ident start = fmap pack $ (:) <$> start <*> many identChar
@@ -183,10 +183,6 @@ instance Parse Mono where
 
 instance Parse Signature where
   parser = do
-    vars <- choice
-      [ key "forall" *> many identifier <* op "."
-      , mempty
-      ]
     constraints <- choice
       [ parseList Round parser <* op "=>"
       , (:[]) <$> parser <* op "=>"
@@ -197,7 +193,7 @@ instance Parse Signature where
       , mempty
       ]
     goal <- parser
-    return Signature { vars, constraints, context, goal }
+    return Signature { constraints, context, goal }
 
 instance Parse (Named Signature) where
   parser = Named <$> identifier <* op ":" <*> parser
@@ -258,9 +254,7 @@ instance Parse (Named Example) where
     Example <$> spacedExprUntil (Operator "=") <* op "=" <*> parser
 
 instance Parse Problem where
-  parser = do
-    Named "_" p <- parser
-    return p
+  parser = value <$> parser
 
 instance Parse (Named Problem) where
   parser = do

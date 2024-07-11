@@ -51,10 +51,9 @@ toContainers xs = uncurry Container . extract <$>
   evalState (traverse (uncurry computePositions) xs) mempty
 
 fromContainer :: Container -> Term
-fromContainer Container { shape, positions } =
-  shape >>= \p -> case Map.lookup p positions of
-    Nothing -> error "Missing position"
-    Just  x -> x
+fromContainer Container { shape, positions } = case inject positions shape of
+  Nothing -> error "Missing position"
+  Just e -> accept e
 
 ------ Pretty ------
 

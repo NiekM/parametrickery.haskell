@@ -1,4 +1,4 @@
-tail : forall a. {xs : [a]} -> [a]
+tail : {xs : [a]} -> [a]
 tail [] = []
 tail [3] = []
 tail [2, 3] = [3]
