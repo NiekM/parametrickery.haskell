@@ -26,6 +26,7 @@ type Origins = Multi Position Position
 
 computeOrigins :: Ord a => Map Position a -> Map Position a -> Origins
 computeOrigins p q = Multi.remapping (Multi.fromMap q) (Multi.fromMap p)
+  & Multi.filterWithKey \k v -> var k == var v
 
 -- A polymorphic input-output example, i.e. an input-output example for
 -- container morphisms.

@@ -10,6 +10,7 @@ module Data.Map.Multi
   , inverse
   , remapping
   , consistent
+  , filterWithKey
   ) where
 
 import Prelude hiding (map, lookup)
@@ -68,3 +69,6 @@ consistent :: Multi k v -> Maybe (Multi k v)
 consistent (Multi m)
   | not (any Set.null m) = Just (Multi m)
   | otherwise = Nothing
+
+filterWithKey :: (k -> v -> Bool) -> Multi k v -> Multi k v
+filterWithKey f = coerce $ Map.mapWithKey \k v -> Set.filter (f k) v
