@@ -258,8 +258,8 @@ instance Parse Problem where
 
 instance Parse (Named Problem) where
   parser = do
-    Named name signature <- parser <* statementSep
-    bs <- NonEmpty.toList <$> alt1 parser statementSep
+    Named name signature <- parser
+    bs <- many (statementSep *> parser)
     bindings <- forM bs \(Named name' b) -> do
       guard $ name == name'
       return b

@@ -85,11 +85,11 @@ instance Pretty PolyExample where
   pretty PolyExample { inShapes, relations, outShape, origins }
     | null inShapes = pretty outShape
     | otherwise = barred (inputs : rels) <+> "->" <+> output
-      where
-        output = pretty $ fmap (`Multi.lookup` origins) outShape
-        inputs = sep (map prettyMaxPrec inShapes)
-        rels = map pretty $ filter relevant relations
-        barred = encloseSep mempty mempty " | "
+    where
+      output = pretty $ fmap (`Multi.lookup` origins) outShape
+      inputs = sep (map prettyMaxPrec inShapes)
+      rels = map pretty $ filter relevant relations
+      barred = encloseSep mempty mempty " | "
 
 instance Pretty (Named PolyExample) where
   pretty (Named name PolyExample { inShapes, relations, outShape, origins })
