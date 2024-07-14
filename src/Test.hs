@@ -39,7 +39,7 @@ instance (ToExpr a, ToExpr b) => ToExpr (a, b) where
 instance (ToExpr a, ToExpr b) => ToExpr (Either a b) where
   toVal = either Inl Inr . bimap toVal toVal
 
------- Examples ------
+------ Utilities ------
 
 loadProblem :: String -> Problem
 loadProblem file = Unsafe.unsafePerformIO do
@@ -48,6 +48,14 @@ loadProblem file = Unsafe.unsafePerformIO do
 
 parse :: Parse a => Text -> a
 parse = fromJust . lexParse parser
+
+inspect :: (Show a, Pretty a) => a -> IO ()
+inspect x = do
+  print x
+  putStrLn ""
+  print (pretty x)
+
+------ Examples -------
 
 triple :: Problem
 triple = loadProblem "triple"
@@ -105,7 +113,6 @@ isFold :: Problem -> [Result [PolyProblem]]
 isFold p = introFoldr p <&> traverse check
 
 -- New functions
-
 
 -- TODO: check if this behaves as expected
 -- It is a bit random that this one works on Containers and applyExamples works

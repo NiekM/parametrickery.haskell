@@ -39,20 +39,27 @@ data PolyExample = PolyExample
 
 -- It seems that we only need to compute the relation for the inputs, since the
 -- output values are a subset (and if they are not, this is already a conflict).
+-- TODO: currently, no type checking is performed, so some nonsensical programs
+-- are considered realizable.
 checkExample :: Signature -> Example -> Result PolyExample
-checkExample Signature { constraints, context, goal } Example { inputs, output }
-  | conflict  = throwError MagicOutput
-  | otherwise = return PolyExample { relations, inShapes, outShape, origins }
-  where
-    Container outShape q = toContainer goal output
+checkExample
+  Signature { constraints, context, goal }
+  Example { inputs, output }
+  = do
+    let Container outShape q = toContainer goal output
+    let types = map value context
 
-    ins      = toContainers $ zip (value <$> context) inputs
-    inShapes = shape <$> ins
-    p        = foldMap positions ins
+    ins <- zipExact types inputs !!! ArgumentMismatch
 
-    relations = computeRelations constraints p
-    origins   = computeOrigins p q
-    conflict  = isNothing $ Multi.consistent origins
+    let containers = toContainers ins
+    let p = foldMap positions containers
+
+    origins <- Multi.consistent (computeOrigins p q) !!! MagicOutput
+
+    let relations = computeRelations constraints p
+    let inShapes = map shape containers
+
+    return PolyExample { relations, inShapes, outShape, origins }
 
 -- | Combine multiple examples, checking if there are no conflicts.
 combine :: [PolyExample] -> Result [PolyExample]
@@ -60,8 +67,8 @@ combine = traverse merge . NonEmpty.groupAllWith (inShapes &&& relations)
   where
     merge :: NonEmpty PolyExample -> Result PolyExample
     merge xs = do
-      t <- maybeToError ShapeConflict    $ allSame (outShape <$> xs)
-      o <- maybeToError PositionConflict $ consistent (origins <$> xs)
+      t <- allSame    (outShape <$> xs) !!! ShapeConflict
+      o <- consistent (origins  <$> xs) !!! PositionConflict
       return (NonEmpty.head xs) { outShape = t, origins = o }
 
 consistent :: NonEmpty Origins -> Maybe Origins
@@ -72,7 +79,8 @@ newtype Result a = Result (Either Conflict a)
   deriving newtype (Functor, Foldable, Applicative, Monad, MonadError Conflict)
 
 -- TODO: do something with these conflicts.
-data Conflict = ShapeConflict | MagicOutput | PositionConflict
+data Conflict
+  = ArgumentMismatch | ShapeConflict | MagicOutput | PositionConflict
   deriving stock (Eq, Ord, Show)
 
 ------ Pretty ------

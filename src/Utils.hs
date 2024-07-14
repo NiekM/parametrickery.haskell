@@ -2,9 +2,10 @@ module Utils
   ( allSame
   , nonEmpty
   , partitionWith
-  , maybeToError
+  , maybeToError, (!!!)
   , mapEither
   , extract, inject
+  , zipExact
   ) where
 
 import Control.Monad.Error.Class
@@ -30,6 +31,9 @@ partitionWith f = ([], []) & foldr \x -> case f x of
 maybeToError :: MonadError e m => e -> Maybe a -> m a
 maybeToError e = maybe (throwError e) return
 
+(!!!) :: MonadError e m => Maybe a -> e -> m a
+(!!!) = flip maybeToError
+
 mapEither :: (a -> Either b c) -> [a] -> ([b], [c])
 mapEither f = partitionEithers . fmap f
 
@@ -38,3 +42,8 @@ extract = swap . traverse \(x, y) -> (Map.singleton x y, x)
 
 inject :: (Traversable f, Ord k) => Map k v -> f k -> Maybe (f v)
 inject m = traverse (`Map.lookup` m)
+
+zipExact :: [a] -> [b] -> Maybe [(a, b)]
+zipExact xs ys
+  | length xs == length ys = Just $ zip xs ys
+  | otherwise = Nothing
