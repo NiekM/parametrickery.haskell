@@ -4,9 +4,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Language.Container.Morphism where
 
-import Control.Monad.Error.Class
 import Data.List.NonEmpty qualified as NonEmpty
-import Control.Arrow ((&&&))
 import Data.Set qualified as Set
 
 import Base
@@ -26,7 +24,7 @@ type Origins = Multi Position Position
 
 computeOrigins :: Ord a => Map Position a -> Map Position a -> Origins
 computeOrigins p q = Multi.remapping (Multi.fromMap q) (Multi.fromMap p)
-  & Multi.filterWithKey \k v -> var k == var v
+  & Multi.filterWithKey \k v -> k.var == v.var
 
 -- A polymorphic input-output example, i.e. an input-output example for
 -- container morphisms.
@@ -37,46 +35,40 @@ data PolyExample = PolyExample
   , origins   :: Origins
   } deriving stock (Eq, Ord, Show)
 
+ensure :: Bool -> e -> Either e ()
+ensure b e = unless b $ Left e
+
 -- It seems that we only need to compute the relation for the inputs, since the
 -- output values are a subset (and if they are not, this is already a conflict).
 -- TODO: currently, no type checking is performed, so some nonsensical programs
 -- are considered realizable.
-checkExample :: Signature -> Example -> Result PolyExample
+checkExample :: Signature -> Example -> Either Conflict PolyExample
 checkExample
   Signature { constraints, context, goal }
-  Example { inputs, output }
-  = do
-    let Container outShape q = toContainer goal output
-    let types = map value context
-
-    ins <- zipExact types inputs !!! ArgumentMismatch
-
-    let containers = toContainers ins
-    let p = foldMap positions containers
-
-    origins <- Multi.consistent (computeOrigins p q) !!! MagicOutput
-
-    let relations = computeRelations constraints p
-    let inShapes = map shape containers
-
+  Example { inputs, output } = do
+    ensure (length types == length inputs) ArgumentMismatch
+    ensure (Multi.consistent origins) MagicOutput
     return PolyExample { relations, inShapes, outShape, origins }
+  where
+    Container outShape outElements = toContainer goal output
+    types      = map (.value) context
+    containers = toContainers $ zip types inputs
+    inShapes   = map (.shape) containers
+    inElements = foldMap (.elements) containers
+    origins    = computeOrigins inElements outElements
+    relations  = computeRelations constraints inElements
 
 -- | Combine multiple examples, checking if there are no conflicts.
-combine :: [PolyExample] -> Result [PolyExample]
-combine = traverse merge . NonEmpty.groupAllWith (inShapes &&& relations)
+combine :: [PolyExample] -> Either Conflict [PolyExample]
+combine = traverse merge . NonEmpty.groupAllWith \example ->
+  (example.inShapes, example.relations)
   where
-    merge :: NonEmpty PolyExample -> Result PolyExample
+    merge :: NonEmpty PolyExample -> Either Conflict PolyExample
     merge xs = do
-      t <- allSame    (outShape <$> xs) !!! ShapeConflict
-      o <- consistent (origins  <$> xs) !!! PositionConflict
-      return (NonEmpty.head xs) { outShape = t, origins = o }
-
-consistent :: NonEmpty Origins -> Maybe Origins
-consistent = Multi.consistent . foldl1 Multi.intersection
-
-newtype Result a = Result (Either Conflict a)
-  deriving stock (Eq, Ord, Show)
-  deriving newtype (Functor, Foldable, Applicative, Monad, MonadError Conflict)
+      ensure (allSame xs) ShapeConflict
+      let origins = foldl1 Multi.intersection $ fmap (.origins) xs
+      ensure (Multi.consistent origins) PositionConflict
+      return (NonEmpty.head xs) { origins }
 
 -- TODO: do something with these conflicts.
 data Conflict
@@ -111,6 +103,3 @@ instance Pretty (Named PolyExample) where
 
 instance Pretty Conflict where
   pretty = viaShow
-
-instance Pretty a => Pretty (Result a) where
-  pretty (Result res) = either pretty pretty res

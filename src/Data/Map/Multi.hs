@@ -1,5 +1,6 @@
 module Data.Map.Multi
   ( Multi
+  , empty
   , singleton
   , union, intersection
   , lookup
@@ -22,8 +23,11 @@ import Data.Coerce
 import Base
 
 -- TODO: would nonempty sets make more sense?
-newtype Multi k v = Multi { getMulti :: Map k (Set v) }
+newtype Multi k v = Multi (Map k (Set v))
   deriving newtype (Eq, Ord, Show, Read)
+
+empty :: Multi k v
+empty = Multi Map.empty
 
 singleton :: k -> v -> Multi k v
 singleton k = Multi . Map.singleton k . Set.singleton
@@ -32,10 +36,10 @@ fromMap :: Map k v -> Multi k v
 fromMap = coerce $ Map.map Set.singleton
 
 toMap :: Multi k v -> Maybe (Map k v)
-toMap = traverse Set.lookupMin . getMulti
+toMap = coerce $ traverse @(Map _) Set.lookupMin
 
 elems :: Multi k v -> [Set v]
-elems = Map.elems . getMulti
+elems = coerce $ Map.elems @_ @(Set _)
 
 union :: (Ord k, Ord v) => Multi k v -> Multi k v -> Multi k v
 union = coerce $ Map.unionWith Set.union
@@ -59,16 +63,14 @@ inverse = coerce
   . fmap (\(k, vs) -> Map.fromSet (const $ Set.singleton k) vs)
   . Map.toList
 
-compose :: (Ord b, Ord c) => Multi b c -> Multi a b -> Multi a c 
+compose :: (Ord b, Ord c) => Multi b c -> Multi a b -> Multi a c
 compose = mapMany . flip lookup
 
 remapping :: (Ord k2, Ord v) => Multi k1 v -> Multi k2 v -> Multi k1 k2
 remapping m = flip compose m . inverse
 
-consistent :: Multi k v -> Maybe (Multi k v)
-consistent (Multi m)
-  | not (any Set.null m) = Just (Multi m)
-  | otherwise = Nothing
+consistent :: Multi k v -> Bool
+consistent (Multi m) = not (any Set.null m)
 
 filterWithKey :: (k -> v -> Bool) -> Multi k v -> Multi k v
-filterWithKey f = coerce $ Map.mapWithKey \k v -> Set.filter (f k) v
+filterWithKey f = coerce . Map.mapWithKey $ Set.filter . f

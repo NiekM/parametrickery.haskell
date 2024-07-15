@@ -5,7 +5,6 @@ module Utils
   , maybeToError, (!!!)
   , mapEither
   , extract, inject
-  , zipExact
   ) where
 
 import Control.Monad.Error.Class
@@ -13,10 +12,8 @@ import Data.Map.Strict qualified as Map
 
 import Base
 
-allSame :: Eq a => NonEmpty a -> Maybe a
-allSame (x :| xs)
-  | all (== x) xs = Just x
-  | otherwise     = Nothing
+allSame :: Eq a => NonEmpty a -> Bool
+allSame (x :| xs) = all (== x) xs
 
 nonEmpty :: Set a -> Maybe (Set a)
 nonEmpty x
@@ -42,8 +39,3 @@ extract = swap . traverse \(x, y) -> (Map.singleton x y, x)
 
 inject :: (Traversable f, Ord k) => Map k v -> f k -> Maybe (f v)
 inject m = traverse (`Map.lookup` m)
-
-zipExact :: [a] -> [b] -> Maybe [(a, b)]
-zipExact xs ys
-  | length xs == length ys = Just $ zip xs ys
-  | otherwise = Nothing

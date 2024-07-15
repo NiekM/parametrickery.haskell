@@ -16,8 +16,8 @@ type Shape = Expr Position
 
 -- TODO: maybe try to rework this to use IntMap, as it is much more efficient.
 data Container = Container
-  { shape     :: Shape
-  , positions :: Map Position Term
+  { shape    :: Shape
+  , elements :: Map Position Term
   } deriving stock (Eq, Ord, Show)
 
 -- Traverse an expression along with its type, introducing holes at free
@@ -51,7 +51,7 @@ toContainers xs = uncurry Container . extract <$>
   evalState (traverse (uncurry computePositions) xs) mempty
 
 fromContainer :: Container -> Term
-fromContainer Container { shape, positions } = case inject positions shape of
+fromContainer Container { shape, elements } = case inject elements shape of
   Nothing -> error "Missing position"
   Just e -> accept e
 

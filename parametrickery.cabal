@@ -87,7 +87,9 @@ library
     , DerivingVia
     , DuplicateRecordFields
     , LambdaCase
+    , NoFieldSelectors
     , OverloadedStrings
+    , OverloadedRecordDot
     , PatternSynonyms
     , TypeFamilies
     , ViewPatterns

@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Test where
 
@@ -55,6 +56,9 @@ inspect x = do
   putStrLn ""
   print (pretty x)
 
+instance (Pretty e, Pretty a) => Pretty (Either e a) where
+  pretty = either pretty pretty
+
 ------ Examples -------
 
 triple :: Problem
@@ -109,7 +113,7 @@ twoRelations = parse
   \_ [(1, 2)] = ([1], [2])\n\
   \_ [(1, 2), (1, 2), (1, 2)] = ([1], [2])"
 
-isFold :: Problem -> [Result [PolyProblem]]
+isFold :: Problem -> [Either Conflict [PolyProblem]]
 isFold p = introFoldr p <&> traverse check
 
 -- New functions
@@ -119,15 +123,15 @@ isFold p = introFoldr p <&> traverse check
 -- on Terms.
 applyExample :: [Relation] -> [Container] -> PolyExample -> Maybe Container
 applyExample rels inputs PolyExample { relations, inShapes, outShape, origins }
-  | inShapes == map shape inputs
+  | inShapes == map (.shape) inputs
   , relations == rels
   , Just outPos <- outPositions = Just Container
     { shape = outShape
-    , positions = outPos
+    , elements = outPos
     }
   | otherwise = Nothing
   where
-    inPositions = Multi.fromMap $ foldMap positions inputs
+    inPositions = Multi.fromMap $ foldMap (.elements) inputs
     outPositions = Multi.toMap $ Multi.compose inPositions origins
 
 altMap :: (Foldable f, Alternative m) => (a -> m b) -> f a -> m b
@@ -137,5 +141,5 @@ applyPoly :: [Container] -> PolyProblem -> Maybe Container
 applyPoly containers Declaration { signature, bindings } =
   altMap (applyExample relations containers) bindings
     where
-      p = foldMap positions containers
-      relations = computeRelations (constraints signature) p
+      elements = foldMap (.elements) containers
+      relations = computeRelations signature.constraints elements

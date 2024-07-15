@@ -254,7 +254,7 @@ instance Parse (Named Example) where
     Example <$> spacedExprUntil (Operator "=") <* op "=" <*> parser
 
 instance Parse Problem where
-  parser = value <$> parser
+  parser = (.value) <$> parser @(Named Problem)
 
 instance Parse (Named Problem) where
   parser = do

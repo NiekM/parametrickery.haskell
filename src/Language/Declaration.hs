@@ -22,7 +22,7 @@ type PolyProblem = Declaration PolyExample
 -- good to check whether the type is inhabited. Especially in the case were
 -- there are no examples, we should still be able to check automatically that
 -- e.g. `{x : a} -> b` is not realizable.
-check :: Problem -> Result PolyProblem
+check :: Problem -> Either Conflict PolyProblem
 check (Declaration signature exs) = do
   bindings <- combine =<< mapM (checkExample signature) exs
   return Declaration { signature, bindings }

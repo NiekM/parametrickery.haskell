@@ -12,7 +12,7 @@ data Lit = MkInt Int | MkBool Bool
   deriving stock (Eq, Ord, Show)
 
 -- Used for pretty printing
-newtype Hole h = MkHole { getHole :: h }
+newtype Hole h = MkHole { hole :: h }
   deriving stock (Eq, Ord, Show)
   deriving stock (Functor, Foldable, Traversable)
 
@@ -51,8 +51,9 @@ accept = \case
   Inr y    -> Inr (accept y)
   Lst xs   -> Lst (map accept xs)
   Lit l    -> Lit l
-  Hole e   -> getHole e
+  Hole e   -> e.hole
 
+-- TODO: when would we need this? It is not currently used.
 match :: Ord a => Expr a -> Expr b -> Maybe (Map a (Expr b))
 match = \cases
   Unit       Unit       -> Just mempty
@@ -62,7 +63,7 @@ match = \cases
   (Lst xs)   (Lst as) | length xs == length as ->
     Map.unions <$> zipWithM match xs as
   (Lit l)    (Lit m)  | l == m -> Just mempty
-  (Hole h)   e          -> Just $ Map.singleton (getHole h) e
+  (Hole h)   e          -> Just $ Map.singleton h.hole e
   _ _ -> Nothing
 
 -- A monomorphic input-output example according to some function signature. We
@@ -82,13 +83,13 @@ instance Pretty Lit where
     MkBool b -> pretty b
 
 instance Pretty (Hole Void) where
-  pretty = absurd . getHole
+  pretty (MkHole h) = absurd h
 
 instance Pretty (Hole ()) where
   pretty = const "_"
 
 instance Pretty (Hole h) => Pretty (Hole (Expr h)) where
-  pretty = braces . pretty . getHole
+  pretty (MkHole h) = braces $ pretty h
 
 instance Pretty (Hole h) => Pretty (Expr h) where
   pretty = prettyMinPrec
