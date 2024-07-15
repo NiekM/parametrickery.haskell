@@ -71,16 +71,12 @@ type Refinement = Problem -> [[Problem]]
 -- program is solved, but more realistic is to perform a refinement, then first
 -- use a realizability technique as well as some usefulness measure to decide
 -- whether to continue refining or call an external synthesizer.
-introPair :: Refinement
-introPair (Declaration sig@Signature { goal } exs) = case goal of
-  Product [t, u] -> return
-    [ Declaration sig { goal = t } $ exs <&> \case
-      Example ins (Tuple [a, _]) -> Example ins a
-      _ -> error "Type mismatch"
-    , Declaration sig { goal = u } $ exs <&> \case
-      Example ins (Tuple [_, b]) -> Example ins b
-      _ -> error "Type mismatch"
-    ]
+introTuple :: Refinement
+introTuple (Declaration sig@Signature { goal } exs) = case goal of
+  Product ts -> return $ zip [0..] ts <&> \(i, t) ->
+      Declaration sig { goal = t } $ exs <&> \case
+        Example ins (Tuple xs) -> Example ins (xs !! i)
+        _ -> error "Type mismatch"
   _ -> []
 
 -- Randomly removes one variable from the context. How do we show the lattice

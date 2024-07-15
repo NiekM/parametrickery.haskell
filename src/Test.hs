@@ -74,11 +74,11 @@ pairExample :: Problem
 pairExample = loadProblem "pair"
 
 -- >>> pretty $ check pairExample
--- _ : forall a b. {x : a, y : b} -> a * b
+-- _ : {x : a, y : b} -> (a, b)
 -- _ a0 b0 = (a0, b0)
 
 introPairExample :: [[Problem]]
-introPairExample = introPair pairExample
+introPairExample = introTuple pairExample
 
 -- >>> pretty introPairExample
 -- [ [ _ : forall a b. {x : a, y : b} -> a
@@ -108,7 +108,7 @@ sortExample = loadProblem "sort"
 
 twoRelations :: Problem
 twoRelations = parse
-  "_ : forall a b. (Ord a, Eq b) => {xs : [a * b]} -> [a] * [b]\n\
+  "_ : forall a b. (Ord a, Eq b) => {xs : [(a, b)]} -> ([a], [b])\n\
   \_ [(1, 2), (3, 4)] = ([1, 3], [2, 4])\n\
   \_ [(1, 2)] = ([1], [2])\n\
   \_ [(1, 2), (1, 2), (1, 2)] = ([1], [2])"
