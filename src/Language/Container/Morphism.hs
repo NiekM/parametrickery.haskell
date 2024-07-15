@@ -11,7 +11,6 @@ import Base
 import Data.Map.Multi (Multi)
 import Data.Map.Multi qualified as Multi
 import Data.Named
-import Prettyprinter.Utils
 import Utils
 
 import Language.Type
@@ -88,7 +87,7 @@ instance Pretty PolyExample where
     | otherwise = barred (inputs : rels) <+> "->" <+> output
     where
       output = pretty $ fmap (`Multi.lookup` origins) outShape
-      inputs = sep (map prettyMaxPrec inShapes)
+      inputs = sep (map pretty inShapes)
       rels = map pretty $ filter relevant relations
       barred = encloseSep mempty mempty " | "
 
@@ -97,7 +96,7 @@ instance Pretty (Named PolyExample) where
     | null rels = args <+> "=" <+> output
     | otherwise = args <+> encloseSep "| " " =" ", " rels <+> output
     where
-      args = sep (pretty name : map prettyMaxPrec inShapes)
+      args = sep (pretty name : map pretty inShapes)
       rels = map pretty $ filter relevant relations
       output = pretty $ fmap (`Multi.lookup` origins) outShape
 

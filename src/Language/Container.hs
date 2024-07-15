@@ -25,10 +25,8 @@ data Container = Container
 poly :: Mono -> Expr a -> Expr (Text, Expr a)
 poly = \cases
   (Free  v) x          -> return (v, x)
-  Top       Unit       -> Unit
-  (Tup t u) (Pair x y) -> Pair (poly t x) (poly u y)
-  (Sum t _) (Inl x)    -> Inl (poly t x)
-  (Sum _ u) (Inr y)    -> Inr (poly u y)
+  (Product ts) (Tuple xs) -> Tuple $ zipWith poly ts xs
+  (Sum ts) (Proj i n x) -> Proj i n $ poly (ts !! fromIntegral i) x
   (List  t) (Lst xs)   -> Lst (poly t <$> xs)
   (Base  _) (Lit x)    -> Lit x
   t x -> error . show $

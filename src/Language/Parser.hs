@@ -1,10 +1,10 @@
 {-# LANGUAGE UndecidableInstances #-}
-module Language.Parser (Parse(..), lexParse) where
+module Language.Parser (Parse(..), lexParse, test) where
 
 import Prelude hiding (foldr1)
 import Data.Text (pack)
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Foldable1
+import Data.List (genericLength)
 import Text.Megaparsec
 import Text.Megaparsec.Char hiding (newline)
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -52,7 +52,7 @@ identChar :: Lexer Char
 identChar = alphaNumChar <|> char '_' <|> char '\''
 
 keywords :: [Text]
-keywords = ["inl", "inr"]
+keywords = []
 
 ident :: Lexer Char -> Lexer Text
 ident start = fmap pack $ (:) <$> start <*> many identChar
@@ -64,10 +64,10 @@ identOrKeyword = ident (lowerChar <|> char '_') <&> \case
 
 operator :: Lexer Text
 operator = fmap pack . some . choice . fmap char $
-  ("!$%&*+-.:<=>\\^|" :: String)
+  ("!$%&*+-.:<=>\\^" :: String)
 
 separator :: Lexer Text
-separator = string "," <|> string ";"
+separator = string "," <|> string ";" <|> string "|"
 
 bracket :: Lexer Bracket
 bracket = choice
@@ -124,20 +124,11 @@ int = flip token Set.empty \case
   IntLit i -> Just i
   _ -> Nothing
 
-num :: Int -> Parser Int
-num n = do
-  i <- int
-  guard $ i == n
-  return i
-
 sep :: Text -> Parser Lexeme
 sep = single . Separator
 
 op :: Text -> Parser Lexeme
 op = single . Operator
-
-key :: Text -> Parser Lexeme
-key = single . Keyword
 
 ctr :: Text -> Parser Lexeme
 ctr = single . Constructor
@@ -151,6 +142,13 @@ class Parse a where
 lexParse :: Parser a -> Text -> Maybe a
 lexParse p t = parseMaybe Language.Parser.lex t >>= parseMaybe p
 
+test :: Pretty a => Parser a -> Text -> IO ()
+test p t = case parse Language.Parser.lex "" t of
+  Left e -> print e
+  Right x -> case parse p "" x of
+    Left r -> print r
+    Right y -> print $ pretty y
+
 instance Parse Base where
   parser = choice
     [ Int  <$ ctr "Int"
@@ -163,23 +161,21 @@ instance Parse Constraint where
     , Ord <$ ctr "Ord" <*> identifier
     ]
 
-sums :: Parser Mono
-sums = foldr1 Sum <$> alt1 products (op "+")
-
-products :: Parser Mono
-products = foldr1 Tup <$> alt1 mono (op "*")
-
-mono :: Parser Mono
-mono = choice
-  [ Free <$> identifier
-  , Top <$ num 1
-  , List <$> brackets Square parser
-  , Base <$> parser
-  , brackets Round sums
-  ]
-
 instance Parse Mono where
-  parser = sums
+  parser = choice
+    [ Free <$> identifier
+    , brackets Round do
+      x <- optional do
+        t <- parser
+        choice
+          [ Product . (t:) <$> some (sep "," *> parser)
+          , Sum . (t:) <$> some (sep "|" *> parser)
+          , return t
+          ]
+      return $ fromMaybe (Product []) x
+    , List <$> brackets Square parser
+    , Base <$> parser
+    ]
 
 instance Parse Signature where
   parser = do
@@ -218,14 +214,23 @@ instance Parse (Hole h) => Parse (Hole (Expr h)) where
 
 instance Parse (Hole h) => Parse (Expr h) where
   parser = choice
-    [ Unit <$ op "-"
-    , brackets Round do
-      x <- parser
-      optional (sep "," *> parser) >>= \case
-        Nothing -> return x
-        Just y -> return $ Pair x y
-    , Inl <$ key "inl" <*> parser
-    , Inr <$ key "inr" <*> parser
+    [ brackets Round do
+      choice
+        [ do
+          x <- parser
+          choice
+            [ Tuple . (x:) <$> some (sep "," *> parser)
+            , do
+              n <- genericLength <$> some (sep "|")
+              return $ Proj 0 (n + 1) x
+            , return x
+            ]
+        , do
+          i <- genericLength <$> some (sep "|")
+          x <- parser
+          j <- genericLength <$> many (sep "|")
+          return $ Proj i (i + j + 1) x
+        ]
     , Lst <$> parseList Square parser
     , Lit <$> parser
     , Hole <$> parser

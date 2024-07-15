@@ -29,16 +29,16 @@ import Refinements
 class    ToExpr a    where toVal :: a -> Expr h
 instance ToExpr Int  where toVal = Lit . MkInt
 instance ToExpr Bool where toVal = Lit . MkBool
-instance ToExpr ()   where toVal = const Unit
+instance ToExpr ()   where toVal = const $ Tuple []
 
 instance ToExpr a => ToExpr [a] where
   toVal = Lst . map toVal
 
 instance (ToExpr a, ToExpr b) => ToExpr (a, b) where
-  toVal = uncurry Pair . bimap toVal toVal
+  toVal (x, y) = Tuple [toVal x, toVal y]
 
 instance (ToExpr a, ToExpr b) => ToExpr (Either a b) where
-  toVal = either Inl Inr . bimap toVal toVal
+  toVal = either (Proj 0 2) (Proj 1 2) . bimap toVal toVal
 
 ------ Utilities ------
 

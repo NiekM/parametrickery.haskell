@@ -2,7 +2,6 @@ module Language.Type where
 
 import Base
 import Data.Named
-import Prettyprinter.Utils
 
 -- We could try to design our framework to be generic over the types and
 -- expressions, by creating some type class that provides e.g. a lens to the
@@ -11,9 +10,8 @@ import Prettyprinter.Utils
 -- the right interface.
 data Mono where
   Free :: Text -> Mono
-  Top  :: Mono
-  Tup  :: Mono -> Mono -> Mono
-  Sum  :: Mono -> Mono -> Mono
+  Product :: [Mono] -> Mono
+  Sum :: [Mono] -> Mono
   List :: Mono -> Mono
   Base :: Base -> Mono
   deriving stock (Eq, Ord, Show)
@@ -42,19 +40,15 @@ instance Pretty Constraint where
     Ord a -> "Ord" <+> pretty a
 
 instance Pretty Mono where
-  pretty = prettyMinPrec
+  pretty = \case
+    Free v  -> pretty v
+    Product ts -> tupled $ map pretty ts
+    Sum ts -> encloseSep lparen rparen " | " $ map pretty ts
+    List t  -> brackets $ pretty t
+    Base b  -> pretty b
 
 instance Pretty (Named Mono) where
   pretty (Named x t) = pretty x <+> ":" <+> pretty t
-
-instance Pretty (Prec Mono) where
-  pretty (Prec p m) = case m of
-    Free v  -> pretty v
-    Top     -> "1"
-    Tup t u -> parensIf (p > 2) $ prettyPrec 3 t <+> "*" <+> prettyPrec 2 u
-    Sum t u -> parensIf (p > 1) $ prettyPrec 2 t <+> "+" <+> prettyPrec 1 u
-    List t  -> brackets $ pretty t
-    Base b  -> pretty b
 
 instance Pretty Signature where
   pretty Signature { constraints, context, goal } = cat

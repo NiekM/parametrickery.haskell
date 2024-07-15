@@ -73,12 +73,12 @@ type Refinement = Problem -> [[Problem]]
 -- whether to continue refining or call an external synthesizer.
 introPair :: Refinement
 introPair (Declaration sig@Signature { goal } exs) = case goal of
-  Tup t u -> return
+  Product [t, u] -> return
     [ Declaration sig { goal = t } $ exs <&> \case
-      Example ins (Pair a _) -> Example ins a
+      Example ins (Tuple [a, _]) -> Example ins a
       _ -> error "Type mismatch"
     , Declaration sig { goal = u } $ exs <&> \case
-      Example ins (Pair _ b) -> Example ins b
+      Example ins (Tuple [_, b]) -> Example ins b
       _ -> error "Type mismatch"
     ]
   _ -> []
