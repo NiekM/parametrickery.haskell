@@ -24,16 +24,16 @@ data Container = Container
 -- variables.
 poly :: Mono -> Expr a -> Expr (Text, Expr a)
 poly = \cases
-  (Free  v) x          -> return (v, x)
+  (Free v) x -> return (v, x)
   (Product ts) (Tuple xs) -> Tuple $ zipWith poly ts xs
   (Sum ts) (Proj i n x) -> Proj i n $ poly (ts !! fromIntegral i) x
-  (List  t) (Lst xs)   -> Lst (poly t <$> xs)
-  (Base  _) (Lit x)    -> Lit x
+  (List t) (Lst xs) -> Lst (poly t <$> xs)
+  (Base _) (Lit x) -> Lit x
   t x -> error . show $
     pretty (void x) <+> "does not have type" <+> pretty t <> "."
 
-computePositions :: Mono -> Term -> State (Map Text Nat) (Expr (Position, Term))
-computePositions t e = do
+computePositions :: Mono -> Term -> Expr (Position, Term)
+computePositions t e = flip evalState mempty do
   poly t e & traverse \(v, x) -> do
     m <- get
     let n = fromMaybe 0 $ Map.lookup v m
@@ -41,12 +41,7 @@ computePositions t e = do
     return (Position v n, x)
 
 toContainer :: Mono -> Term -> Container
-toContainer ty e = uncurry Container . extract $
-  evalState (computePositions ty e) mempty
-
-toContainers :: [(Mono, Term)] -> [Container]
-toContainers xs = uncurry Container . extract <$>
-  evalState (traverse (uncurry computePositions) xs) mempty
+toContainer t = uncurry Container . extract . computePositions t
 
 fromContainer :: Container -> Term
 fromContainer Container { shape, elements } = case inject elements shape of

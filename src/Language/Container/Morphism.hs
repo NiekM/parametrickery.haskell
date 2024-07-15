@@ -34,9 +34,6 @@ data PolyExample = PolyExample
   , origins   :: Origins
   } deriving stock (Eq, Ord, Show)
 
-ensure :: Bool -> e -> Either e ()
-ensure b e = unless b $ Left e
-
 -- It seems that we only need to compute the relation for the inputs, since the
 -- output values are a subset (and if they are not, this is already a conflict).
 -- TODO: currently, no type checking is performed, so some nonsensical programs
@@ -44,18 +41,20 @@ ensure b e = unless b $ Left e
 checkExample :: Signature -> Example -> Either Conflict PolyExample
 checkExample
   Signature { constraints, context, goal }
-  Example { inputs, output } = do
-    ensure (length types == length inputs) ArgumentMismatch
-    ensure (Multi.consistent origins) MagicOutput
-    return PolyExample { relations, inShapes, outShape, origins }
+  Example { inputs, output }
+    | length types /= length inputs = Left ArgumentMismatch
+    | not (Multi.consistent origins) = Left MagicOutput
+    | otherwise = Right PolyExample { relations, inShapes, outShape, origins }
   where
-    Container outShape outElements = toContainer goal output
-    types      = map (.value) context
-    containers = toContainers $ zip types inputs
-    inShapes   = map (.shape) containers
-    inElements = foldMap (.elements) containers
-    origins    = computeOrigins inElements outElements
-    relations  = computeRelations constraints inElements
+    types        = map (.value) context
+    inContainer  = toContainer (Product types) (Tuple inputs)
+    outContainer = toContainer goal output
+    outShape     = outContainer.shape
+    origins      = computeOrigins inContainer.elements outContainer.elements
+    relations    = computeRelations constraints inContainer.elements
+    inShapes     = case inContainer.shape of
+      Tuple s -> s
+      _ -> error "Expected tuple"
 
 -- | Combine multiple examples, checking if there are no conflicts.
 combine :: [PolyExample] -> Either Conflict [PolyExample]
@@ -63,11 +62,13 @@ combine = traverse merge . NonEmpty.groupAllWith \example ->
   (example.inShapes, example.relations)
   where
     merge :: NonEmpty PolyExample -> Either Conflict PolyExample
-    merge xs = do
-      ensure (allSame xs) ShapeConflict
-      let origins = foldl1 Multi.intersection $ fmap (.origins) xs
-      ensure (Multi.consistent origins) PositionConflict
-      return (NonEmpty.head xs) { origins }
+    merge xs
+      | not (allSame outShapes) = Left ShapeConflict
+      | not (Multi.consistent origins) = Left PositionConflict
+      | otherwise = Right (NonEmpty.head xs) { origins }
+      where
+        outShapes = fmap (.outShape) xs
+        origins   = foldl1 Multi.intersection $ fmap (.origins) xs
 
 -- TODO: do something with these conflicts.
 data Conflict
