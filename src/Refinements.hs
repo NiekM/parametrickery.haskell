@@ -1,5 +1,6 @@
 module Refinements where
 
+import Data.Text qualified as Text
 import Data.List qualified as List
 
 import Base
@@ -43,13 +44,13 @@ What exactly do we expect from a refinement?
 -}
 
 -- Lifts the nth argument out of a problem.
-liftArg :: Nat -> Problem -> Maybe (Text, Mono, [Term], Problem)
+liftArg :: Nat -> Problem -> Maybe (Named Mono, [Term], Problem)
 liftArg n (Declaration sig@Signature { context } exs)
   | n >= fromIntegral (length context) = Nothing
   | otherwise = Just
-    (name, mono, exprs, Declaration sig { context = context' } exs')
+    (binding, exprs, Declaration sig { context = context' } exs')
   where
-    (Named name mono, context') = pick n context
+    (binding, context') = pick n context
     (exprs, exs') = unzip $ pickEx <$> exs
 
     pickEx (Example (pick n -> (i, ins)) out) = (i, Example ins out)
@@ -60,11 +61,31 @@ liftArg n (Declaration sig@Signature { context } exs)
       _ -> error "Error"
 
 -- All possible ways to lift one argument from a problem.
-pickApart :: Problem -> [(Text, Mono, [Term], Problem)]
+pickApart :: Problem -> [(Named Mono, [Term], Problem)]
 pickApart p@(Declaration Signature { context } _) =
   zipWith const [0..] context & mapMaybe (`liftArg` p)
 
-type Refinement = Problem -> [[Problem]]
+-- | A disjunction of conjunctions
+newtype DisCon a = DisCon [[a]]
+  deriving stock (Eq, Ord, Show)
+  deriving stock (Functor, Foldable, Traversable)
+
+instance Applicative DisCon where
+  pure = DisCon . pure . pure
+  liftA2 = liftM2
+
+instance Monad DisCon where
+  x >>= f = collapse $ fmap f x
+    where
+      collapse :: DisCon (DisCon a) -> DisCon a
+      collapse xs =
+        let DisCon xss = xs <&> \(DisCon ys) -> ys
+        in DisCon $ xss >>= fmap concat . sequence
+
+instance Pretty a => Pretty (DisCon a) where
+  pretty (DisCon xs) = pretty xs
+
+type Refinement = Problem -> DisCon Problem
 
 -- NOTE: this is mostly a test refinement. I don't know how precise we have to
 -- get with the refinements. It could be interesting to keep refining until a
@@ -73,11 +94,24 @@ type Refinement = Problem -> [[Problem]]
 -- whether to continue refining or call an external synthesizer.
 introTuple :: Refinement
 introTuple (Declaration sig@Signature { goal } exs) = case goal of
-  Product ts -> return $ zip [0..] ts <&> \(i, t) ->
+  Product ts -> DisCon . return $ zip [0..] ts <&> \(i, t) ->
       Declaration sig { goal = t } $ exs <&> \case
         Example ins (Tuple xs) -> Example ins (xs !! i)
         _ -> error "Type mismatch"
-  _ -> []
+  _ -> DisCon []
+
+elimTuple :: Refinement
+elimTuple p = DisCon $ pickApart p & mapMaybe
+  \(Named v t, es, Declaration sig@(Signature { context }) xs) -> case t of
+    Product ts ->
+      let
+        bindings = zipWith (Named . (v <>) . Text.pack . show) [0 :: Int ..] ts
+        examples = zipWith distribute es xs
+        distribute (Tuple ys) (Example i o) = Example (ys ++ i) o
+        distribute _ _ = error "Type mismatch"
+      in
+      Just [ Declaration sig { context = bindings ++ context } examples ]
+    _ -> Nothing
 
 -- Randomly removes one variable from the context. How do we show the lattice
 -- structure here?
@@ -86,11 +120,11 @@ introTuple (Declaration sig@Signature { goal } exs) = case goal of
 -- better would be to annotate variables in the context as being mandatory?
 -- Still, it might be necessary to perform all possible shrinkings at once?
 shrinkContext :: Refinement
-shrinkContext p = pickApart p <&> \(_, _, _, q) -> [q]
+shrinkContext p = DisCon $ pickApart p <&> \(_, _, q) -> [q]
 
 elimList :: Refinement
-elimList p = pickApart p & mapMaybe
-  \(v, t, es, Declaration s@(Signature { context }) xs) -> case t of
+elimList p = DisCon $ pickApart p & mapMaybe
+  \(Named v t, es, Declaration s@(Signature { context }) xs) -> case t of
     List u ->
       let
         (nil, cons) = zip es xs & mapEither \case
@@ -111,6 +145,26 @@ elimList p = pickApart p & mapMaybe
 -- TODO: maybe first make it work not as a refinement, but using a more
 -- restricted way to introduce foldr, similar to what we did in the paper. So without using `pickApart`
 
+introMap :: Refinement
+introMap p = DisCon $ pickApart p & mapMaybe
+  -- We lift `v : t` out of the problem. `es` are the different values `v` had
+  -- in the different examples.
+  \(Named v t, es, Declaration s@Signature { context, goal } xs) ->
+    case (t, goal) of
+      (List t_in, List t_out) ->
+        zip es xs & mapM \case
+          (Lst lst, Example ins (Lst out)) ->
+            if length lst /= length out
+              then Nothing
+              else Just Declaration
+                { signature = s
+                  { context = Named (v <> "_x") t_in : context
+                  , goal = t_out
+                  }
+                , bindings = zipWith (\x y -> Example (x:ins) y) lst out
+                }
+          _ -> error "Not actually lists."
+      _ -> Nothing
 
 -- TODO: make this work for shape complete example sets!
 -- Currently it only works for exactly trace complete sets...
@@ -118,10 +172,10 @@ elimList p = pickApart p & mapMaybe
 -- In other words, we should translate to container functors first
 -- TODO: how do we recover which argument the fold was applied to?
 introFoldr :: Refinement
-introFoldr p = pickApart p & mapMaybe
+introFoldr p = DisCon $ pickApart p & mapMaybe
   -- We lift `v : t` out of the problem. `es` are the different values `v` had
   -- in the different examples.
-  \(v, t, es, Declaration s@Signature { context, goal } xs) -> case t of
+  \(Named v t, es, Declaration s@Signature { context, goal } xs) -> case t of
     List u ->
       let
         paired = zip es xs
@@ -129,13 +183,12 @@ introFoldr p = pickApart p & mapMaybe
         (nil, cons) = paired & mapEither \case
           (Lst [], ex) -> Left ex
           (Lst (y:ys), Example ins out) ->
-
+            case paired & List.find \(l, x) -> l == Lst ys && x.inputs == ins of
+            -- case List.lookup (Lst ys) paired of
             -- Here, instead of searching in paired, we want to compute the
             -- polymorphic examples represented by `paired` and then try to
             -- apply those PolyExamples to (ys : xs). If that succeeds, it is
             -- shape complete.
-
-            case List.lookup (Lst ys) paired of
             -- TODO: perhaps we can compute the morphisms of the examples and
             -- use those to figure out the right monomorphic recursive call.
             -- This is quite clever, we can use the polymorphic type to
@@ -146,8 +199,8 @@ introFoldr p = pickApart p & mapMaybe
             -- IDEA!: we should write a function that tries to apply a partial
             -- container morphism to an expression, returning the transformed
             -- expression if the input and relation matches.
-            Just (Example i o) | i == ins -> do
-              Right $ Example (y : o : ins) out
+            Just (_, x) -> do
+              Right $ Example (y : x.output : ins) out
 
             -- How do we deal with trace/shape incompleteness? We can't just
             -- call an error...

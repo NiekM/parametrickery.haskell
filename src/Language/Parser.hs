@@ -212,25 +212,29 @@ instance Parse (Hole ()) where
 instance Parse (Hole h) => Parse (Hole (Expr h)) where
   parser = MkHole <$> brackets Curly parser
 
+parenExpr :: Parse (Hole h) => Parser (Expr h)
+parenExpr = brackets Round do
+  choice
+    [ do
+      x <- parser
+      choice
+        [ Tuple . (x:) <$> some (sep "," *> parser)
+        , do
+          n <- genericLength <$> some (sep "|")
+          return $ Proj 0 (n + 1) x
+        , return x
+        ]
+    , do
+      i <- genericLength <$> some (sep "|")
+      x <- parser
+      j <- genericLength <$> many (sep "|")
+      return $ Proj i (i + j + 1) x
+    , return $ Tuple []
+    ]
+
 instance Parse (Hole h) => Parse (Expr h) where
   parser = choice
-    [ brackets Round do
-      choice
-        [ do
-          x <- parser
-          choice
-            [ Tuple . (x:) <$> some (sep "," *> parser)
-            , do
-              n <- genericLength <$> some (sep "|")
-              return $ Proj 0 (n + 1) x
-            , return x
-            ]
-        , do
-          i <- genericLength <$> some (sep "|")
-          x <- parser
-          j <- genericLength <$> many (sep "|")
-          return $ Proj i (i + j + 1) x
-        ]
+    [ parenExpr
     , Lst <$> parseList Square parser
     , Lit <$> parser
     , Hole <$> parser
@@ -238,7 +242,7 @@ instance Parse (Hole h) => Parse (Expr h) where
 
 spacedExprUntil :: Parse (Hole h) => Lexeme -> Parser [Expr h]
 spacedExprUntil l = many $ choice
-  [ brackets Round parser
+  [ parenExpr
   , Lst <$> parseList Square parser
   , do
     x <- anySingleBut l

@@ -7,10 +7,13 @@ import Control.Applicative (Alternative)
 import Data.Coerce (coerce)
 import Data.Either (isRight)
 import Data.Foldable (asum)
+import Data.List qualified as List
 import Data.Monoid (Alt(..))
 import Data.Maybe (fromJust)
 import Data.Text.IO qualified as Text
+import Prettyprinter
 import System.IO.Unsafe qualified as Unsafe
+import System.Directory
 
 import Base
 import Data.Map.Multi qualified as Multi
@@ -42,11 +45,6 @@ instance (ToExpr a, ToExpr b) => ToExpr (Either a b) where
 
 ------ Utilities ------
 
-loadProblem :: String -> Problem
-loadProblem file = Unsafe.unsafePerformIO do
-  t <- Text.readFile $ "data/examples/" <> file
-  return $ parse t
-
 parse :: Parse a => Text -> a
 parse = fromJust . lexParse parser
 
@@ -61,24 +59,36 @@ instance (Pretty e, Pretty a) => Pretty (Either e a) where
 
 ------ Examples -------
 
-triple :: Problem
-triple = loadProblem "triple"
+{-# NOINLINE bench #-}
+bench :: [Named Problem]
+bench = Unsafe.unsafePerformIO do
+  xs <- listDirectory "data/bench/"
+  forM (reverse xs) \name -> do
+    content <- Text.readFile $ "data/bench/" <> name
+    return $ parse content
+
+getBench :: Text -> Problem
+getBench name = maybe (error "unknown benchmark") (.value) $
+  bench & List.find \problem -> problem.name == name
+
+-- triple :: Problem
+-- triple = loadProblem "triple"
 
 -- >>> pretty <$> check triple
 -- PositionConflict
 
-constant :: Problem
-constant = loadProblem "constant"
+-- constant :: Problem
+-- constant = loadProblem "constant"
 
-pairExample :: Problem
-pairExample = loadProblem "pair"
+-- pairExample :: Problem
+-- pairExample = loadProblem "pair"
 
 -- >>> pretty $ check pairExample
 -- _ : {x : a, y : b} -> (a, b)
 -- _ a0 b0 = (a0, b0)
 
-introPairExample :: [[Problem]]
-introPairExample = introTuple pairExample
+-- introPairExample :: DisCon Problem
+-- introPairExample = introTuple pairExample
 
 -- >>> pretty introPairExample
 -- [ [ _ : forall a b. {x : a, y : b} -> a
@@ -89,22 +99,34 @@ introPairExample = introTuple pairExample
 --   _ False 3 = 3 ] ]
 
 revExample :: Problem
-revExample = loadProblem "rev"
+revExample = getBench "reverse"
 
 zipExample :: Problem
-zipExample = loadProblem "zip"
+zipExample = getBench "zip"
 
 lenExample :: Problem
-lenExample = loadProblem "len"
+lenExample = getBench "length"
 
 tailExample :: Problem
-tailExample = loadProblem "tail"
+tailExample = getBench "length"
 
 nubExample :: Problem
-nubExample = loadProblem "nub"
+nubExample = getBench "nub"
 
 sortExample :: Problem
-sortExample = loadProblem "sort"
+sortExample = getBench "sort"
+
+-- TODO: can we figure out that in the recursive call, the left list is only
+-- relevant for the left output and the right list only relevant for the right
+-- output?
+pivot :: Problem
+pivot = getBench "pivot"
+
+swapExample :: Problem
+swapExample = getBench "swap"
+
+append :: Problem
+append = getBench "append"
 
 twoRelations :: Problem
 twoRelations = parse
@@ -114,7 +136,8 @@ twoRelations = parse
   \_ [(1, 2), (1, 2), (1, 2)] = ([1], [2])"
 
 isFold :: Problem -> [Either Conflict [PolyProblem]]
-isFold p = introFoldr p <&> traverse check
+isFold p = traverse check <$> xs
+  where DisCon xs = introFoldr p
 
 -- New functions
 

@@ -1,0 +1,5 @@
+reverse : {xs : [a]} -> [a]
+reverse [] = []
+reverse [1] = [1]
+reverse [2, 1] = [1, 2]
+reverse [3, 2, 1] = [1, 2, 3]
