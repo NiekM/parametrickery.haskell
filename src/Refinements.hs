@@ -85,6 +85,9 @@ instance Monad DisCon where
 instance Pretty a => Pretty (DisCon a) where
   pretty (DisCon xs) = pretty xs
 
+-- TODO: currently, composition does not take into account that a refinement can
+-- only be applied in some places. Additionaly, refinements do not have some
+-- notion of whether they matched or not.
 type Refinement = Problem -> DisCon Problem
 
 -- NOTE: this is mostly a test refinement. I don't know how precise we have to
@@ -98,7 +101,7 @@ introTuple (Declaration sig@Signature { goal } exs) = case goal of
       Declaration sig { goal = t } $ exs <&> \case
         Example ins (Tuple xs) -> Example ins (xs !! i)
         _ -> error "Type mismatch"
-  _ -> DisCon []
+  _ -> DisCon [[]]
 
 elimTuple :: Refinement
 elimTuple p = DisCon $ pickApart p & mapMaybe
@@ -107,10 +110,10 @@ elimTuple p = DisCon $ pickApart p & mapMaybe
       let
         bindings = zipWith (Named . (v <>) . Text.pack . show) [0 :: Int ..] ts
         examples = zipWith distribute es xs
-        distribute (Tuple ys) (Example i o) = Example (ys ++ i) o
+        distribute (Tuple ys) (Example i o) = Example (i ++ ys) o
         distribute _ _ = error "Type mismatch"
       in
-      Just [ Declaration sig { context = bindings ++ context } examples ]
+      Just [ Declaration sig { context = context ++ bindings } examples ]
     _ -> Nothing
 
 -- Randomly removes one variable from the context. How do we show the lattice
@@ -130,14 +133,14 @@ elimList p = DisCon $ pickApart p & mapMaybe
         (nil, cons) = zip es xs & mapEither \case
           (Lst [], ex) -> Left ex
           (Lst (y:ys), Example ins out) ->
-            Right $ Example (y : Lst ys : ins) out
+            Right $ Example (ins ++ [y, Lst ys]) out
           _ -> error "Expected a list!"
       in Just
         [ Declaration s nil
         -- TODO: generate fresh variables
         , Declaration s
           { context =
-            Named (v <> "_h") u : Named (v <> "_t") (List u) : context
+            context ++ [Named (v <> "_h") u, Named (v <> "_t") (List u)]
           } cons
         ]
     _ -> Nothing
@@ -158,10 +161,10 @@ introMap p = DisCon $ pickApart p & mapMaybe
               then Nothing
               else Just Declaration
                 { signature = s
-                  { context = Named (v <> "_x") t_in : context
+                  { context = context ++ [Named (v <> "_x") t_in]
                   , goal = t_out
                   }
-                , bindings = zipWith (\x y -> Example (x:ins) y) lst out
+                , bindings = zipWith (\x y -> Example (ins ++ [x]) y) lst out
                 }
           _ -> error "Not actually lists."
       _ -> Nothing
@@ -200,7 +203,7 @@ introFoldr p = DisCon $ pickApart p & mapMaybe
             -- container morphism to an expression, returning the transformed
             -- expression if the input and relation matches.
             Just (_, x) -> do
-              Right $ Example (y : x.output : ins) out
+              Right $ Example (ins ++ [y, x.output]) out
 
             -- How do we deal with trace/shape incompleteness? We can't just
             -- call an error...
@@ -211,7 +214,7 @@ introFoldr p = DisCon $ pickApart p & mapMaybe
         [ Declaration s nil
         -- TODO: generate fresh variables
         , Declaration s
-          { context = Named (v <> "_h") u : Named (v <> "_r") goal : context }
+          { context = context ++ [Named (v <> "_h") u, Named (v <> "_r") goal] }
           cons
         ]
     _ -> Nothing

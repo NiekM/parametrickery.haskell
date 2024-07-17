@@ -135,8 +135,8 @@ twoRelations = parse
   \_ [(1, 2)] = ([1], [2])\n\
   \_ [(1, 2), (1, 2), (1, 2)] = ([1], [2])"
 
-isFold :: Problem -> [Either Conflict [PolyProblem]]
-isFold p = traverse check <$> xs
+isFold :: Named Problem -> [Either Conflict [Named PolyProblem]]
+isFold (Named name p) = traverse (fmap (Named name) . check) <$> xs
   where DisCon xs = introFoldr p
 
 -- New functions
