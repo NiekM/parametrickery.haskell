@@ -8,6 +8,7 @@ import Data.Named
 import Language.Type
 import Language.Expr
 import Language.Declaration
+import Language.Container
 
 import Utils
 
@@ -219,35 +220,37 @@ introFoldr p = DisCon $ pickApart p & mapMaybe
         ]
     _ -> Nothing
 
--- -- TODO: make this work for shape complete example sets!
--- -- Currently it only works for exactly trace complete sets...
--- -- The only solution seems to be to have refinements work on container problems
--- -- In other words, we should translate to container functors first
--- introFoldrPoly :: Refinement
--- introFoldrPoly p = case check p of
---   Left conflict -> error . show $ pretty conflict
---   Right examples -> pickApart p & mapMaybe
---     \(v, t, es, Problem s@(Signature { ctxt, goal }) xs) -> case t of
---       List u ->
---         let
---           paired = zip es xs
---           (nil, cons) = paired & mapEither \case
---             (Lst [], ex) -> Left ex
---             (Lst (y:ys), Example ins out) ->
---               -- TODO: how to do this???????
---               case applyMorph s examples (Lst ys : ins) of
---                 Just e -> Right $ Example (y : e : ins) out
---                 Nothing -> error "Shape incomplete!"
---             _ -> error "Expected a list!"
---         in Just
---           [ Problem s nil
---           -- TODO: generate fresh variables
---           , Problem s { ctxt = (v <> "_h", u) : (v <> "_r", goal) : ctxt } cons
---           ]
---       _ -> Nothing
-
--- NOTE: this is not that easy, recomputing positions becomes quite tricky
--- during refinements. We might require to have positions be not just indices,
--- but some kind of projections.
--- morphIntroFoldr :: MorphProblem -> [[MorphProblem]]
--- morphIntroFoldr p = _
+-- TODO: check if this is correct and if we can do without introFoldr.
+introFoldrPoly :: Refinement
+introFoldrPoly p = DisCon $ pickApart p & mapMaybe
+  -- We lift `v : t` out of the problem. `es` are the different values `v` had
+  -- in the different examples.
+  \(Named v t, es, Declaration s@Signature { context, goal } xs) -> case t of
+    List u -> do
+      let
+        paired = zip es xs
+        problem = Declaration
+          { signature = s { context = Named v t : context }
+          , bindings = paired <&> \(i, Example is o) -> Example (i:is) o
+          }
+      prob <- either (const Nothing) Just $ check problem
+      let
+        -- We compute the constraints for the nil and the cons case.
+        (nil, cons) = paired & mapEither \case
+          (Lst [], ex) -> Left ex
+          (Lst (y:ys), Example ins out) ->
+            let
+              types = map (.value) prob.signature.context
+              inContainer = toContainer (Product types) (Tuple (Lst ys:ins))
+            in case applyPoly inContainer prob of
+              Nothing -> error "Not shape complete!"
+              Just c -> Right $ Example (ins ++ [y, fromContainer c]) out
+          _ -> error "Expected a list!"
+      Just
+        [ Declaration s nil
+        -- TODO: generate fresh variables
+        , Declaration s
+          { context = context ++ [Named (v <> "_h") u, Named (v <> "_r") goal] }
+          cons
+        ]
+    _ -> Nothing

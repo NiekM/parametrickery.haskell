@@ -135,9 +135,21 @@ twoRelations = parse
   \_ [(1, 2)] = ([1], [2])\n\
   \_ [(1, 2), (1, 2), (1, 2)] = ([1], [2])"
 
-isFold :: Named Problem -> [Either Conflict [Named PolyProblem]]
-isFold (Named name p) = traverse (fmap (Named name) . check) <$> xs
+isFold :: Problem -> [Either Conflict [PolyProblem]]
+isFold p = traverse check <$> xs
   where DisCon xs = introFoldr p
+
+isFoldPoly :: Problem -> [Either Conflict [PolyProblem]]
+isFoldPoly p = traverse check <$> xs
+  where DisCon xs = introFoldrPoly p
+
+runBench :: IO ()
+runBench = do
+  forM_ bench \(Named name problem) -> do
+    print name
+    print . pretty $ isFoldPoly problem
+
+  -- where DisCon xs = introFoldrPoly p
 
 -- New functions
 
@@ -145,35 +157,3 @@ isFold (Named name p) = traverse (fmap (Named name) . check) <$> xs
 -- traceComplete = _
 
 
-
--- TODO: check if this behaves as expected
--- It is a bit random that this one works on Containers and applyExamples works
--- on Terms.
-applyExample :: Container -> [Relation] -> PolyExample -> Maybe Container
-applyExample input rels PolyExample { relations, inShapes, outShape, origins }
-  | Tuple inShapes == input.shape
-  , relations == rels
-  , Just outPos <- outPositions = Just Container
-    { shape = outShape
-    , elements = outPos
-    }
-  | otherwise = Nothing
-  where
-    outPositions =
-      Multi.toMap $ Multi.compose (Multi.fromMap input.elements) origins
-
-altMap :: (Foldable f, Alternative m) => (a -> m b) -> f a -> m b
-altMap f = getAlt . foldMap (Alt . f)
-
-applyPoly :: Container -> PolyProblem -> Maybe Container
-applyPoly container Declaration { signature, bindings } =
-  altMap (applyExample container relations) bindings
-  where relations = computeRelations signature.constraints container.elements
-
-lookupPoly :: [Term] -> Problem -> Maybe Term
-lookupPoly inputs problem = do
-  p <- either (const Nothing) Just $ check problem
-  fromContainer <$> applyPoly inContainer p
-  where
-    types = map (.value) problem.signature.context
-    inContainer = toContainer (Product types) (Tuple inputs)

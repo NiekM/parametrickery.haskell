@@ -2,11 +2,17 @@
 
 module Language.Declaration where
 
+import Control.Applicative
+import Data.Monoid (Alt(..))
+
 import Prettyprinter.Utils
 import Base
+import Data.Map.Multi qualified as Multi
 import Data.Named
 import Language.Expr
 import Language.Type
+import Language.Container
+import Language.Container.Relation
 import Language.Container.Morphism
 
 -- | A declaration consists of a signature with some bindings.
@@ -33,4 +39,29 @@ instance Pretty (Named binding) => Pretty (Declaration binding) where
 instance Pretty (Named binding) => Pretty (Named (Declaration binding)) where
   pretty (Named name (Declaration sig exs)) =
     statements (prettyNamed name sig : map (prettyNamed name) exs)
- 
+
+-- Morphism appplication functions
+
+-- TODO: check if this behaves as expected
+-- It is a bit random that this one works on Containers and applyExamples works
+-- on Terms.
+applyExample :: Container -> [Relation] -> PolyExample -> Maybe Container
+applyExample input rels PolyExample { relations, inShapes, outShape, origins }
+  | Tuple inShapes == input.shape
+  , relations == rels
+  , Just outPos <- outPositions = Just Container
+    { shape = outShape
+    , elements = outPos
+    }
+  | otherwise = Nothing
+  where
+    outPositions =
+      Multi.toMap $ Multi.compose (Multi.fromMap input.elements) origins
+
+altMap :: (Foldable f, Alternative m) => (a -> m b) -> f a -> m b
+altMap f = getAlt . foldMap (Alt . f)
+
+applyPoly :: Container -> PolyProblem -> Maybe Container
+applyPoly container Declaration { signature, bindings } =
+  altMap (applyExample container relations) bindings
+  where relations = computeRelations signature.constraints container.elements
