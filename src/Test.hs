@@ -141,12 +141,17 @@ isFold (Named name p) = traverse (fmap (Named name) . check) <$> xs
 
 -- New functions
 
+-- traceComplete :: Text -> Problem -> Maybe Problem
+-- traceComplete = _
+
+
+
 -- TODO: check if this behaves as expected
 -- It is a bit random that this one works on Containers and applyExamples works
 -- on Terms.
-applyExample :: [Relation] -> [Container] -> PolyExample -> Maybe Container
-applyExample rels inputs PolyExample { relations, inShapes, outShape, origins }
-  | inShapes == map (.shape) inputs
+applyExample :: Container -> [Relation] -> PolyExample -> Maybe Container
+applyExample input rels PolyExample { relations, inShapes, outShape, origins }
+  | Tuple inShapes == input.shape
   , relations == rels
   , Just outPos <- outPositions = Just Container
     { shape = outShape
@@ -154,15 +159,21 @@ applyExample rels inputs PolyExample { relations, inShapes, outShape, origins }
     }
   | otherwise = Nothing
   where
-    inPositions = Multi.fromMap $ foldMap (.elements) inputs
-    outPositions = Multi.toMap $ Multi.compose inPositions origins
+    outPositions =
+      Multi.toMap $ Multi.compose (Multi.fromMap input.elements) origins
 
 altMap :: (Foldable f, Alternative m) => (a -> m b) -> f a -> m b
 altMap f = getAlt . foldMap (Alt . f)
 
-applyPoly :: [Container] -> PolyProblem -> Maybe Container
-applyPoly containers Declaration { signature, bindings } =
-  altMap (applyExample relations containers) bindings
-    where
-      elements = foldMap (.elements) containers
-      relations = computeRelations signature.constraints elements
+applyPoly :: Container -> PolyProblem -> Maybe Container
+applyPoly container Declaration { signature, bindings } =
+  altMap (applyExample container relations) bindings
+  where relations = computeRelations signature.constraints container.elements
+
+lookupPoly :: [Term] -> Problem -> Maybe Term
+lookupPoly inputs problem = do
+  p <- either (const Nothing) Just $ check problem
+  fromContainer <$> applyPoly inContainer p
+  where
+    types = map (.value) problem.signature.context
+    inContainer = toContainer (Product types) (Tuple inputs)
