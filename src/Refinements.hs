@@ -44,14 +44,16 @@ What exactly do we expect from a refinement?
 
 -}
 
+type Arg = (Mono, [Term])
+
 -- Lifts the nth argument out of a problem.
-liftArg :: Nat -> Problem -> Maybe (Named Mono, [Term], Problem)
+liftArg :: Nat -> Problem -> Maybe (Named Arg, Problem)
 liftArg n (Declaration sig@Signature { context } exs)
   | n >= fromIntegral (length context) = Nothing
   | otherwise = Just
-    (binding, exprs, Declaration sig { context = context' } exs')
+    (arg <&> (, exprs), Declaration sig { context = context' } exs')
   where
-    (binding, context') = pick n context
+    (arg, context') = pick n context
     (exprs, exs') = unzip $ pickEx <$> exs
 
     pickEx (Example (pick n -> (i, ins)) out) = (i, Example ins out)
@@ -62,9 +64,21 @@ liftArg n (Declaration sig@Signature { context } exs)
       _ -> error "Error"
 
 -- All possible ways to lift one argument from a problem.
-pickApart :: Problem -> [(Named Mono, [Term], Problem)]
+pickApart :: Problem -> [(Named Arg, Problem)]
 pickApart p@(Declaration Signature { context } _) =
   zipWith const [0..] context & mapMaybe (`liftArg` p)
+
+addArgs :: [Named Arg] -> Problem -> Problem
+addArgs args Declaration { signature, bindings } =
+  Declaration
+    { signature = signature { context = signature.context ++ types }
+    , bindings = zipWith addInputs terms bindings
+    }
+  where
+    types = args <&> fmap fst
+    terms = List.transpose $ args <&> \x -> snd x.value
+    addInputs :: [Term] -> Example -> Example
+    addInputs new (Example inputs output) = Example (inputs ++ new) output
 
 -- | A disjunction of conjunctions
 newtype DisCon a = DisCon [[a]]
@@ -104,18 +118,26 @@ introTuple (Declaration sig@Signature { goal } exs) = case goal of
         _ -> error "Type mismatch"
   _ -> DisCon [[]]
 
+fromArg :: (Named Arg -> Problem -> Maybe [Problem]) -> Refinement
+fromArg f p = DisCon $ uncurry f `mapMaybe` pickApart p
+
 elimTuple :: Refinement
-elimTuple p = DisCon $ pickApart p & mapMaybe
-  \(Named v t, es, Declaration sig@(Signature { context }) xs) -> case t of
-    Product ts ->
-      let
-        bindings = zipWith (Named . (v <>) . Text.pack . show) [0 :: Int ..] ts
-        examples = zipWith distribute es xs
-        distribute (Tuple ys) (Example i o) = Example (i ++ ys) o
-        distribute _ _ = error "Type mismatch"
-      in
-      Just [ Declaration sig { context = context ++ bindings } examples ]
-    _ -> Nothing
+elimTuple = fromArg \cases
+  (Named name (Product types, terms)) problem ->
+    let
+      values :: [[Term]]
+      values = terms <&> \case
+        Tuple xs -> xs
+        _ -> error "Type mismatch"
+
+      makeArg :: Nat -> Mono -> [Term] -> Named Arg
+      makeArg i t xs = Named (name <> Text.pack (show i)) (t, xs)
+
+      newArgs :: [Named Arg]
+      newArgs = zipWith3 makeArg [0 ..] types (List.transpose values)
+    in
+      return [ addArgs newArgs problem ]
+  _ _ -> Nothing
 
 -- Randomly removes one variable from the context. How do we show the lattice
 -- structure here?
@@ -124,133 +146,106 @@ elimTuple p = DisCon $ pickApart p & mapMaybe
 -- better would be to annotate variables in the context as being mandatory?
 -- Still, it might be necessary to perform all possible shrinkings at once?
 shrinkContext :: Refinement
-shrinkContext p = DisCon $ pickApart p <&> \(_, _, q) -> [q]
+shrinkContext p = DisCon $ pickApart p <&> \(_, q) -> [q]
 
 elimList :: Refinement
-elimList p = DisCon $ pickApart p & mapMaybe
-  \(Named v t, es, Declaration s@(Signature { context }) xs) -> case t of
-    List u ->
-      let
-        (nil, cons) = zip es xs & mapEither \case
-          (Lst [], ex) -> Left ex
-          (Lst (y:ys), Example ins out) ->
-            Right $ Example (ins ++ [y, Lst ys]) out
-          _ -> error "Expected a list!"
-      in Just
-        [ Declaration s nil
-        -- TODO: generate fresh variables
-        , Declaration s
-          { context =
-            context ++ [Named (v <> "_h") u, Named (v <> "_t") (List u)]
-          } cons
-        ]
-    _ -> Nothing
+elimList = fromArg \cases
+  (Named name (List t, terms)) problem ->
+    let
+      (nil, cons) = zip terms problem.bindings & mapEither \case
+        (Lst [], ex) -> Left ex
+        (Lst (y:ys), Example ins out) ->
+          Right $ Example (ins ++ [y, Lst ys]) out
+        _ -> error "Expected a list!"
+    in Just
+      [ problem { bindings = nil }
+      -- TODO: generate fresh variables
+      , Declaration problem.signature
+        { context = problem.signature.context ++
+          [ Named (name <> "_h") t
+          , Named (name <> "_t") (List t)
+          ]
+        } cons
+      ]
+  _ _ -> Nothing
 
 -- TODO: maybe first make it work not as a refinement, but using a more
 -- restricted way to introduce foldr, similar to what we did in the paper. So without using `pickApart`
 
 introMap :: Refinement
-introMap p = DisCon $ pickApart p & mapMaybe
+introMap = fromArg \cases
   -- We lift `v : t` out of the problem. `es` are the different values `v` had
   -- in the different examples.
-  \(Named v t, es, Declaration s@Signature { context, goal } xs) ->
-    case (t, goal) of
-      (List t_in, List t_out) ->
-        zip es xs & mapM \case
-          (Lst lst, Example ins (Lst out)) ->
-            if length lst /= length out
-              then Nothing
-              else Just Declaration
-                { signature = s
-                  { context = context ++ [Named (v <> "_x") t_in]
-                  , goal = t_out
-                  }
-                , bindings = zipWith (\x y -> Example (ins ++ [x]) y) lst out
-                }
-          _ -> error "Not actually lists."
-      _ -> Nothing
-
--- TODO: make this work for shape complete example sets!
--- Currently it only works for exactly trace complete sets...
--- The only solution seems to be to have refinements work on container problems
--- In other words, we should translate to container functors first
--- TODO: how do we recover which argument the fold was applied to?
-introFoldr :: Refinement
-introFoldr p = DisCon $ pickApart p & mapMaybe
-  -- We lift `v : t` out of the problem. `es` are the different values `v` had
-  -- in the different examples.
-  \(Named v t, es, Declaration s@Signature { context, goal } xs) -> case t of
-    List u ->
-      let
-        paired = zip es xs
-        -- We compute the constraints for the nil and the cons case.
-        (nil, cons) = paired & mapEither \case
-          (Lst [], ex) -> Left ex
-          (Lst (y:ys), Example ins out) ->
-            case paired & List.find \(l, x) -> l == Lst ys && x.inputs == ins of
-            -- case List.lookup (Lst ys) paired of
-            -- Here, instead of searching in paired, we want to compute the
-            -- polymorphic examples represented by `paired` and then try to
-            -- apply those PolyExamples to (ys : xs). If that succeeds, it is
-            -- shape complete.
-            -- TODO: perhaps we can compute the morphisms of the examples and
-            -- use those to figure out the right monomorphic recursive call.
-            -- This is quite clever, we can use the polymorphic type to
-            -- transform our monomorphic examples as we please to equivalent
-            -- monomorphic examples.
-            -- Perhaps we just check if the shape and relation occur and then
-            -- fill in the positions as required.
-            -- IDEA!: we should write a function that tries to apply a partial
-            -- container morphism to an expression, returning the transformed
-            -- expression if the input and relation matches.
-            Just (_, x) -> do
-              Right $ Example (ins ++ [y, x.output]) out
-
-            -- How do we deal with trace/shape incompleteness? We can't just
-            -- call an error...
-
-            _ -> error "Trace incomplete!"
-          _ -> error "Expected a list!"
-      in Just
-        [ Declaration s nil
-        -- TODO: generate fresh variables
-        , Declaration s
-          { context = context ++ [Named (v <> "_h") u, Named (v <> "_r") goal] }
-          cons
-        ]
-    _ -> Nothing
-
--- TODO: check if this is correct and if we can do without introFoldr.
-introFoldrPoly :: Refinement
-introFoldrPoly p = DisCon $ pickApart p & mapMaybe
-  -- We lift `v : t` out of the problem. `es` are the different values `v` had
-  -- in the different examples.
-  \(Named v t, es, Declaration s@Signature { context, goal } xs) -> case t of
-    List u -> do
-      let
-        paired = zip es xs
-        problem = Declaration
-          { signature = s { context = Named v t : context }
-          , bindings = paired <&> \(i, Example is o) -> Example (i:is) o
+  (Named name (List given, terms))
+    (Declaration signature@Signature { context, goal = List goal } examples) ->
+    zip terms examples & mapM \case
+      (Lst inputs, Example scope (Lst outputs)) -> do
+        guard $ length inputs == length outputs
+        return Declaration
+          { signature = signature
+            { context = context ++ [Named (name <> "_x") given]
+            , goal
+            }
+          , bindings = zipWith (\x y -> Example (scope ++ [x]) y) inputs outputs
           }
-      prob <- either (const Nothing) Just $ check problem
-      let
-        -- We compute the constraints for the nil and the cons case.
-        (nil, cons) = paired & mapEither \case
-          (Lst [], ex) -> Left ex
-          (Lst (y:ys), Example ins out) ->
-            let
-              types = map (.value) prob.signature.context
-              inContainer = toContainer (Product types) (Tuple (Lst ys:ins))
-            in case applyPoly inContainer prob of
-              Nothing -> error "Not shape complete!"
-              Just c -> Right $ Example (ins ++ [y, fromContainer c]) out
-          _ -> error "Expected a list!"
-      Just
-        [ Declaration s nil
-        -- TODO: generate fresh variables
-        , Declaration s
-          { context = context ++ [Named (v <> "_h") u, Named (v <> "_r") goal] }
-          cons
-        ]
-    _ -> Nothing
+      _ -> error "Not actually lists."
+  _ _ -> Nothing
+
+introFoldr :: Refinement
+introFoldr = fromArg \cases
+  (Named name (List t, terms)) problem ->
+    let
+      paired = zip terms problem.bindings
+      -- We compute the constraints for the nil and the cons case.
+      (nil, cons) = paired & mapEither \case
+        (Lst [], ex) -> Left ex
+        (Lst (y:ys), Example ins out) ->
+          case paired & List.find \(l, x) -> l == Lst ys && x.inputs == ins of
+            Just (_, x) -> return $ Example (ins ++ [y, x.output]) out
+            _ -> error "Trace incomplete!"
+        _ -> error "Expected a list!"
+    in Just
+      [ problem { bindings = nil }
+      , Declaration problem.signature
+        { context = problem.signature.context ++
+          [ Named (name <> "_h") t
+          , Named (name <> "_r") problem.signature.goal
+          ]
+        } cons
+      ]
+  _ _ -> Nothing
+
+introFoldrPoly :: Refinement
+introFoldrPoly = fromArg \cases
+  (Named name (List t, terms)) problem -> do
+    let paired = zip terms problem.bindings
+    polyProblem <- either (const Nothing) Just $ check
+      -- This is just problem with the list pulled to the front.
+      -- TODO: refactor so that this is not necessary.
+      Declaration
+      { signature = problem.signature
+        { context = Named name (List t) : problem.signature.context }
+      , bindings = paired <&> \(i, Example is o) -> Example (i:is) o
+      }
+    let
+      -- We compute the constraints for the nil and the cons case.
+      (nil, cons) = paired & mapEither \case
+        (Lst [], ex) -> Left ex
+        (Lst (y:ys), Example ins out) ->
+          let
+            types = map (.value) polyProblem.signature.context
+            inContainer = toContainer (Product types) (Tuple (Lst ys:ins))
+          in case applyPoly inContainer polyProblem of
+            Nothing -> error "Not shape complete!"
+            Just c -> return $ Example (ins ++ [y, fromContainer c]) out
+        _ -> error "Expected a list!"
+    Just
+      [ problem { bindings = nil }
+      , Declaration problem.signature
+        { context = problem.signature.context ++
+          [ Named (name <> "_h") t
+          , Named (name <> "_r") problem.signature.goal
+          ]
+        } cons
+      ]
+  _ _ -> Nothing
