@@ -25,13 +25,17 @@ computeOrigins :: Ord a => Map Position a -> Map Position a -> Origins
 computeOrigins p q = Multi.remapping (Multi.fromMap q) (Multi.fromMap p)
   & Multi.filterWithKey \k v -> k.var == v.var
 
+data Pattern = Pattern
+  { shapes    :: [Shape]
+  , relations :: [Relation]
+  } deriving stock (Eq, Ord, Show)
+
 -- A polymorphic input-output example, i.e. an input-output example for
 -- container morphisms.
 data PolyExample = PolyExample
-  { inShapes  :: [Shape]
-  , relations :: [Relation]
-  , outShape  :: Shape
-  , origins   :: Origins
+  { input   :: Pattern
+  , output  :: Shape
+  , origins :: Origins
   } deriving stock (Eq, Ord, Show)
 
 -- It seems that we only need to compute the relation for the inputs, since the
@@ -39,36 +43,36 @@ data PolyExample = PolyExample
 -- TODO: currently, no type checking is performed, so some nonsensical programs
 -- are considered realizable.
 checkExample :: Signature -> Example -> Either Conflict PolyExample
-checkExample
-  Signature { constraints, context, goal }
-  Example { inputs, output }
-    | length types /= length inputs = Left ArgumentMismatch
+checkExample signature example
+    | length types /= length example.inputs = Left ArgumentMismatch
     | not (Multi.consistent origins) = Left MagicOutput
-    | otherwise = Right PolyExample { relations, inShapes, outShape, origins }
+    | otherwise = Right PolyExample
+      { output = output.shape
+      , input  = Pattern (unTuple input.shape) relations
+      , origins
+      }
   where
-    types        = map (.value) context
-    inContainer  = toContainer (Product types) (Tuple inputs)
-    outContainer = toContainer goal output
-    outShape     = outContainer.shape
-    origins      = computeOrigins inContainer.elements outContainer.elements
-    relations    = computeRelations constraints inContainer.elements
-    inShapes     = case inContainer.shape of
-      Tuple s -> s
-      _ -> error "Expected tuple"
+    types     = map (.value) signature.context
+    input     = toContainer (Product types) (Tuple example.inputs)
+    output    = toContainer signature.goal example.output
+    relations = computeRelations signature.constraints input.elements
+    origins   = computeOrigins input.elements output.elements
+
+    unTuple (Tuple xs) = xs
+    unTuple _ = error "Expected tuple"
 
 -- | Combine multiple examples, checking if there are no conflicts.
 combine :: [PolyExample] -> Either Conflict [PolyExample]
-combine = traverse merge . NonEmpty.groupAllWith \example ->
-  (example.inShapes, example.relations)
+combine = traverse merge . NonEmpty.groupAllWith (.input)
   where
     merge :: NonEmpty PolyExample -> Either Conflict PolyExample
     merge xs
-      | not (allSame outShapes) = Left ShapeConflict
+      | not (allSame outputs) = Left ShapeConflict
       | not (Multi.consistent origins) = Left PositionConflict
       | otherwise = Right (NonEmpty.head xs) { origins }
       where
-        outShapes = fmap (.outShape) xs
-        origins   = foldl1 Multi.intersection $ fmap (.origins) xs
+        outputs = fmap (.output) xs
+        origins = foldl1 Multi.intersection $ fmap (.origins) xs
 
 -- TODO: do something with these conflicts.
 data Conflict
@@ -82,24 +86,28 @@ instance Pretty (Hole (Set Position)) where
     [x] -> pretty x
     xs  -> encloseSep lbrace rbrace ", " $ map pretty xs
 
-instance Pretty PolyExample where
-  pretty PolyExample { inShapes, relations, outShape, origins }
-    | null inShapes = pretty outShape
-    | otherwise = barred (inputs : rels) <+> "->" <+> output
+instance Pretty Pattern where
+  pretty patt
+    | null relations = inputs
+    | otherwise = inputs <+> "|" <+>
+      concatWith (surround ", ") (pretty <$> relations)
     where
-      output = pretty $ fmap (`Multi.lookup` origins) outShape
-      inputs = sep (map pretty inShapes)
-      rels = map pretty $ filter relevant relations
-      barred = encloseSep mempty mempty " | "
+      inputs = sep (map pretty patt.shapes)
+      relations = filter relevant patt.relations
+
+instance Pretty PolyExample where
+  pretty PolyExample { input, output, origins }
+    | null input.shapes = pretty output
+    | otherwise = pretty input <+> "->" <+> out
+    where
+      out = pretty $ fmap (`Multi.lookup` origins) output
 
 instance Pretty (Named PolyExample) where
-  pretty (Named name PolyExample { inShapes, relations, outShape, origins })
-    | null rels = args <+> "=" <+> output
-    | otherwise = args <+> encloseSep "| " " =" ", " rels <+> output
+  pretty (Named name PolyExample { input, output, origins })
+    | null input.shapes = pretty name <+> "=" <+> out
+    | otherwise = pretty name <+> pretty input <+> "=" <+> out
     where
-      args = sep (pretty name : map pretty inShapes)
-      rels = map pretty $ filter relevant relations
-      output = pretty $ fmap (`Multi.lookup` origins) outShape
+      out = pretty $ fmap (`Multi.lookup` origins) output
 
 instance Pretty Conflict where
   pretty = viaShow

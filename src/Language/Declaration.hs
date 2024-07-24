@@ -40,23 +40,23 @@ instance Pretty (Named binding) => Pretty (Named (Declaration binding)) where
   pretty (Named name (Declaration sig exs)) =
     statements (prettyNamed name sig : map (prettyNamed name) exs)
 
--- Morphism appplication functions
+-- Morphism application functions
 
 -- TODO: check if this behaves as expected
 -- It is a bit random that this one works on Containers and applyExamples works
 -- on Terms.
 applyExample :: Container -> [Relation] -> PolyExample -> Maybe Container
-applyExample input rels PolyExample { relations, inShapes, outShape, origins }
-  | Tuple inShapes == input.shape
-  , relations == rels
+applyExample input rels example
+  | Tuple example.input.shapes == input.shape
+  , example.input.relations == rels
   , Just outPos <- outPositions = Just Container
-    { shape = outShape
+    { shape = example.output
     , elements = outPos
     }
   | otherwise = Nothing
   where
     outPositions =
-      Multi.toMap $ Multi.compose (Multi.fromMap input.elements) origins
+      Multi.toMap $ Multi.compose (Multi.fromMap input.elements) example.origins
 
 altMap :: (Foldable f, Alternative m) => (a -> m b) -> f a -> m b
 altMap f = getAlt . foldMap (Alt . f)

@@ -2,6 +2,8 @@
 
 module Language.Expr where
 
+import Data.Foldable
+
 import Base
 import Data.Named
 
@@ -44,6 +46,9 @@ accept = \case
   Lit l -> Lit l
   Hole e -> e.hole
 
+holes :: Expr h -> [h]
+holes = toList
+
 -- A monomorphic input-output example according to some function signature. We
 -- do not have to give a specific type instantiation, because we may make the
 -- type more or less abstract. In other words, it is not up to the example to
@@ -65,6 +70,9 @@ instance Pretty (Hole Void) where
 
 instance Pretty (Hole ()) where
   pretty = const "_"
+
+instance Pretty (Hole Text) where
+  pretty (MkHole h) = braces $ pretty h
 
 instance Pretty (Hole h) => Pretty (Hole (Expr h)) where
   pretty (MkHole h) = braces $ pretty h

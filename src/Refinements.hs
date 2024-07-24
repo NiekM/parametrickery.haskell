@@ -103,6 +103,8 @@ instance Pretty a => Pretty (DisCon a) where
 -- TODO: currently, composition does not take into account that a refinement can
 -- only be applied in some places. Additionaly, refinements do not have some
 -- notion of whether they matched or not.
+-- TODO: we should refactor Refinement so that it has some state to access, such
+-- as the result of calling 'check' on the last problem.
 type Refinement = Problem -> DisCon Problem
 
 -- NOTE: this is mostly a test refinement. I don't know how precise we have to
@@ -146,7 +148,7 @@ elimTuple = fromArg \cases
 -- better would be to annotate variables in the context as being mandatory?
 -- Still, it might be necessary to perform all possible shrinkings at once?
 shrinkContext :: Refinement
-shrinkContext p = DisCon $ pickApart p <&> \(_, q) -> [q]
+shrinkContext = fromArg \_arg problem -> return [problem]
 
 elimList :: Refinement
 elimList = fromArg \cases

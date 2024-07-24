@@ -23,6 +23,7 @@ import Language.Expr
 import Language.Container
 import Language.Container.Morphism
 import Language.Container.Relation
+import Language.Coverage
 import Language.Declaration
 import Language.Parser
 import Refinements
@@ -146,14 +147,19 @@ isFoldPoly p = traverse check <$> xs
 runBench :: IO ()
 runBench = do
   forM_ bench \(Named name problem) -> do
-    print name
-    print . pretty $ isFoldPoly problem
-
-  -- where DisCon xs = introFoldrPoly p
-
--- New functions
-
--- traceComplete :: Text -> Problem -> Maybe Problem
--- traceComplete = _
-
-
+    putStrLn ""
+    print $ "Problem:" <+> pretty name
+    putStrLn ""
+    -- TODO: report when it is not applicable (i.e. no list in scope)
+    forM_ (isFoldPoly problem) \case
+      Left e -> print e
+      Right [e, f] -> do
+        print $ pretty name <+> "= foldr f e"
+        putStrLn "  where"
+        print . indent 4 $ prettyNamed "e" e
+        print . indent 4 . parens . pretty $ coverage e
+        putStrLn ""
+        print . indent 4 $ prettyNamed "f" f
+        print . indent 4 . parens . pretty $ coverage f
+        putStrLn ""
+      _ -> error "Wrong number of subproblems."
