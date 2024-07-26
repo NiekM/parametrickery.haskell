@@ -152,7 +152,7 @@ runBench = do
     putStrLn ""
     -- TODO: report when it is not applicable (i.e. no list in scope)
     forM_ (isFoldPoly problem) \case
-      Left e -> print e
+      Left e -> print $ pretty e
       Right [e, f] -> do
         print $ pretty name <+> "= foldr f e"
         putStrLn "  where"

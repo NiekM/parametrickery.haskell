@@ -7,14 +7,17 @@ module Language.Container.Morphism where
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
 
+import Control.Applicative
+import Data.Monoid (Alt(..))
+
 import Base
 import Data.Map.Multi (Multi)
 import Data.Map.Multi qualified as Multi
 import Data.Named
-import Utils
 
 import Language.Type
 import Language.Expr
+import Language.Declaration
 import Language.Container
 import Language.Container.Relation
 
@@ -44,19 +47,22 @@ data PolyExample = PolyExample
 -- are considered realizable.
 checkExample :: Signature -> Example -> Either Conflict PolyExample
 checkExample signature example
-    | length types /= length example.inputs = Left ArgumentMismatch
-    | not (Multi.consistent origins) = Left MagicOutput
-    | otherwise = Right PolyExample
-      { output = output.shape
-      , input  = Pattern (unTuple input.shape) relations
-      , origins
-      }
+  | length types /= length example.inputs =
+    Left $ ArgumentMismatch types example.inputs
+  | not (Multi.consistent result.origins) =
+    Left $ MagicOutput Declaration { signature, bindings = [example] }
+  | otherwise = return result
   where
-    types     = map (.value) signature.context
-    input     = toContainer (Product types) (Tuple example.inputs)
-    output    = toContainer signature.goal example.output
+    types = map (.value) signature.context
+    input = toContainer (Product types) (Tuple example.inputs)
+    output = toContainer signature.goal example.output
     relations = computeRelations signature.constraints input.elements
-    origins   = computeOrigins input.elements output.elements
+
+    result = PolyExample
+      { input   = Pattern (unTuple input.shape) relations
+      , output  = output.shape
+      , origins = computeOrigins input.elements output.elements
+      }
 
     unTuple (Tuple xs) = xs
     unTuple _ = error "Expected tuple"
@@ -66,18 +72,58 @@ combine :: [PolyExample] -> Either Conflict [PolyExample]
 combine = traverse merge . NonEmpty.groupAllWith (.input)
   where
     merge :: NonEmpty PolyExample -> Either Conflict PolyExample
-    merge xs
-      | not (allSame outputs) = Left ShapeConflict
-      | not (Multi.consistent origins) = Left PositionConflict
-      | otherwise = Right (NonEmpty.head xs) { origins }
+    merge xs = case grouped of
+      (result :| [])
+        | Multi.consistent result.origins -> return result
+        | otherwise -> Left $ PositionConflict (NonEmpty.nub xs)
+      _ -> Left $ ShapeConflict grouped
       where
-        outputs = fmap (.output) xs
-        origins = foldl1 Multi.intersection $ fmap (.origins) xs
+        grouped = NonEmpty.groupAllWith1 (.output) xs
+          <&> \examples -> (NonEmpty.head examples)
+          { origins = foldl1 Multi.intersection $ fmap (.origins) examples }
 
 -- TODO: do something with these conflicts.
 data Conflict
-  = ArgumentMismatch | ShapeConflict | MagicOutput | PositionConflict
+  = ArgumentMismatch [Mono] [Term]
+  | ShapeConflict (NonEmpty PolyExample)
+  | MagicOutput Problem
+  | PositionConflict (NonEmpty PolyExample)
   deriving stock (Eq, Ord, Show)
+
+type PolyProblem = Declaration PolyExample
+
+-- TODO: before checking the realizability w.r.t. parametricity, it might be
+-- good to check whether the type is inhabited. Especially in the case were
+-- there are no examples, we should still be able to check automatically that
+-- e.g. `{x : a} -> b` is not realizable.
+check :: Problem -> Either Conflict PolyProblem
+check (Declaration signature exs) = do
+  bindings <- combine =<< mapM (checkExample signature) exs
+  return Declaration { signature, bindings }
+
+-- TODO: check if this behaves as expected
+-- It is a bit random that this one works on Containers and applyExamples works
+-- on Terms.
+applyExample :: Container -> [Relation] -> PolyExample -> Maybe Container
+applyExample input rels example
+  | Tuple example.input.shapes == input.shape
+  , example.input.relations == rels
+  , Just elements <- outElements = Just Container
+    { shape = example.output
+    , elements
+    }
+  | otherwise = Nothing
+  where
+    outElements =
+      Multi.toMap $ Multi.compose (Multi.fromMap input.elements) example.origins
+
+altMap :: (Foldable f, Alternative m) => (a -> m b) -> f a -> m b
+altMap f = getAlt . foldMap (Alt . f)
+
+applyPoly :: Container -> PolyProblem -> Maybe Container
+applyPoly container Declaration { signature, bindings } =
+  altMap (applyExample container relations) bindings
+  where relations = computeRelations signature.constraints container.elements
 
 ------ Pretty ------
 
@@ -110,4 +156,9 @@ instance Pretty (Named PolyExample) where
       out = pretty $ fmap (`Multi.lookup` origins) output
 
 instance Pretty Conflict where
-  pretty = viaShow
+  pretty = \case
+    ArgumentMismatch ts es -> "ArgumentMismatch!" <+> indent 2
+      (vcat [pretty ts, pretty es])
+    ShapeConflict xs -> "ShapeConflict!" <+> indent 2 (pretty xs)
+    MagicOutput x -> "MagicOutput!" <+> indent 2 (pretty x)
+    PositionConflict xs -> "PositionConflict!" <+> indent 2 (pretty xs)

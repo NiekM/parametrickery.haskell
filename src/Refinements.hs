@@ -9,6 +9,7 @@ import Language.Type
 import Language.Expr
 import Language.Declaration
 import Language.Container
+import Language.Container.Morphism
 
 import Utils
 
