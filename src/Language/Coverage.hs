@@ -86,7 +86,7 @@ signatureCoverage signature = Set.fromList <$> coveringPatterns
   (map (.value) signature.context)
 
 bindingCoverage :: [PolyExample] -> Set Pattern
-bindingCoverage = Set.fromList <$> fmap (.input)
+bindingCoverage = Set.fromList <$> map (.input)
 
 data Coverage = Total | Partial | Missing (Set Pattern)
   deriving (Eq, Ord, Show)
@@ -98,10 +98,15 @@ instance Pretty Coverage where
     Missing c -> vcat $ "Partial, missing cases:"
       : map pretty (Set.toList c)
 
--- TODO: how do we do this? Perhaps we can have some "coverable" property of
--- type? Where we generate all required input shapes and relations to have
--- coverage or Nothing if coverage is not possible (like for lists). This would
--- make it easy to report missing coverage.
+-- TODO: what kind of coverage do we need? how do we check shape coverage
+-- nicely? maybe translate to Map Shape Relation? might be better in general as
+-- coverage result. even if shapes are missing, we still want to know which
+-- relations are missing for other shapes. if a shape is missing, do we also
+-- still want to return which relations go with that shape? if there are too
+-- many shapes to cover, because of e.g. a list as input, do we still want to
+-- have relation coverage? or subpattern coverage, e.g. if it's a list booleans,
+-- do we still want coverage checking for a pattern such as [True], letting us
+-- know that we are missing [False]?
 coverage :: PolyProblem -> Coverage
 coverage problem = case signatureCoverage problem.signature of
   Nothing -> Partial
@@ -109,4 +114,5 @@ coverage problem = case signatureCoverage problem.signature of
     let
       covered = bindingCoverage problem.bindings
       missing = possible Set.\\ covered
+      -- shapes = Set.map (.shapes) possible Set.\\ Set.map (.shapes) covered
     in if null missing then Total else Missing missing
