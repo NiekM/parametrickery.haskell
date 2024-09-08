@@ -2,10 +2,11 @@ module Data.Map.Multi
   ( Multi
   , empty
   , singleton
-  , union, intersection
+  , union, unions
+  , intersection, intersectionWith
   , lookup
   , fromMap, toMap
-  , elems
+  , keys, elems
   , map
   , compose
   , inverse
@@ -38,15 +39,24 @@ fromMap = coerce $ Map.map Set.singleton
 toMap :: Multi k v -> Maybe (Map k v)
 toMap = coerce $ traverse @(Map _) Set.lookupMin
 
+keys :: Multi k v -> Set k
+keys = coerce $ Map.keysSet @_ @(Set _)
+
 elems :: Multi k v -> [Set v]
 elems = coerce $ Map.elems @_ @(Set _)
 
 union :: (Ord k, Ord v) => Multi k v -> Multi k v -> Multi k v
 union = coerce $ Map.unionWith Set.union
 
--- TODO: does this make sense?
+unions :: (Ord k, Ord v) => [Multi k v] -> Multi k v
+unions = coerce $ Map.unionsWith @[] Set.union
+
 intersection :: (Ord k, Ord v) => Multi k v -> Multi k v -> Multi k v
 intersection = coerce $ Map.intersectionWith Set.intersection
+
+intersectionWith :: (Ord k, Ord v, Ord w) =>
+  (Set v -> Set v -> Set w) -> Multi k v -> Multi k v -> Multi k w
+intersectionWith f = coerce $ Map.intersectionWith f
 
 lookup :: (Ord k, Ord v) => k -> Multi k v -> Set v
 lookup k = coerce $ Map.lookupDefault k Set.empty

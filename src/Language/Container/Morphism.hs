@@ -72,15 +72,17 @@ combine :: [PolyExample] -> Either Conflict [PolyExample]
 combine = traverse merge . NonEmpty.groupAllWith (.input)
   where
     merge :: NonEmpty PolyExample -> Either Conflict PolyExample
-    merge xs = case grouped of
+    merge examples = case grouped of
       (result :| [])
         | Multi.consistent result.origins -> return result
-        | otherwise -> Left $ PositionConflict (NonEmpty.nub xs)
+        | otherwise -> Left $ PositionConflict (NonEmpty.nub examples)
       _ -> Left $ ShapeConflict grouped
       where
-        grouped = NonEmpty.groupAllWith1 (.output) xs
-          <&> \examples -> (NonEmpty.head examples)
-          { origins = foldl1 Multi.intersection $ fmap (.origins) examples }
+        grouped = intersect <$> NonEmpty.groupAllWith1 (.output) examples
+
+    intersect :: NonEmpty PolyExample -> PolyExample
+    intersect examples@(example :| _) = example
+      { origins = foldl1 Multi.intersection $ fmap (.origins) examples }
 
 -- TODO: do something with these conflicts.
 data Conflict
