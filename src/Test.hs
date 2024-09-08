@@ -144,6 +144,41 @@ isFoldPoly :: Problem -> [Either Conflict [PolyProblem]]
 isFoldPoly p = traverse check <$> xs
   where DisCon xs = introFoldrPoly p
 
+paperBench :: IO ()
+paperBench = do
+  forM_ bench' \(Named name problem) -> do
+    putStrLn ""
+    print $ "Problem:" <+> pretty name
+    putStrLn ""
+    forM_ (isFoldPoly problem) \case
+      Left e -> print $ pretty e
+      Right [e, f] -> do
+        print $ pretty name <+> "= foldr f e"
+        putStrLn "  where"
+        print . indent 4 $ prettyNamed "e" e
+        putStrLn ""
+        print . indent 4 $ prettyNamed "f" f
+        putStrLn ""
+      _ -> error "Wrong number of subproblems."
+  where
+    bench' = bench & filter \x -> x.name `elem`
+      [ "null"
+      , "length"
+      , "head"
+      , "last"
+      , "tail"
+      , "init"
+      , "reverse"
+      , "drop"
+      , "take"
+      , "splitAt"
+      , "append"
+      , "prepend"
+      , "zip"
+      , "unzip"
+      , "concat"
+      ]
+
 runBench :: IO ()
 runBench = do
   forM_ bench \(Named name problem) -> do
