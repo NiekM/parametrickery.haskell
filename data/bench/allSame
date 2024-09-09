@@ -1,4 +1,4 @@
-allSame : Eq a => {xs : [a]} -> Bool
+allSame : Eq a => {xs : List a} -> Bool
 allSame [] = True
 allSame [1] = True
 allSame [1, 1] = True

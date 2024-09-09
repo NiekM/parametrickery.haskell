@@ -1,4 +1,4 @@
-length : {xs : [a]} -> Int
+length : {xs : List a} -> Int
 length [] = 0
 length [1] = 1
 length [2, 1] = 2

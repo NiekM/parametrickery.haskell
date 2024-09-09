@@ -20,6 +20,7 @@ import Language.Expr
 import Language.Declaration
 import Language.Container
 import Language.Container.Relation
+import Prettyprinter.Utils
 
 -- TODO: maybe rewrite with some other datatype?
 type Origins = Multi Position Position
@@ -45,8 +46,9 @@ data PolyExample = PolyExample
 -- output values are a subset (and if they are not, this is already a conflict).
 -- TODO: currently, no type checking is performed, so some nonsensical programs
 -- are considered realizable.
-checkExample :: Signature -> Example -> Either Conflict PolyExample
-checkExample signature example
+checkExample
+  :: [Datatype] -> Signature -> Example -> Either Conflict PolyExample
+checkExample defs signature example
   | length types /= length example.inputs =
     Left $ ArgumentMismatch types example.inputs
   | not (Multi.consistent result.origins) =
@@ -54,8 +56,8 @@ checkExample signature example
   | otherwise = return result
   where
     types = map (.value) signature.context
-    input = toContainer (Product types) (Tuple example.inputs)
-    output = toContainer signature.goal example.output
+    input = toContainer defs (Product types) (Tuple example.inputs)
+    output = toContainer defs signature.goal example.output
     relations = computeRelations signature.constraints input.elements
 
     result = PolyExample
@@ -98,9 +100,9 @@ type PolyProblem = Declaration PolyExample
 -- good to check whether the type is inhabited. Especially in the case were
 -- there are no examples, we should still be able to check automatically that
 -- e.g. `{x : a} -> b` is not realizable.
-check :: Problem -> Either Conflict PolyProblem
-check (Declaration signature exs) = do
-  bindings <- combine =<< mapM (checkExample signature) exs
+check :: [Datatype] -> Problem -> Either Conflict PolyProblem
+check defs (Declaration signature exs) = do
+  bindings <- combine =<< mapM (checkExample defs signature) exs
   return Declaration { signature, bindings }
 
 -- TODO: check if this behaves as expected
@@ -140,7 +142,7 @@ instance Pretty Pattern where
     | otherwise = inputs <+> "|" <+>
       concatWith (surround ", ") (pretty <$> relations)
     where
-      inputs = sep (map pretty patt.shapes)
+      inputs = sep (map prettyMaxPrec patt.shapes)
       relations = filter relevant patt.relations
 
 instance Pretty PolyExample where

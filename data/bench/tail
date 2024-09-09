@@ -1,4 +1,4 @@
-tail : {xs : [a]} -> [a]
+tail : {xs : List a} -> List a
 tail [] = []
 tail [1] = []
 tail [2, 1] = [1]

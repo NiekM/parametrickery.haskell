@@ -4,7 +4,6 @@ module Language.Parser (Parse(..), lexParse, test) where
 import Prelude hiding (foldr1)
 import Data.Text (pack)
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.List (genericLength)
 import Text.Megaparsec
 import Text.Megaparsec.Char hiding (newline)
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -21,7 +20,7 @@ type Lexer = Parsec Void Text
 data Lexeme
   = Keyword Text
   | Identifier Text
-  | Constructor Text
+  | Constr Text
   | Operator Text
   | Separator Text
   | Bracket Bracket
@@ -86,7 +85,7 @@ stringLit = char '"' >> manyTill L.charLiteral (char '"')
 lex :: Lexer [Lexeme]
 lex = (optional comment *>) . many . choice $ fmap (L.lexeme sc)
   [ identOrKeyword
-  , Constructor <$> ident upperChar
+  , Constr <$> ident upperChar
   , Operator <$> operator
   , Separator <$> separator
   , Bracket <$> bracket
@@ -119,6 +118,11 @@ identifier = flip token Set.empty \case
   Identifier i -> Just i
   _ -> Nothing
 
+constructor :: Parser Text
+constructor = flip token Set.empty \case
+  Constr i -> Just i
+  _ -> Nothing
+
 int :: Parser Int
 int = flip token Set.empty \case
   IntLit i -> Just i
@@ -131,7 +135,7 @@ op :: Text -> Parser Lexeme
 op = single . Operator
 
 ctr :: Text -> Parser Lexeme
-ctr = single . Constructor
+ctr = single . Constr
 
 newline :: Int -> Parser Lexeme
 newline = single . Newline
@@ -150,10 +154,7 @@ test p t = case parse Language.Parser.lex "" t of
     Right y -> print $ pretty y
 
 instance Parse Base where
-  parser = choice
-    [ Int  <$ ctr "Int"
-    , Bool <$ ctr "Bool"
-    ]
+  parser = Int <$ ctr "Int"
 
 instance Parse Constraint where
   parser = choice
@@ -169,12 +170,11 @@ instance Parse Mono where
         t <- parser
         choice
           [ Product . (t:) <$> some (sep "," *> parser)
-          , Sum . (t:) <$> some (sep "|" *> parser)
           , return t
           ]
       return $ fromMaybe (Product []) x
-    , List <$> brackets Square parser
     , Base <$> parser
+    , Data <$> constructor <*> many parser
     ]
 
 instance Parse Signature where
@@ -195,11 +195,7 @@ instance Parse (Named Signature) where
   parser = Named <$> identifier <* op ":" <*> parser
 
 instance Parse Lit where
-  parser = choice
-    [ MkBool False <$ ctr "False"
-    , MkBool True  <$ ctr "True"
-    , MkInt <$> int
-    ]
+  parser = MkInt <$> int
 
 instance Parse (Hole Void) where
   parser = mzero
@@ -219,23 +215,16 @@ parenExpr = brackets Round do
       x <- parser
       choice
         [ Tuple . (x:) <$> some (sep "," *> parser)
-        , do
-          n <- genericLength <$> some (sep "|")
-          return $ Proj 0 (n + 1) x
         , return x
         ]
-    , do
-      i <- genericLength <$> some (sep "|")
-      x <- parser
-      j <- genericLength <$> many (sep "|")
-      return $ Proj i (i + j + 1) x
-    , return $ Tuple []
+    , return Unit
     ]
 
 instance Parse (Hole h) => Parse (Expr h) where
   parser = choice
     [ parenExpr
-    , Lst <$> parseList Square parser
+    , Ctr <$> constructor <*> option Unit parser
+    , mkList <$> parseList Square parser
     , Lit <$> parser
     , Hole <$> parser
     ]
@@ -243,7 +232,7 @@ instance Parse (Hole h) => Parse (Expr h) where
 spacedExprUntil :: Parse (Hole h) => Lexeme -> Parser [Expr h]
 spacedExprUntil l = many $ choice
   [ parenExpr
-  , Lst <$> parseList Square parser
+  , mkList <$> parseList Square parser
   , do
     x <- anySingleBut l
     maybe mzero return $ parseMaybe parser [x]

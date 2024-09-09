@@ -1,4 +1,4 @@
-init : {xs : [a]} -> [a]
+init : {xs : List a} -> List a
 init [] = []
 init [1] = []
 init [2, 1] = [2]

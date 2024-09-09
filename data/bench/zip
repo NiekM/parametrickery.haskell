@@ -1,4 +1,4 @@
-zip : {xs : [a], ys : [b]} -> [(a, b)]
+zip : {xs : List a, ys : List b} -> List (a, b)
 zip [] [] = []
 zip [] [2] = []
 zip [1] [] = []

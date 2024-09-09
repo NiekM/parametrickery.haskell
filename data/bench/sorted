@@ -1,4 +1,4 @@
-sorted : Ord a => {xs : [a]} -> Bool
+sorted : Ord a => {xs : List a} -> Bool
 sorted [] = True
 sorted [2] = True
 sorted [1, 2] = True

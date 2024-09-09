@@ -1,4 +1,4 @@
-reverse : {xs : [a]} -> [a]
+reverse : {xs : List a} -> List a
 reverse [] = []
 reverse [1] = [1]
 reverse [2, 1] = [1, 2]

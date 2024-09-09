@@ -2,6 +2,7 @@ module Language.Container where
 
 import Data.Map.Strict qualified as Map
 import Control.Monad.State
+import Data.List qualified as List
 
 import Base
 import Utils
@@ -20,28 +21,37 @@ data Container = Container
   , elements :: Map Position Term
   } deriving stock (Eq, Ord, Show)
 
+getConstructors :: Text -> [Mono] -> [Datatype] -> [Constructor]
+getConstructors d ts defs = case List.find (\dt -> dt.name == d) defs of
+  Nothing -> error . show $ "Datatype" <+> pretty d <+> "does not exist."
+  Just dt -> dt.constructors <&> \(Constructor c fields) ->
+    Constructor c (fields & instantiate (Map.fromList $ zip dt.arguments ts))
+
 -- Traverse an expression along with its type, introducing holes at free
 -- variables.
-poly :: Mono -> Expr a -> Expr (Text, Expr a)
-poly = \cases
+poly :: [Datatype] -> Mono -> Expr a -> Expr (Text, Expr a)
+poly defs = \cases
   (Free v) x -> return (v, x)
-  (Product ts) (Tuple xs) -> Tuple $ zipWith poly ts xs
-  (Sum ts) (Proj i n x) -> Proj i n $ poly (ts !! fromIntegral i) x
-  (List t) (Lst xs) -> Lst (poly t <$> xs)
+  (Product ts) (Tuple xs) -> Tuple $ zipWith (poly defs) ts xs
+  (Data d ts) (Ctr c x) ->
+    case List.find (\ct -> ct.name == c) (getConstructors d ts defs) of
+      Nothing -> error . show $ "Datatype" <+> pretty d
+        <+> "does not have a constructor" <+> pretty c <> "."
+      Just ct -> Ctr c (poly defs ct.field x)
   (Base _) (Lit x) -> Lit x
   t x -> error . show $
     pretty (void x) <+> "does not have type" <+> pretty t <> "."
 
-computePositions :: Mono -> Term -> Expr (Position, Term)
-computePositions t e = flip evalState mempty do
-  poly t e & traverse \(v, x) -> do
+computePositions :: [Datatype] -> Mono -> Term -> Expr (Position, Term)
+computePositions types t e = flip evalState mempty do
+  poly types t e & traverse \(v, x) -> do
     m <- get
     let n = fromMaybe 0 $ Map.lookup v m
     modify $ Map.insert v (n + 1)
     return (Position v n, x)
 
-toContainer :: Mono -> Term -> Container
-toContainer t = uncurry Container . extract . computePositions t
+toContainer :: [Datatype] -> Mono -> Term -> Container
+toContainer types t = uncurry Container . extract . computePositions types t
 
 fromContainer :: Container -> Term
 fromContainer Container { shape, elements } = case inject elements shape of

@@ -1,4 +1,4 @@
-unzip : {xs : [(a, b)]} -> ([a], [b])
+unzip : {xs : List (a, b)} -> (List a, List b)
 unzip [] = ([], [])
 unzip [(1, 2)] = ([1], [2])
 unzip [(3, 4), (1, 2)] = ([3, 1], [4, 2])

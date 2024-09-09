@@ -1,4 +1,4 @@
-pivot : Ord a => {x : a, xs : [a]} -> ([a], [a])
+pivot : Ord a => {x : a, xs : List a} -> (List a, List a)
 pivot 2 [] = ([], [])
 pivot 2 [2] = ([], [])
 pivot 2 [1] = ([1], [])

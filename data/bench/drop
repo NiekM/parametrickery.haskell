@@ -1,4 +1,4 @@
-drop : {n : Int, xs : [a]} -> [a]
+drop : {n : Int, xs : List a} -> List a
 drop 0 [] = []
 drop 0 [1] = [1]
 drop 0 [2, 1] = [2, 1]

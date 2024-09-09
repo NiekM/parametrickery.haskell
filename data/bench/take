@@ -1,4 +1,4 @@
-take : {n : Int, xs : [a]} -> [a]
+take : {n : Int, xs : List a} -> List a
 take 0 [] = []
 take 0 [1] = []
 take 0 [2, 1] = []

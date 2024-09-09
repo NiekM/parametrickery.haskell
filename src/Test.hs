@@ -10,6 +10,7 @@ import Data.Foldable (asum)
 import Data.List qualified as List
 import Data.Monoid (Alt(..))
 import Data.Maybe (fromJust)
+import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Prettyprinter
 import System.IO.Unsafe qualified as Unsafe
@@ -32,17 +33,14 @@ import Refinements
 -- useful sometimes.
 class    ToExpr a    where toVal :: a -> Expr h
 instance ToExpr Int  where toVal = Lit . MkInt
-instance ToExpr Bool where toVal = Lit . MkBool
+instance ToExpr Bool where toVal = flip Ctr Unit . Text.pack . show
 instance ToExpr ()   where toVal = const $ Tuple []
 
 instance ToExpr a => ToExpr [a] where
-  toVal = Lst . map toVal
+  toVal = mkList . map toVal
 
 instance (ToExpr a, ToExpr b) => ToExpr (a, b) where
   toVal (x, y) = Tuple [toVal x, toVal y]
-
-instance (ToExpr a, ToExpr b) => ToExpr (Either a b) where
-  toVal = either (Proj 0 2) (Proj 1 2) . bimap toVal toVal
 
 ------ Utilities ------
 
@@ -137,11 +135,11 @@ twoRelations = parse
   \_ [(1, 2), (1, 2), (1, 2)] = ([1], [2])"
 
 isFold :: Problem -> [Either Conflict [PolyProblem]]
-isFold p = traverse check <$> xs
+isFold p = traverse (check datatypes) <$> xs
   where DisCon xs = introFoldr p
 
 isFoldPoly :: Problem -> [Either Conflict [PolyProblem]]
-isFoldPoly p = traverse check <$> xs
+isFoldPoly p = traverse (check datatypes) <$> xs
   where DisCon xs = introFoldrPoly p
 
 paperBench :: IO ()
@@ -192,9 +190,9 @@ runBench = do
         print $ pretty name <+> "= foldr f e"
         putStrLn "  where"
         print . indent 4 $ prettyNamed "e" e
-        print . indent 4 . parens . pretty $ coverage e
+        print . indent 4 . parens . pretty $ coverage datatypes e
         putStrLn ""
         print . indent 4 $ prettyNamed "f" f
-        print . indent 4 . parens . pretty $ coverage f
+        print . indent 4 . parens . pretty $ coverage datatypes f
         putStrLn ""
       _ -> error "Wrong number of subproblems."

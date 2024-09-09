@@ -1,4 +1,4 @@
-nub : Eq a => {xs : [a]} -> [a]
+nub : Eq a => {xs : List a} -> List a
 nub [] = []
 nub [1] = [1]
 nub [1, 1] = [1]

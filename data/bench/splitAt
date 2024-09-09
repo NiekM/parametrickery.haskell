@@ -1,4 +1,4 @@
-splitAt : {n : Int, xs : [a]} -> ([a], [a])
+splitAt : {n : Int, xs : List a} -> (List a, List a)
 splitAt 0 [] = ([], [])
 splitAt 0 [1] = ([], [1])
 splitAt 0 [2, 1] = ([], [2, 1])

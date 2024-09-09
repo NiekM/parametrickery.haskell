@@ -1,5 +1,5 @@
-head : {xs : [a]} -> (a | ())
-head [] = (|())
-head [1] = (1|)
-head [2, 1] = (2|)
-head [3, 2, 1] = (3|)
+head : {xs : List a} -> Maybe a
+head [] = Nothing
+head [1] = Just 1
+head [2, 1] = Just 2
+head [3, 2, 1] = Just 3

@@ -14,23 +14,24 @@ import Language.Container.Morphism
 import Language.Container.Relation
 import Language.Declaration
 
--- TODO: how do we calculate the positions? afterwards?
-coveringShapes :: Mono -> Maybe [Expr Text]
-coveringShapes = \case
-  Free a -> return [Hole $ MkHole a]
-  Product ts -> do
-    xss <- traverse coveringShapes ts
-    return $ Tuple <$> sequence xss
-  Sum ts -> do
-    xss <- traverse coveringShapes ts
-    let n = List.genericLength ts
-    return . concat $ zipWith (\i xs -> Proj i n <$> xs) [0..] xss
-  List t -> do
-    -- We can only cover all possible lists if it is a list of voids.
-    [] <- coveringShapes t
-    return [Lst []]
-  Base Int -> Nothing
-  Base Bool -> return $ map (Lit . MkBool) [False, True]
+coveringShapes :: [Datatype] -> Mono -> Maybe [Expr Text]
+coveringShapes defs = go []
+  where
+    -- We keep track of datatype names to recognize recursion.
+    go :: [Text] -> Mono -> Maybe [Expr Text]
+    go recs = \case
+      -- Holes remember their type, so that we can fill in the positions later.
+      Free a -> return [Hole $ MkHole a]
+      Product ts -> do
+        xss <- traverse (go recs) ts
+        return $ Tuple <$> sequence xss
+      Data d ts
+        | d `elem` recs -> Nothing
+        | otherwise ->
+          concat <$> forM (getConstructors d ts defs) \(Constructor c t) -> do
+            xs <- go (d : recs) t
+            return $ Ctr c <$> xs
+      Base Int -> Nothing
 
 anywhere :: (a -> b -> [b]) -> (a -> b) -> a -> [b] -> [[b]]
 anywhere _ e x [] = [[e x]]
@@ -70,9 +71,9 @@ toShape expr = flip evalState mempty $ forM expr \v -> do
   return $ Position v n
 
 -- Computes all shapes and relations required for coverage (if possible)
-coveringPatterns :: [Constraint] -> [Mono] -> Maybe [Pattern]
-coveringPatterns constraints context = do
-  shapes <- map toShape <$> coveringShapes (Product context)
+coveringPatterns :: [Datatype] -> [Constraint] -> [Mono] -> Maybe [Pattern]
+coveringPatterns defs constraints context = do
+  shapes <- map toShape <$> coveringShapes defs (Product context)
   concat <$> forM shapes \shape -> do
     let
       inputs = unTuple shape
@@ -80,8 +81,8 @@ coveringPatterns constraints context = do
       relations = traverse (coveringRelations positions) constraints
     return $ Pattern inputs <$> relations
 
-signatureCoverage :: Signature -> Maybe (Set Pattern)
-signatureCoverage signature = Set.fromList <$> coveringPatterns
+signatureCoverage :: [Datatype] -> Signature -> Maybe (Set Pattern)
+signatureCoverage defs signature = Set.fromList <$> coveringPatterns defs
   signature.constraints
   (map (.value) signature.context)
 
@@ -107,8 +108,8 @@ instance Pretty Coverage where
 -- have relation coverage? or subpattern coverage, e.g. if it's a list booleans,
 -- do we still want coverage checking for a pattern such as [True], letting us
 -- know that we are missing [False]?
-coverage :: PolyProblem -> Coverage
-coverage problem = case signatureCoverage problem.signature of
+coverage :: [Datatype] -> PolyProblem -> Coverage
+coverage defs problem = case signatureCoverage defs problem.signature of
   Nothing -> Partial
   Just possible ->
     let

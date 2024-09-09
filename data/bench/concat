@@ -1,4 +1,4 @@
-concat : {xs : [[a]]} -> [a]
+concat : {xs : List (List a)} -> List a
 concat [] = []
 concat [[]] = []
 concat [[1]] = [1]

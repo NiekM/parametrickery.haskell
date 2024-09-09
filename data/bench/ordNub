@@ -1,4 +1,4 @@
-ordNub : Ord a => {xs : [a]} -> [a]
+ordNub : Ord a => {xs : List a} -> List a
 ordNub [] = []
 ordNub [1] = [1]
 ordNub [1, 1] = [1]

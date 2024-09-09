@@ -6,8 +6,9 @@ import Data.Foldable
 
 import Base
 import Data.Named
+import Prettyprinter.Utils
 
-data Lit = MkInt Int | MkBool Bool
+newtype Lit = MkInt Int
   deriving stock (Eq, Ord, Show)
 
 -- Used for pretty printing
@@ -17,12 +18,20 @@ newtype Hole h = MkHole { hole :: h }
 
 data Expr h where
   Tuple :: [Expr h] -> Expr h
-  Proj :: Nat -> Nat -> Expr h -> Expr h
-  Lst  :: [Expr h] -> Expr h
+  Ctr  :: Text -> Expr h -> Expr h
   Lit  :: Lit -> Expr h
   Hole :: Hole h -> Expr h
   deriving stock (Eq, Ord, Show)
   deriving stock (Functor, Foldable, Traversable)
+
+pattern Unit :: Expr h
+pattern Unit = Tuple []
+
+pattern Nil :: Expr h
+pattern Nil = Ctr "Nil" Unit
+
+pattern Cons :: Expr h -> Expr h -> Expr h
+pattern Cons x xs = Ctr "Cons" (Tuple [x, xs])
 
 type Term = Expr Void
 
@@ -41,13 +50,25 @@ instance Monad Expr where
 accept :: Expr (Expr h) -> Expr h
 accept = \case
   Tuple xs -> Tuple (map accept xs)
-  Proj i n x -> Proj i n (accept x)
-  Lst xs -> Lst (map accept xs)
+  Ctr c x -> Ctr c (accept x)
   Lit l -> Lit l
   Hole e -> e.hole
 
 holes :: Expr h -> [h]
 holes = toList
+
+mkList :: [Expr h] -> Expr h
+mkList = foldr Cons Nil
+
+unList :: Expr h -> Maybe [Expr h]
+unList = \case
+  Nil -> Just []
+  Cons x xs -> (x:) <$> unList xs
+  _ -> Nothing
+
+pattern List :: [Expr h] -> Expr h
+pattern List xs <- (unList -> Just xs)
+  where List xs = mkList xs
 
 -- A monomorphic input-output example according to some function signature. We
 -- do not have to give a specific type instantiation, because we may make the
@@ -62,8 +83,7 @@ data Example = Example
 
 instance Pretty Lit where
   pretty = \case
-    MkInt  n -> pretty n
-    MkBool b -> pretty b
+    MkInt n -> pretty n
 
 instance Pretty (Hole Void) where
   pretty (MkHole h) = absurd h
@@ -74,24 +94,23 @@ instance Pretty (Hole ()) where
 instance Pretty (Hole Text) where
   pretty (MkHole h) = braces $ pretty h
 
-instance Pretty (Hole h) => Pretty (Hole (Expr h)) where
-  pretty (MkHole h) = braces $ pretty h
-
 instance Pretty (Hole h) => Pretty (Expr h) where
-  pretty = \case
+  pretty = prettyMinPrec
+
+instance Pretty (Hole h) => Pretty (Prec (Expr h)) where
+  pretty (Prec p e) = case e of
     Tuple xs -> tupled $ map pretty xs
-    Proj i n x -> encloseSep lparen rparen "|" $
-      replicate (fromIntegral i) mempty
-      ++ pretty x : replicate (fromIntegral (n - i - 1)) mempty
-    Lst xs   -> pretty xs
-    Lit l    -> pretty l
-    Hole v   -> pretty v
+    List xs -> pretty xs
+    Ctr c Unit -> pretty c
+    Ctr c x -> parensIf (p > 2) $ pretty c <+> prettyPrec 3 x
+    Lit l -> pretty l
+    Hole v -> pretty v
 
 instance Pretty Example where
   pretty (Example [] out) = pretty out
   pretty (Example ins out) =
-    sep (map pretty ins) <+> "->" <+> pretty out
+    sep (map prettyMaxPrec ins) <+> "->" <+> pretty out
 
 instance Pretty (Named Example) where
   pretty (Named name (Example ins out)) =
-    sep (pretty name : map pretty ins ++ ["=", pretty out])
+    sep (pretty name : map prettyMaxPrec ins ++ ["=", pretty out])

@@ -1,4 +1,4 @@
-append : {xs : [a], ys : [a]} -> [a]
+append : {xs : List a, ys : List a} -> List a
 append [] [] = []
 append [] [1] = [1]
 append [1] [] = [1]

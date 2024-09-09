@@ -18,6 +18,7 @@ import Data.Named
 import Language.Container.Morphism
 import Language.Declaration
 import Language.Parser
+import Language.Type
 import Refinements
 
 import System.IO.Unsafe qualified as Unsafe
@@ -39,7 +40,7 @@ main :: IO ()
 main = do
   forM_ bench \(Named name problem) -> do
     print name
-    print . pretty $ isFold problem
+    print . pretty $ isFoldPoly problem
 
 data Expect = Yay | Nay Conflict
   deriving stock Show
@@ -47,7 +48,7 @@ data Expect = Yay | Nay Conflict
 expect :: Expect -> Named Problem -> IO ()
 expect e (Named name p) = do
   print name
-  case check p of
+  case check datatypes p of
     Left result -> case e of
       Yay -> do
         print $ "Expected a succes, but got" <+> pretty result
@@ -66,9 +67,9 @@ expect e (Named name p) = do
         print x
   putStrLn ""
 
-isFold :: Problem -> [Either Conflict [PolyProblem]]
-isFold p = traverse check <$> xs
-  where DisCon xs = introFoldr p
+isFoldPoly :: Problem -> [Either Conflict [PolyProblem]]
+isFoldPoly p = traverse (check datatypes) <$> xs
+  where DisCon xs = introFoldrPoly p
 
 instance (Pretty a, Pretty b) => Pretty (Either a b) where
   pretty = either pretty pretty

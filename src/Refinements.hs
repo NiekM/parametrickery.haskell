@@ -153,12 +153,12 @@ shrinkContext = fromArg \_arg problem -> return [problem]
 
 elimList :: Refinement
 elimList = fromArg \cases
-  (Named name (List t, terms)) problem ->
+  (Named name (Data "List" [t], terms)) problem ->
     let
       (nil, cons) = zip terms problem.bindings & mapEither \case
-        (Lst [], ex) -> Left ex
-        (Lst (y:ys), Example ins out) ->
-          Right $ Example (ins ++ [y, Lst ys]) out
+        (Nil, ex) -> Left ex
+        (Cons y ys, Example ins out) ->
+          Right $ Example (ins ++ [y, ys]) out
         _ -> error "Expected a list!"
     in Just
       [ problem { bindings = nil }
@@ -166,7 +166,7 @@ elimList = fromArg \cases
       , Declaration problem.signature
         { context = problem.signature.context ++
           [ Named (name <> "_h") t
-          , Named (name <> "_t") (List t)
+          , Named (name <> "_t") (Data "List" [t])
           ]
         } cons
       ]
@@ -179,10 +179,11 @@ introMap :: Refinement
 introMap = fromArg \cases
   -- We lift `v : t` out of the problem. `es` are the different values `v` had
   -- in the different examples.
-  (Named name (List given, terms))
-    (Declaration signature@Signature { context, goal = List goal } examples) ->
+  (Named name (Data "List" [given], terms))
+    (Declaration signature@Signature
+      { context, goal = Data "List" [goal] } examples) ->
     zip terms examples & mapM \case
-      (Lst inputs, Example scope (Lst outputs)) -> do
+      (List inputs, Example scope (List outputs)) -> do
         guard $ length inputs == length outputs
         return Declaration
           { signature = signature
@@ -196,14 +197,14 @@ introMap = fromArg \cases
 
 introFoldr :: Refinement
 introFoldr = fromArg \cases
-  (Named name (List t, terms)) problem ->
+  (Named name (Data "List" [t], terms)) problem ->
     let
       paired = zip terms problem.bindings
       -- We compute the constraints for the nil and the cons case.
       (nil, cons) = paired & mapEither \case
-        (Lst [], ex) -> Left ex
-        (Lst (y:ys), Example ins out) ->
-          case paired & List.find \(l, x) -> l == Lst ys && x.inputs == ins of
+        (Nil, ex) -> Left ex
+        (Cons y ys, Example ins out) ->
+          case paired & List.find \(l, x) -> l == ys && x.inputs == ins of
             Just (_, x) -> return $ Example (ins ++ [y, x.output]) out
             _ -> error "Trace incomplete!"
         _ -> error "Expected a list!"
@@ -220,24 +221,24 @@ introFoldr = fromArg \cases
 
 introFoldrPoly :: Refinement
 introFoldrPoly = fromArg \cases
-  (Named name (List t, terms)) problem -> do
+  (Named name (Data "List" [t], terms)) problem -> do
     let paired = zip terms problem.bindings
-    polyProblem <- either (const Nothing) Just $ check
+    polyProblem <- either (const Nothing) Just $ check datatypes
       -- This is just problem with the list pulled to the front.
       -- TODO: refactor so that this is not necessary.
       Declaration
       { signature = problem.signature
-        { context = Named name (List t) : problem.signature.context }
+        { context = Named name (Data "List" [t]) : problem.signature.context }
       , bindings = paired <&> \(i, Example is o) -> Example (i:is) o
       }
     let
       -- We compute the constraints for the nil and the cons case.
       (nil, cons) = paired & mapEither \case
-        (Lst [], ex) -> Left ex
-        (Lst (y:ys), Example ins out) ->
+        (Nil, ex) -> Left ex
+        (Cons y ys, Example ins out) ->
           let
             types = map (.value) polyProblem.signature.context
-            inContainer = toContainer (Product types) (Tuple (Lst ys:ins))
+            inContainer = toContainer datatypes (Product types) (Tuple (ys:ins))
           in case applyPoly inContainer polyProblem of
             Nothing -> error "Not shape complete!"
             Just c -> return $ Example (ins ++ [y, fromContainer c]) out
