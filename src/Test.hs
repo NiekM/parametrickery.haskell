@@ -136,11 +136,7 @@ twoRelations = parse
 
 isFold :: Problem -> [Either Conflict [PolyProblem]]
 isFold p = traverse (check datatypes) <$> xs
-  where DisCon xs = introFoldr p
-
-isFoldPoly :: Problem -> [Either Conflict [PolyProblem]]
-isFoldPoly p = traverse (check datatypes) <$> xs
-  where DisCon xs = introFoldrPoly p
+  where DisCon xs = introFold p
 
 paperBench :: IO ()
 paperBench = do
@@ -148,7 +144,7 @@ paperBench = do
     putStrLn ""
     print $ "Problem:" <+> pretty name
     putStrLn ""
-    forM_ (isFoldPoly problem) \case
+    forM_ (isFold problem) \case
       Left e -> print $ pretty e
       Right [e, f] -> do
         print $ pretty name <+> "= foldr f e"
@@ -184,7 +180,7 @@ runBench = do
     print $ "Problem:" <+> pretty name
     putStrLn ""
     -- TODO: report when it is not applicable (i.e. no list in scope)
-    forM_ (isFoldPoly problem) \case
+    forM_ (isFold problem) \case
       Left e -> print $ pretty e
       Right [e, f] -> do
         print $ pretty name <+> "= foldr f e"

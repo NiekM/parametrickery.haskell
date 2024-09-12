@@ -40,7 +40,7 @@ main :: IO ()
 main = do
   forM_ bench \(Named name problem) -> do
     print name
-    print . pretty $ isFoldPoly problem
+    print . pretty $ isFold problem
 
 data Expect = Yay | Nay Conflict
   deriving stock Show
@@ -67,9 +67,9 @@ expect e (Named name p) = do
         print x
   putStrLn ""
 
-isFoldPoly :: Problem -> [Either Conflict [PolyProblem]]
-isFoldPoly p = traverse (check datatypes) <$> xs
-  where DisCon xs = introFoldrPoly p
+isFold :: Problem -> [Either Conflict [PolyProblem]]
+isFold p = traverse (check datatypes) <$> xs
+  where DisCon xs = introFold p
 
 instance (Pretty a, Pretty b) => Pretty (Either a b) where
   pretty = either pretty pretty

@@ -195,32 +195,8 @@ introMap = fromArg \cases
       _ -> error "Not actually lists."
   _ _ -> Nothing
 
-introFoldr :: Refinement
-introFoldr = fromArg \cases
-  (Named name (Data "List" [t], terms)) problem ->
-    let
-      paired = zip terms problem.bindings
-      -- We compute the constraints for the nil and the cons case.
-      (nil, cons) = paired & mapEither \case
-        (Nil, ex) -> Left ex
-        (Cons y ys, Example ins out) ->
-          case paired & List.find \(l, x) -> l == ys && x.inputs == ins of
-            Just (_, x) -> return $ Example (ins ++ [y, x.output]) out
-            _ -> error "Trace incomplete!"
-        _ -> error "Expected a list!"
-    in Just
-      [ problem { bindings = nil }
-      , Declaration problem.signature
-        { context = problem.signature.context ++
-          [ Named (name <> "_h") t
-          , Named (name <> "_r") problem.signature.goal
-          ]
-        } cons
-      ]
-  _ _ -> Nothing
-
-introFoldrPoly :: Refinement
-introFoldrPoly = fromArg \cases
+introFold :: Refinement
+introFold = fromArg \cases
   (Named name (Data "List" [t], terms)) problem -> do
     let paired = zip terms problem.bindings
     polyProblem <- either (const Nothing) Just $ check datatypes
@@ -251,5 +227,49 @@ introFoldrPoly = fromArg \cases
           , Named (name <> "_r") problem.signature.goal
           ]
         } cons
+      ]
+  -- TODO: how do we check that this is actually correct?
+  (Named name (Data "Tree" [t, u], terms)) problem -> do
+    let paired = zip terms problem.bindings
+    polyProblem <- either (const Nothing) Just $ check datatypes
+      -- This is just problem with the list pulled to the front.
+      -- TODO: refactor so that this is not necessary.
+      Declaration
+      { signature = problem.signature
+        { context = Named name (Data "Tree" [t, u])
+          : problem.signature.context }
+      , bindings = paired <&> \(i, Example is o) -> Example (i:is) o
+      }
+    let
+      -- We compute the constraints for the nil and the cons case.
+      (leaf, node) = paired & mapEither \case
+        (Ctr "Leaf" x, Example ins out) -> Left (Example (ins ++ [x]) out)
+        (Ctr "Node" (Tuple [l, x, r]), Example ins out) ->
+          let
+            types = map (.value) polyProblem.signature.context
+            leftContainer = toContainer datatypes (Product types)
+              (Tuple (l:ins))
+            rightContainer = toContainer datatypes (Product types)
+              (Tuple (r:ins))
+          in case
+            ( applyPoly leftContainer polyProblem
+            , applyPoly rightContainer polyProblem
+            ) of
+            (Just left, Just right) -> return $
+              Example (ins ++ [fromContainer left, x, fromContainer right]) out
+            _ -> error "Not shape complete!"
+        _ -> error "Expected a tree!"
+    Just
+      [ Declaration problem.signature
+        { context = problem.signature.context ++
+          [ Named (name <> "_y") u ]
+        } leaf
+      , Declaration problem.signature
+        { context = problem.signature.context ++
+          [ Named (name <> "_l") problem.signature.goal
+          , Named (name <> "_x") t
+          , Named (name <> "_r") problem.signature.goal
+          ]
+        } node
       ]
   _ _ -> Nothing

@@ -21,6 +21,11 @@ data Expr h where
   Ctr  :: Text -> Expr h -> Expr h
   Lit  :: Lit -> Expr h
   Hole :: Hole h -> Expr h
+  -- TODO: The derived Ord instance uses comparison of Text to compare
+  -- constructors, but this messes with the ordering of examples. Perhaps a
+  -- better solution would be to just use a natural number internally for
+  -- constructors and only retrieving the constructor name during pretty
+  -- printing.
   deriving stock (Eq, Ord, Show)
   deriving stock (Functor, Foldable, Traversable)
 
