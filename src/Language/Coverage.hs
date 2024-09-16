@@ -81,8 +81,8 @@ coveringPatterns defs constraints context = do
       relations = traverse (coveringRelations positions) constraints
     return $ Pattern inputs <$> relations
 
-signatureCoverage :: [Datatype] -> Signature -> Maybe (Set Pattern)
-signatureCoverage defs signature = Set.fromList <$> coveringPatterns defs
+expectedCoverage :: [Datatype] -> Signature -> Maybe (Set Pattern)
+expectedCoverage defs signature = Set.fromList <$> coveringPatterns defs
   signature.constraints
   (map (.value) signature.context)
 
@@ -109,11 +109,11 @@ instance Pretty Coverage where
 -- do we still want coverage checking for a pattern such as [True], letting us
 -- know that we are missing [False]?
 coverage :: [Datatype] -> PolyProblem -> Coverage
-coverage defs problem = case signatureCoverage defs problem.signature of
+coverage defs problem = case expectedCoverage defs problem.signature of
   Nothing -> Partial
-  Just possible ->
+  Just expected ->
     let
       covered = bindingCoverage problem.bindings
-      missing = possible Set.\\ covered
-      -- shapes = Set.map (.shapes) possible Set.\\ Set.map (.shapes) covered
+      missing = expected Set.\\ covered
+      -- shapes = Set.map (.shapes) expected Set.\\ Set.map (.shapes) covered
     in if null missing then Total else Missing missing

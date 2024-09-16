@@ -147,7 +147,7 @@ paperBench = do
     forM_ (isFold problem) \case
       Left e -> print $ pretty e
       Right [e, f] -> do
-        print $ pretty name <+> "= foldr f e"
+        print $ pretty name <+> "= fold f e"
         putStrLn "  where"
         print . indent 4 $ prettyNamed "e" e
         putStrLn ""
@@ -183,7 +183,7 @@ runBench = do
     forM_ (isFold problem) \case
       Left e -> print $ pretty e
       Right [e, f] -> do
-        print $ pretty name <+> "= foldr f e"
+        print $ pretty name <+> "= fold f e"
         putStrLn "  where"
         print . indent 4 $ prettyNamed "e" e
         print . indent 4 . parens . pretty $ coverage datatypes e
