@@ -59,10 +59,6 @@ coveringRelations ps = \case
     let qs = filter (\x -> x.var == a) ps
     in RelOrd . map Set.fromList <$> concatMap orderings (subs qs)
 
-unTuple :: Expr h -> [Expr h]
-unTuple (Tuple xs) = xs
-unTuple _ = error "Expected Tuple"
-
 toShape :: Expr Text -> Shape
 toShape expr = flip evalState mempty $ forM expr \v -> do
   m <- get
@@ -75,8 +71,8 @@ coveringPatterns :: [Datatype] -> [Constraint] -> [Mono] -> Maybe [Pattern]
 coveringPatterns defs constraints context = do
   shapes <- map toShape <$> coveringShapes defs (Product context)
   concat <$> forM shapes \shape -> do
+    inputs <- projections shape
     let
-      inputs = unTuple shape
       positions = holes shape
       relations = traverse (coveringRelations positions) constraints
     return $ Pattern inputs <$> relations

@@ -8,7 +8,6 @@ import Data.Named
 import Language.Type
 import Language.Expr
 import Language.Declaration
-import Language.Container
 import Language.Container.Morphism
 
 import Utils
@@ -47,29 +46,27 @@ What exactly do we expect from a refinement?
 
 type Arg = (Mono, [Term])
 
--- Lifts the nth argument out of a problem.
-liftArg :: Nat -> Problem -> Maybe (Named Arg, Problem)
-liftArg n (Declaration sig@Signature { context } exs)
-  | n >= fromIntegral (length context) = Nothing
-  | otherwise = Just
-    (arg <&> (, exprs), Declaration sig { context = context' } exs')
-  where
-    (arg, context') = pick n context
-    (exprs, exs') = unzip $ pickEx <$> exs
+pick :: Nat -> [a] -> Maybe (a, [a])
+pick i xs = case List.genericSplitAt i xs of
+  (ys, z:zs) -> Just (z, ys ++ zs)
+  _ -> Nothing
 
-    pickEx (Example (pick n -> (i, ins)) out) = (i, Example ins out)
+pickInput :: Nat -> Example -> Maybe (Term, Example)
+pickInput i (Example ins out) = fmap (`Example` out) <$> pick i ins
 
-    pick :: Nat -> [a] -> (a, [a])
-    pick i xs = case splitAt (fromIntegral i) xs of
-      (ys, z:zs) -> (z, ys ++ zs)
-      _ -> error "Error"
+pickArg :: Nat -> Problem -> Maybe (Named Arg, Problem)
+pickArg i (Declaration sig exs) = do
+  (t, context) <- pick i sig.context
+  (xs, examples) <- mapAndUnzipM (pickInput i) exs
+  return (fmap (, xs) t, Declaration sig { context } examples)
 
--- All possible ways to lift one argument from a problem.
+-- All possible ways to pick one argument from a problem.
 pickApart :: Problem -> [(Named Arg, Problem)]
 pickApart p@(Declaration Signature { context } _) =
-  zipWith const [0..] context & mapMaybe (`liftArg` p)
+  zipWith const [0..] context & mapMaybe (`pickArg` p)
 
 addArgs :: [Named Arg] -> Problem -> Problem
+addArgs [] p = p
 addArgs args Declaration { signature, bindings } =
   Declaration
     { signature = signature { context = signature.context ++ types }
@@ -212,12 +209,9 @@ introFold = fromArg \cases
       (nil, cons) = paired & mapEither \case
         (Nil, ex) -> Left ex
         (Cons y ys, Example ins out) ->
-          let
-            types = map (.value) polyProblem.signature.context
-            inContainer = toContainer datatypes (Product types) (Tuple (ys:ins))
-          in case applyPoly inContainer polyProblem of
+          case applyProblem polyProblem (ys:ins) of
             Nothing -> error "Not shape complete!"
-            Just c -> return $ Example (ins ++ [y, fromContainer c]) out
+            Just r -> return $ Example (ins ++ [y, r]) out
         _ -> error "Expected a list!"
     Just
       [ problem { bindings = nil }
@@ -228,11 +222,9 @@ introFold = fromArg \cases
           ]
         } cons
       ]
-  -- TODO: how do we check that this is actually correct?
   (Named name (Data "Tree" [t, u], terms)) problem -> do
     let paired = zip terms problem.bindings
     polyProblem <- either (const Nothing) Just $ check datatypes
-      -- This is just problem with the list pulled to the front.
       -- TODO: refactor so that this is not necessary.
       Declaration
       { signature = problem.signature
@@ -241,22 +233,14 @@ introFold = fromArg \cases
       , bindings = paired <&> \(i, Example is o) -> Example (i:is) o
       }
     let
+      recurse = applyProblem polyProblem
       -- We compute the constraints for the nil and the cons case.
       (leaf, node) = paired & mapEither \case
         (Ctr "Leaf" x, Example ins out) -> Left (Example (ins ++ [x]) out)
         (Ctr "Node" (Tuple [l, x, r]), Example ins out) ->
-          let
-            types = map (.value) polyProblem.signature.context
-            leftContainer = toContainer datatypes (Product types)
-              (Tuple (l:ins))
-            rightContainer = toContainer datatypes (Product types)
-              (Tuple (r:ins))
-          in case
-            ( applyPoly leftContainer polyProblem
-            , applyPoly rightContainer polyProblem
-            ) of
+          case (recurse (l:ins), recurse (r:ins)) of
             (Just left, Just right) -> return $
-              Example (ins ++ [fromContainer left, x, fromContainer right]) out
+              Example (ins ++ [left, x, right]) out
             _ -> error "Not shape complete!"
         _ -> error "Expected a tree!"
     Just

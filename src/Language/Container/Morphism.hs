@@ -5,6 +5,7 @@
 module Language.Container.Morphism where
 
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 
 import Control.Applicative
@@ -21,6 +22,7 @@ import Language.Declaration
 import Language.Container
 import Language.Container.Relation
 import Prettyprinter.Utils
+import Utils
 
 -- TODO: maybe rewrite with some other datatype?
 type Origins = Multi Position Position
@@ -46,8 +48,8 @@ data PolyExample = PolyExample
 -- output values are a subset (and if they are not, this is already a conflict).
 -- TODO: currently, no type checking is performed, so some nonsensical programs
 -- are considered realizable.
-checkExample
-  :: [Datatype] -> Signature -> Example -> Either Conflict PolyExample
+checkExample :: [Datatype] -> Signature -> Example
+  -> Either Conflict PolyExample
 checkExample defs signature example
   | length types /= length example.inputs =
     Left $ ArgumentMismatch types example.inputs
@@ -59,15 +61,13 @@ checkExample defs signature example
     input = toContainer defs (Product types) (Tuple example.inputs)
     output = toContainer defs signature.goal example.output
     relations = computeRelations signature.constraints input.elements
+    shapes = projections input.shape & fromMaybe (error "Expect tuple")
 
     result = PolyExample
-      { input   = Pattern (unTuple input.shape) relations
+      { input   = Pattern shapes relations
       , output  = output.shape
       , origins = computeOrigins input.elements output.elements
       }
-
-    unTuple (Tuple xs) = xs
-    unTuple _ = error "Expected tuple"
 
 -- | Combine multiple examples, checking if there are no conflicts.
 combine :: [PolyExample] -> Either Conflict [PolyExample]
@@ -105,29 +105,31 @@ check defs (Declaration signature exs) = do
   bindings <- combine =<< mapM (checkExample defs signature) exs
   return Declaration { signature, bindings }
 
--- TODO: check if this behaves as expected
--- It is a bit random that this one works on Containers and applyExamples works
--- on Terms.
-applyExample :: Container -> [Relation] -> PolyExample -> Maybe Container
-applyExample input rels example
-  | Tuple example.input.shapes == input.shape
-  , example.input.relations == rels
-  , Just elements <- outElements = Just Container
-    { shape = example.output
-    , elements
-    }
-  | otherwise = Nothing
-  where
-    outElements =
-      Multi.toMap $ Multi.compose (Multi.fromMap input.elements) example.origins
-
 altMap :: (Foldable f, Alternative m) => (a -> m b) -> f a -> m b
 altMap f = getAlt . foldMap (Alt . f)
 
-applyPoly :: Container -> PolyProblem -> Maybe Container
-applyPoly container Declaration { signature, bindings } =
-  altMap (applyExample container relations) bindings
-  where relations = computeRelations signature.constraints container.elements
+matchShape :: Shape -> Term -> Maybe (Map Position Term)
+matchShape (Tuple xs) (Tuple ys) = Map.unions <$> zipWithM matchShape xs ys
+matchShape (Ctr c x) (Ctr d y) | c == d = matchShape x y
+matchShape (Lit i) (Lit j) | i == j = Just Map.empty
+matchShape (Hole (MkHole p)) x = Just $ Map.singleton p x
+matchShape _ _ = Nothing
+
+matchPattern :: Pattern -> [Term] -> Maybe (Map Position Term)
+matchPattern patt terms = do
+  elements <- Map.unions <$> zipWithM matchShape patt.shapes terms
+  guard $ all (checkRelation elements) patt.relations
+  return elements
+
+applyExample :: PolyExample -> [Term] -> Maybe Term
+applyExample example terms = do
+  inElements <- matchPattern example.input terms
+  outElements <-
+    Multi.toMap $ Multi.compose (Multi.fromMap inElements) example.origins
+  accept <$> inject outElements example.output
+
+applyProblem :: PolyProblem -> [Term] -> Maybe Term
+applyProblem problem terms = altMap (`applyExample` terms) problem.bindings
 
 ------ Pretty ------
 

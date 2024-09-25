@@ -3,6 +3,7 @@ module Base
   , module Data.Functor
   , module Data.Bifunctor
   , module Data.Void
+  , module Data.Ord
   , module Data.Text
   , module Data.Map
   , module Data.Set
@@ -20,6 +21,7 @@ import Data.Functor ((<&>))
 import Data.Bifunctor (bimap, first, second)
   
 import Data.Void
+import Data.Ord
 import Numeric.Natural (Natural)
 import Data.Text (Text)
 

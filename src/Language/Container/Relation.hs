@@ -2,6 +2,7 @@ module Language.Container.Relation
   ( Relation(..)
   , computeRelations
   , relevant
+  , checkRelation
   ) where
 
 import Data.List.NonEmpty qualified as NonEmpty
@@ -35,10 +36,26 @@ order a
   . Map.assocs
   . Map.filterWithKey \Position { var } _ -> a == var
 
-computeRelations :: [Constraint] -> Map Position Term -> [Relation]
-computeRelations cs p = cs <&> \case
+computeRelation :: Map Position Term -> Constraint -> Relation
+computeRelation p = \case
   Eq  a -> RelEq . Set.fromList $ order a p
   Ord a -> RelOrd $ order a p
+
+computeRelations :: [Constraint] -> Map Position Term -> [Relation]
+computeRelations cs p = cs <&> computeRelation p
+
+ordered :: Ord a => [a] -> Bool
+ordered [] = True
+ordered (x:xs) = and $ zipWith (<) (x:xs) xs
+
+checkRelation :: Map Position Term -> Relation -> Bool
+checkRelation elements = \case
+  RelEq r ->
+    let q = Set.map (Set.map (elements Map.!?)) r
+    in all ((== 1) . Set.size) q && Set.size q == Set.size r
+  RelOrd r ->
+    let q = map (Set.map (elements Map.!?)) r
+    in all ((== 1) . Set.size) q && ordered q
 
 ------ Pretty ------
 

@@ -21,12 +21,6 @@ data Container = Container
   , elements :: Map Position Term
   } deriving stock (Eq, Ord, Show)
 
-getConstructors :: Text -> [Mono] -> [Datatype] -> [Constructor]
-getConstructors d ts defs = case List.find (\dt -> dt.name == d) defs of
-  Nothing -> error . show $ "Datatype" <+> pretty d <+> "does not exist."
-  Just dt -> dt.constructors <&> \(Constructor c fields) ->
-    Constructor c (fields & instantiate (Map.fromList $ zip dt.arguments ts))
-
 -- Traverse an expression along with its type, introducing holes at free
 -- variables.
 poly :: [Datatype] -> Mono -> Expr a -> Expr (Text, Expr a)
