@@ -61,7 +61,7 @@ checkExample defs signature example
     input = toContainer defs (Product types) (Tuple example.inputs)
     output = toContainer defs signature.goal example.output
     relations = computeRelations signature.constraints input.elements
-    shapes = projections input.shape & fromMaybe (error "Expect tuple")
+    shapes = projections input.shape
 
     result = PolyExample
       { input   = Pattern shapes relations

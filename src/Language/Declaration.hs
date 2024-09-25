@@ -26,32 +26,26 @@ instance Pretty (Named binding) => Pretty (Named (Declaration binding)) where
     statements (prettyNamed name sig : map (prettyNamed name) exs)
 
 class Project a where
-  projections :: Project a => a -> Maybe [a]
-  projections x = sequence . takeWhile isJust $ (`project` x) <$> [0..]
-
-  project :: Nat -> a -> Maybe a
-  project i x = projections x >>= (List.!? fromIntegral i)
+  projections :: Project a => a -> [a]
 
 instance Project (Expr h) where
   projections = \case
-    Tuple xs -> Just xs
-    _ -> Nothing
+    Tuple xs -> xs
+    x -> [x]
 
 instance Project Mono where
   projections = \case
-    Product ts -> Just ts
-    _ -> Nothing
+    Product ts -> ts
+    t -> [t]
 
 instance Project Example where
-  projections (Example ins out) = fmap (Example ins) <$> projections out
+  projections (Example ins out) = Example ins <$> projections out
 
 instance Project Signature where
-  projections sig = do
-    ts <- projections sig.goal
-    return $ ts <&> \t -> sig { goal = t }
+  projections sig = projections sig.goal <&> \t -> sig { goal = t }
 
 instance Project Problem where
-  projections prob = do
-    ss <- projections prob.signature
-    bs <- forM prob.bindings projections
-    return $ zipWith Declaration ss (List.transpose bs)
+  projections prob = zipWith Declaration ss bs
+    where
+      ss = projections prob.signature
+      bs = List.transpose $ map projections prob.bindings

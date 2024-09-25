@@ -73,9 +73,7 @@ testTactic p t = case runReader (runTacticT t p 0) datatypes of
       print $ pretty (Named h subproblem)
 
 tuple :: T' ()
-tuple = rule \prob -> case projections prob of
-  Just ps -> Tuple <$> forM ps subgoal
-  _ -> unsolvable "no tuple"
+tuple = rule \prob -> Tuple <$> mapM subgoal (projections prob)
 
 argRule :: Nat ->
   ((Named Arg, Problem) -> RuleT Problem (Expr Text) String Int (Reader [Datatype]) (Expr Text)) -> T' ()

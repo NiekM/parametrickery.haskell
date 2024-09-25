@@ -71,8 +71,8 @@ coveringPatterns :: [Datatype] -> [Constraint] -> [Mono] -> Maybe [Pattern]
 coveringPatterns defs constraints context = do
   shapes <- map toShape <$> coveringShapes defs (Product context)
   concat <$> forM shapes \shape -> do
-    inputs <- projections shape
     let
+      inputs = projections shape
       positions = holes shape
       relations = traverse (coveringRelations positions) constraints
     return $ Pattern inputs <$> relations
