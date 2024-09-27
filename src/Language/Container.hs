@@ -1,8 +1,9 @@
 module Language.Container where
 
 import Data.Map.Strict qualified as Map
-import Control.Monad.State
 import Data.List qualified as List
+import Control.Carrier.Reader
+import Control.Carrier.State.Lazy
 
 import Base
 import Utils
@@ -23,29 +24,31 @@ data Container = Container
 
 -- Traverse an expression along with its type, introducing holes at free
 -- variables.
-poly :: [Datatype] -> Mono -> Expr a -> Expr (Text, Expr a)
-poly defs = \cases
-  (Free v) x -> return (v, x)
-  (Product ts) (Tuple xs) -> Tuple $ zipWith (poly defs) ts xs
-  (Data d ts) (Ctr c x) ->
-    case List.find (\ct -> ct.name == c) (getConstructors d ts defs) of
+poly :: Has (Reader Context) sig m =>
+  Mono -> Expr a -> m (Expr (Text, Expr a))
+poly = \cases
+  (Free v) x -> return $ return (v, x)
+  (Product ts) (Tuple xs) -> Tuple <$> zipWithM poly ts xs
+  (Data d ts) (Ctr c x) -> do
+    cs <- asks $ getConstructors d ts
+    case List.find (\ct -> ct.name == c) cs of
       Nothing -> error . show $ "Datatype" <+> pretty d
         <+> "does not have a constructor" <+> pretty c <> "."
-      Just ct -> Ctr c (poly defs ct.field x)
-  (Base _) (Lit x) -> Lit x
+      Just ct -> Ctr c <$> poly ct.field x
+  (Base _) (Lit x) -> return $ Lit x
   t x -> error . show $
     pretty (void x) <+> "does not have type" <+> pretty t <> "."
 
-computePositions :: [Datatype] -> Mono -> Term -> Expr (Position, Term)
-computePositions types t e = flip evalState mempty do
-  poly types t e & traverse \(v, x) -> do
+computePositions :: Expr (Text, Term) -> Expr (Position, Term)
+computePositions e = run $ evalState @(Map Text Nat) mempty do
+  forM e \(v, x) -> do
     m <- get
     let n = fromMaybe 0 $ Map.lookup v m
     modify $ Map.insert v (n + 1)
     return (Position v n, x)
 
-toContainer :: [Datatype] -> Mono -> Term -> Container
-toContainer types t = uncurry Container . extract . computePositions types t
+toContainer :: Has (Reader Context) sig m => Mono -> Term -> m Container
+toContainer t = fmap (uncurry Container . extract . computePositions) . poly t
 
 fromContainer :: Container -> Term
 fromContainer Container { shape, elements } = case inject elements shape of

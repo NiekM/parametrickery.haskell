@@ -6,6 +6,7 @@
 
 module Main (main) where
 
+import Data.Functor
 import Data.Text (Text)
 import Data.Text.IO qualified as Text
 import Data.Maybe (fromJust)
@@ -19,7 +20,7 @@ import Language.Container.Morphism
 import Language.Declaration
 import Language.Parser
 import Language.Type
-import Refinements
+import Tactic
 
 import System.IO.Unsafe qualified as Unsafe
 import System.Directory
@@ -48,7 +49,7 @@ data Expect = Yay | Nay Conflict
 expect :: Expect -> Named Problem -> IO ()
 expect e (Named name p) = do
   print name
-  case check datatypes p of
+  case runCheck datatypes $ check p of
     Left result -> case e of
       Yay -> do
         print $ "Expected a succes, but got" <+> pretty result
@@ -68,8 +69,8 @@ expect e (Named name p) = do
   putStrLn ""
 
 isFold :: Problem -> [Either Conflict [PolyProblem]]
-isFold p = traverse (check datatypes) <$> xs
-  where DisCon xs = introFold p
+isFold p = runTactic (Named "_" p) fold <&> fmap \(prf, _) ->
+  prf.subgoals <&> snd . (.value)
 
 instance (Pretty a, Pretty b) => Pretty (Either a b) where
   pretty = either pretty pretty

@@ -49,3 +49,10 @@ instance Project Problem where
     where
       ss = projections prob.signature
       bs = List.transpose $ map projections prob.bindings
+
+type Arg = (Mono, [Term])
+
+instance Project Arg where
+  projections = \case
+    (Product ts, es) -> zip ts . List.transpose $ map projections es
+    a -> [a]

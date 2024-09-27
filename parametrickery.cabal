@@ -87,7 +87,7 @@ library
     , Language.Coverage
     , Language.Declaration
     , Language.Parser
-    , Refinements
+    , Tactic
 
   -- Modules included in this library but not exported.
   other-modules:
@@ -107,11 +107,7 @@ library
     , text
     , lens
     , megaparsec
-    -- TODO: can we get refinery to work? it has some build error due to
-    -- MonadPlus not being in scope in Refinery.Tactic.Internal, which seems
-    -- like a problem with a restructuring of Control.Monad. It is only tested
-    -- up to 8.10.4, perhaps I can do a pull request for 9.8.2?
-    , refinery
+    , fused-effects
 
   -- Directories containing source files.
   hs-source-dirs:   src

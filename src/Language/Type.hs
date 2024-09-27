@@ -45,9 +45,13 @@ data Datatype = Datatype
   , constructors :: [Constructor]
   } deriving stock (Eq, Ord, Show)
 
-getConstructors :: Text -> [Mono] -> [Datatype] -> [Constructor]
-getConstructors name ts defs =
-  case List.find (\d -> d.name == name) defs of
+newtype Context = Context
+  { datatypes :: [Datatype]
+  } deriving stock (Eq, Ord, Show)
+
+getConstructors :: Text -> [Mono] -> Context -> [Constructor]
+getConstructors name ts ctx =
+  case List.find (\d -> d.name == name) ctx.datatypes of
     Nothing -> error "Unknown datatype"
     Just datatype ->
       let mapping = Map.fromList $ zip datatype.arguments ts
@@ -55,8 +59,8 @@ getConstructors name ts defs =
         Constructor c (instantiate mapping t)
 
 -- TODO: have some sort of Prelude file
-datatypes :: [Datatype]
-datatypes =
+datatypes :: Context
+datatypes = Context
   [ Datatype
     { name = "Bool"
     , arguments = []

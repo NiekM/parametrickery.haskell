@@ -2,12 +2,10 @@ module Utils
   ( allSame
   , nonEmpty
   , partitionWith
-  , maybeToError, (!!!)
   , mapEither
   , extract, inject
   ) where
 
-import Control.Monad.Error.Class
 import Data.Map.Strict qualified as Map
 
 import Base
@@ -24,12 +22,6 @@ partitionWith :: (a -> Either b c) -> [a] -> ([b], [c])
 partitionWith f = ([], []) & foldr \x -> case f x of
   Left  a -> first  (a:)
   Right b -> second (b:)
-
-maybeToError :: MonadError e m => e -> Maybe a -> m a
-maybeToError e = maybe (throwError e) return
-
-(!!!) :: MonadError e m => Maybe a -> e -> m a
-(!!!) = flip maybeToError
 
 mapEither :: (a -> Either b c) -> [a] -> ([b], [c])
 mapEither f = partitionEithers . fmap f

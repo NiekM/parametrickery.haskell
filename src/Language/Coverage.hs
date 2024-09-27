@@ -1,6 +1,6 @@
 module Language.Coverage (Coverage(..), coverage) where
 
-import Control.Monad.State
+import Control.Carrier.State.Lazy
 import Data.List qualified as List
 import Data.Set qualified as Set
 import Data.Map.Strict qualified as Map
@@ -14,8 +14,8 @@ import Language.Container.Morphism
 import Language.Container.Relation
 import Language.Declaration
 
-coveringShapes :: [Datatype] -> Mono -> Maybe [Expr Text]
-coveringShapes defs = go []
+coveringShapes :: Context -> Mono -> Maybe [Expr Text]
+coveringShapes ctx = go []
   where
     -- We keep track of datatype names to recognize recursion.
     go :: [Text] -> Mono -> Maybe [Expr Text]
@@ -28,7 +28,7 @@ coveringShapes defs = go []
       Data d ts
         | d `elem` recs -> Nothing
         | otherwise ->
-          concat <$> forM (getConstructors d ts defs) \(Constructor c t) -> do
+          concat <$> forM (getConstructors d ts ctx) \(Constructor c t) -> do
             xs <- go (d : recs) t
             return $ Ctr c <$> xs
       Base Int -> Nothing
@@ -60,16 +60,17 @@ coveringRelations ps = \case
     in RelOrd . map Set.fromList <$> concatMap orderings (subs qs)
 
 toShape :: Expr Text -> Shape
-toShape expr = flip evalState mempty $ forM expr \v -> do
-  m <- get
-  let n = fromMaybe 0 $ Map.lookup v m
-  modify $ Map.insert v (n + 1)
-  return $ Position v n
+toShape e = run $ evalState @(Map Text Nat) mempty do
+  forM e \v -> do
+    m <- get
+    let n = fromMaybe 0 $ Map.lookup v m
+    modify $ Map.insert v (n + 1)
+    return $ Position v n
 
 -- Computes all shapes and relations required for coverage (if possible)
-coveringPatterns :: [Datatype] -> [Constraint] -> [Mono] -> Maybe [Pattern]
-coveringPatterns defs constraints context = do
-  shapes <- map toShape <$> coveringShapes defs (Product context)
+coveringPatterns :: Context -> [Constraint] -> [Mono] -> Maybe [Pattern]
+coveringPatterns ctx constraints context = do
+  shapes <- map toShape <$> coveringShapes ctx (Product context)
   concat <$> forM shapes \shape -> do
     let
       inputs = projections shape
@@ -77,8 +78,8 @@ coveringPatterns defs constraints context = do
       relations = traverse (coveringRelations positions) constraints
     return $ Pattern inputs <$> relations
 
-expectedCoverage :: [Datatype] -> Signature -> Maybe (Set Pattern)
-expectedCoverage defs signature = Set.fromList <$> coveringPatterns defs
+expectedCoverage :: Context -> Signature -> Maybe (Set Pattern)
+expectedCoverage ctx signature = Set.fromList <$> coveringPatterns ctx
   signature.constraints
   (map (.value) signature.context)
 
@@ -104,8 +105,8 @@ instance Pretty Coverage where
 -- have relation coverage? or subpattern coverage, e.g. if it's a list booleans,
 -- do we still want coverage checking for a pattern such as [True], letting us
 -- know that we are missing [False]?
-coverage :: [Datatype] -> PolyProblem -> Coverage
-coverage defs problem = case expectedCoverage defs problem.signature of
+coverage :: Context -> PolyProblem -> Coverage
+coverage ctx problem = case expectedCoverage ctx problem.signature of
   Nothing -> Partial
   Just expected ->
     let

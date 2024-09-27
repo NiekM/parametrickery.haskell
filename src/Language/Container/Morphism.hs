@@ -10,6 +10,9 @@ import Data.Set qualified as Set
 
 import Control.Applicative
 import Data.Monoid (Alt(..))
+import Control.Carrier.Reader
+import Control.Carrier.Throw.Either
+import Data.Functor.Identity
 
 import Base
 import Data.Map.Multi (Multi)
@@ -44,41 +47,48 @@ data PolyExample = PolyExample
   , origins :: Origins
   } deriving stock (Eq, Ord, Show)
 
+runCheck :: Context -> ReaderC Context (ThrowC Conflict Identity) a
+  -> Either Conflict a
+runCheck defs = run . runThrow . runReader defs 
+
 -- It seems that we only need to compute the relation for the inputs, since the
 -- output values are a subset (and if they are not, this is already a conflict).
 -- TODO: currently, no type checking is performed, so some nonsensical programs
 -- are considered realizable.
-checkExample :: [Datatype] -> Signature -> Example
-  -> Either Conflict PolyExample
-checkExample defs signature example
-  | length types /= length example.inputs =
-    Left $ ArgumentMismatch types example.inputs
-  | not (Multi.consistent result.origins) =
-    Left $ MagicOutput Declaration { signature, bindings = [example] }
-  | otherwise = return result
-  where
-    types = map (.value) signature.context
-    input = toContainer defs (Product types) (Tuple example.inputs)
-    output = toContainer defs signature.goal example.output
+checkExample :: (Has (Reader Context) sig m, Has (Throw Conflict) sig m) =>
+  Signature -> Example -> m PolyExample
+checkExample signature example = do
+  let types = map (.value) signature.context
+
+  input  <- toContainer (Product types) (Tuple example.inputs)
+  output <- toContainer signature.goal example.output
+
+  let
     relations = computeRelations signature.constraints input.elements
     shapes = projections input.shape
-
     result = PolyExample
       { input   = Pattern shapes relations
       , output  = output.shape
       , origins = computeOrigins input.elements output.elements
       }
 
+  when (length types /= length example.inputs)
+    $ throwError $ ArgumentMismatch types example.inputs
+  unless (Multi.consistent result.origins)
+    $ throwError $ MagicOutput Declaration { signature, bindings = [example] }
+
+  return result
+
 -- | Combine multiple examples, checking if there are no conflicts.
-combine :: [PolyExample] -> Either Conflict [PolyExample]
+combine :: Has (Throw Conflict) sig m => [PolyExample] -> m [PolyExample]
 combine = traverse merge . NonEmpty.groupAllWith (.input)
   where
-    merge :: NonEmpty PolyExample -> Either Conflict PolyExample
+    -- merge :: NonEmpty PolyExample -> m PolyExample
     merge examples = case grouped of
       (result :| [])
         | Multi.consistent result.origins -> return result
-        | otherwise -> Left $ PositionConflict (NonEmpty.nub examples)
-      _ -> Left $ ShapeConflict grouped
+        | otherwise -> throwError $ PositionConflict (NonEmpty.nub examples)
+      _ -> throwError $ ShapeConflict grouped
       where
         grouped = intersect <$> NonEmpty.groupAllWith1 (.output) examples
 
@@ -100,9 +110,10 @@ type PolyProblem = Declaration PolyExample
 -- good to check whether the type is inhabited. Especially in the case were
 -- there are no examples, we should still be able to check automatically that
 -- e.g. `{x : a} -> b` is not realizable.
-check :: [Datatype] -> Problem -> Either Conflict PolyProblem
-check defs (Declaration signature exs) = do
-  bindings <- combine =<< mapM (checkExample defs signature) exs
+check :: (Has (Reader Context) sig m, Has (Throw Conflict) sig m) =>
+  Problem -> m PolyProblem
+check (Declaration signature exs) = do
+  bindings <- combine =<< mapM (checkExample signature) exs
   return Declaration { signature, bindings }
 
 altMap :: (Foldable f, Alternative m) => (a -> m b) -> f a -> m b

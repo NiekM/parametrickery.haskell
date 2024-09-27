@@ -3,7 +3,6 @@
 
 module Test where
 
-import Control.Applicative (Alternative)
 import Control.Monad.State
 import Data.Coerce (coerce)
 import Data.Either (isRight, fromRight)
@@ -31,186 +30,9 @@ import Language.Container.Relation
 import Language.Coverage
 import Language.Declaration
 import Language.Parser
-import Refinements
 import Utils
 
-import Refinery.Tactic
-import Refinery.Tactic.Internal
-import Control.Monad.Identity
-import Control.Monad.Reader
-
-type Err = String
-
-fresh :: Enum s => MonadState s m => m s
-fresh = do
-  s <- get
-  put (succ s)
-  return s
-
--- TODO: consider using Text i.o. () for holes
-instance MonadExtract Text (Expr Text) Err Int Identity where
-  hole = do
-    s <- fresh
-    let h = "a" <> Text.pack (show s)
-    pure (h, Hole (MkHole h))
-  unsolvableHole _ = hole
-
--- I really like the way refinery builds up an extract and collects proof goals.
--- However, there's only a single proof extract. Can we build up a tree of
--- possible proof extracts?
-
-type T' a = TacticT Problem (Expr Text) String Int (Reader [Datatype]) a
-
-run :: Problem -> T' () -> [Expr Text]
-run p t = runReader (evalTacticT t p 0) datatypes
-
-testTactic :: Problem -> T' () -> IO ()
-testTactic p t = case runReader (runTacticT t p 0) datatypes of
-  Left _ -> putStrLn "Error"
-  Right xs -> forM_ xs \proof -> do
-    print $ pretty proof.pf_extract
-    forM_ proof.pf_unsolvedGoals \(h, subproblem) ->
-      print $ pretty (Named h subproblem)
-
-tuple :: T' ()
-tuple = rule \prob -> Tuple <$> mapM subgoal (projections prob)
-
-argRule :: Nat ->
-  ((Named Arg, Problem) -> RuleT Problem (Expr Text) String Int (Reader [Datatype]) (Expr Text)) -> T' ()
-argRule i f = rule \p -> case pickArg i p of
-  Nothing -> unsolvable "argument index"
-  Just x -> f x
-
-caseSplit :: [Datatype] -> Named Arg -> Problem -> Map Text (Named Arg, Problem)
-caseSplit defs (Named name (Data d ts, terms)) prob = List.foldl' f e xs
-  where
-    xs = zip terms prob.bindings
-    cs = getConstructors d ts defs
-
-    e = Map.fromList $ cs <&> \c ->
-      ( c.name
-      , ( Named (name <> "_" <> c.name) (c.field, [])
-        , Declaration prob.signature []
-        )
-      )
-
-    f m (Ctr c x, ex) = Map.adjust (bimap
-      (\(Named v (ty, ys)) -> Named v (ty, x:ys))
-      (\(Declaration sig exs) -> Declaration sig (ex:exs))) c m
-    f _ _ = error "Not a constructor"
-
-caseSplit _ _ _ = error "Not a datatype"
-
-unTuple :: Expr h -> [Expr h]
-unTuple (Tuple es) = es
-unTuple e = [e]
-
-unProduct :: Arg -> [Arg]
-unProduct (Product ts, es) = zip ts . List.transpose $ map unTuple es
-unProduct a = [a]
-
-split :: Nat -> T' ()
-split n = argRule n \(arg, prob) -> do
-  defs <- lift ask
-  let m = caseSplit defs arg prob
-  xs <- forM (Map.elems m) \(Named v a, p) -> do
-    as <- forM (unProduct a) \x -> do
-      i <- fresh
-      return $ Named (v <> Text.pack (show i)) x
-    subgoal $ addArgs as p
-  return . Ctr "case" $ Tuple xs
-
-splitList :: Arg -> Problem -> [(Text, Arg, Problem)]
-splitList (Data "List" [t], terms) problem =
-  [ ("Nil", (Top, nilArg)
-    , Declaration problem.signature nilExs
-    )
-  , ("Cons", (Product [t, Data "List" [t]], consArg)
-    , Declaration problem.signature consExs
-    )
-  ]
-  where
-    (nilArg, nilExs) = unzip nil
-    (consArg, consExs) = unzip cons
-    nil, cons :: [(Term, Example)]
-    (nil, cons) = zip terms problem.bindings & mapEither \case
-      (Nil, example) -> Left (Unit, example)
-      (Cons y ys, example) -> Right (Tuple [y, ys], example)
-      _ -> error "Expected a list"
-splitList _ _ = error "Not a list"
-
-fold :: Nat -> T' ()
-fold n = argRule n \case
-  (Named name (Data "List" [t], terms), problem) -> do
-    let
-      paired = zip terms problem.bindings
-      p = Declaration
-        { signature = problem.signature
-          { context = Named name (Data "List" [t]) : problem.signature.context }
-        , bindings = paired <&> \(i, Example is o) -> Example (i:is) o
-        }
-    defs <- lift ask
-    let
-      polyProblem = fromRight (error "") $ check defs p
-      recurse = applyProblem polyProblem
-      -- We compute the constraints for the nil and the cons case.
-      (nil, cons) = paired & mapEither \case
-        (Nil, ex) -> Left ex
-        (Cons y ys, Example ins out) ->
-          case recurse (ys:ins) of
-            Nothing -> error "Not shape complete!"
-            Just r -> return $ Example (ins ++ [y, r]) out
-        _ -> error "Expected a list!"
-
-    -- TODO: we can probably simplify here further by not just adjusting the
-    -- examples, but rather generating new Args and then simply giving the
-    -- Args a name and inserting them.
-
-    Ctr "fold" . Tuple <$> sequence
-      [ subgoal $ problem { bindings = nil }
-      , subgoal $ Declaration problem.signature
-        { context = problem.signature.context ++
-          [ Named (name <> "_h") t
-          , Named (name <> "_r") problem.signature.goal
-          ]
-        } cons
-      ]
-  (Named name (Data "Tree" [t, u], terms), problem) -> do
-    let
-      paired = zip terms problem.bindings
-      p = Declaration
-        { signature = problem.signature
-          { context = Named name (Data "Tree" [t, u]) : problem.signature.context }
-        , bindings = paired <&> \(i, Example is o) -> Example (i:is) o
-        }
-    defs <- lift ask
-    case check defs p of
-      Left _l -> error ""
-      Right polyProblem ->
-        let
-          recurse = applyProblem polyProblem
-          -- We compute the constraints for the nil and the cons case.
-          (leaf, node) = paired & mapEither \case
-            (Ctr "Leaf" x, Example ins out) -> Left $ Example (ins ++ [x]) out
-            (Ctr "Node" (Tuple [l, x, r]), Example ins out) ->
-              case (recurse (l:ins), recurse (r:ins)) of
-                (Just left, Just right) -> return $
-                  Example (ins ++ [left, x, right]) out
-                _ -> error "Not shape complete!"
-            _ -> error "Expected a tree!"
-        in Ctr "fold" . Tuple <$> sequence
-          [ subgoal $ Declaration problem.signature
-            { context = problem.signature.context ++ [Named (name <> "_y") u]
-            } leaf
-          , subgoal $ Declaration problem.signature
-            { context = problem.signature.context ++
-              [ Named (name <> "_l") problem.signature.goal
-              , Named (name <> "_x") t
-              , Named (name <> "_r") problem.signature.goal
-              ]
-            } node
-          ]
-  _ -> unsolvable "todo"
+import Tactic
 
 -- ToExpr is no longer really necessary now that we have parsing, but it's still
 -- useful sometimes.
@@ -312,14 +134,21 @@ append = getBench "append"
 
 twoRelations :: Problem
 twoRelations = parse
-  "_ : forall a b. (Ord a, Eq b) => {xs : [(a, b)]} -> ([a], [b])\n\
+  "_ : (Ord a, Eq b) => {xs : List (a, b)} -> (List a, List b)\n\
   \_ [(1, 2), (3, 4)] = ([1, 3], [2, 4])\n\
   \_ [(1, 2)] = ([1], [2])\n\
   \_ [(1, 2), (1, 2), (1, 2)] = ([1], [2])"
 
+incr :: Problem
+incr = parse
+  "_ : {xs : List Int} -> List Int\n\
+  \_ [1,2,3] = [2,3,4]\n\
+  \_ [4,5] = [5,6]\n\
+  \_ [6] = [7]"
+
 isFold :: Problem -> [Either Conflict [PolyProblem]]
-isFold p = traverse (check datatypes) <$> xs
-  where DisCon xs = introFold p
+isFold p = runTactic (Named "_" p) fold <&> fmap \(prf, _) ->
+  prf.subgoals <&> snd . (.value)
 
 paperBench :: IO ()
 paperBench = do
