@@ -105,12 +105,14 @@ instance Pretty Coverage where
 -- have relation coverage? or subpattern coverage, e.g. if it's a list booleans,
 -- do we still want coverage checking for a pattern such as [True], letting us
 -- know that we are missing [False]?
-coverage :: Context -> PolyProblem -> Coverage
-coverage ctx problem = case expectedCoverage ctx problem.signature of
-  Nothing -> Partial
-  Just expected ->
-    let
-      covered = bindingCoverage problem.bindings
-      missing = expected Set.\\ covered
-      -- shapes = Set.map (.shapes) expected Set.\\ Set.map (.shapes) covered
-    in if null missing then Total else Missing missing
+coverage :: Has (Reader Context) sig m => PolyProblem -> m Coverage
+coverage problem = do
+  ctx <- ask
+  return case expectedCoverage ctx problem.signature of
+    Nothing -> Partial
+    Just expected ->
+      let
+        covered = bindingCoverage problem.bindings
+        missing = expected Set.\\ covered
+        -- shapes = Set.map (.shapes) expected Set.\\ Set.map (.shapes) covered
+      in if null missing then Total else Missing missing

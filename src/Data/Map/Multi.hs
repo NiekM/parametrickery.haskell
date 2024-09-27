@@ -21,7 +21,7 @@ import Data.Map.Utils qualified as Map
 import Data.Set qualified as Set
 import Data.Coerce
 
-import Base
+import Base hiding (empty)
 
 -- TODO: would nonempty sets make more sense?
 newtype Multi k v = Multi (Map k (Set v))

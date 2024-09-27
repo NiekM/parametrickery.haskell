@@ -9,7 +9,7 @@ import Text.Megaparsec.Char hiding (newline)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Set qualified as Set
 
-import Base hiding (brackets, sep)
+import Base hiding (brackets, sep, some, many)
 import Data.Named
 import Language.Type
 import Language.Expr

@@ -146,26 +146,29 @@ incr = parse
   \_ [4,5] = [5,6]\n\
   \_ [6] = [7]"
 
-isFold :: Problem -> [Either Conflict [PolyProblem]]
-isFold p = runTactic (Named "_" p) fold <&> fmap \(prf, _) ->
-  prf.subgoals <&> snd . (.value)
+isFold :: Problem -> [Either Conflict [SubGoal]]
+isFold p = execTactic (foldArgs p) <&> fmap (.subgoals)
 
-paperBench :: IO ()
-paperBench = do
-  forM_ bench' \(Named name problem) -> do
+runBench :: [Named Problem] -> IO ()
+runBench benchmark = do
+  forM_ benchmark \(Named name problem) -> do
     putStrLn ""
     print $ "Problem:" <+> pretty name
     putStrLn ""
+    -- TODO: report when it is not applicable (i.e. no list in scope)
     forM_ (isFold problem) \case
       Left e -> print $ pretty e
-      Right [e, f] -> do
-        print $ pretty name <+> "= fold f e"
+      Right [f, e] -> do
+        print $ pretty name <+> "= fold" <+> pretty f.name <+> pretty e.name
         putStrLn "  where"
-        print . indent 4 $ prettyNamed "e" e
+        print . indent 4 $ pretty f
         putStrLn ""
-        print . indent 4 $ prettyNamed "f" f
+        print . indent 4 $ pretty e
         putStrLn ""
       _ -> error "Wrong number of subproblems."
+
+paperBench :: IO ()
+paperBench = runBench bench'
   where
     bench' = bench & filter \x -> x.name `elem`
       [ "null"
@@ -185,22 +188,5 @@ paperBench = do
       , "concat"
       ]
 
-runBench :: IO ()
-runBench = do
-  forM_ bench \(Named name problem) -> do
-    putStrLn ""
-    print $ "Problem:" <+> pretty name
-    putStrLn ""
-    -- TODO: report when it is not applicable (i.e. no list in scope)
-    forM_ (isFold problem) \case
-      Left e -> print $ pretty e
-      Right [e, f] -> do
-        print $ pretty name <+> "= fold f e"
-        putStrLn "  where"
-        print . indent 4 $ prettyNamed "e" e
-        print . indent 4 . parens . pretty $ coverage datatypes e
-        putStrLn ""
-        print . indent 4 $ prettyNamed "f" f
-        print . indent 4 . parens . pretty $ coverage datatypes f
-        putStrLn ""
-      _ -> error "Wrong number of subproblems."
+fullBench :: IO ()
+fullBench = runBench bench

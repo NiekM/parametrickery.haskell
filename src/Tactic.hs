@@ -24,6 +24,7 @@ import Language.Type
 import Language.Expr
 import Language.Declaration
 import Language.Container.Morphism
+import Language.Coverage
 
 import Utils
 import Prettyprinter.Utils
@@ -91,12 +92,27 @@ instance Algebra sig m => Algebra (Fresh :+: sig) (FreshC m) where
       return (n <$ ctx)
     R other -> alg ((.runFreshC) . hdl) (R other) ctx
 
+data SubGoal = SubGoal
+  { name :: Text
+  , signature :: Signature
+  , examples :: [Example]
+  , polymorphic :: [PolyExample]
+  , coverage :: Coverage
+  } deriving stock (Eq, Ord, Show)
+
+subProblem :: SubGoal -> Problem
+subProblem g = Declaration g.signature g.examples
+
+instance Pretty SubGoal where
+  pretty g = statements [pretty problem, parens $ pretty g.coverage]
+    where problem = Named g.name $ Declaration g.signature g.polymorphic
+
 newtype ProofState = ProofState
-  { subgoals :: [Named (Problem, PolyProblem)]
+  { subgoals :: [SubGoal]
   } deriving stock (Eq, Ord, Show)
 
 instance Pretty ProofState where
-  pretty p = statements $ pretty . fmap snd <$> p.subgoals
+  pretty p = statements $ pretty <$> p.subgoals
 
 type Tactic sig m =
   ( Has (Reader Context) sig m
@@ -107,33 +123,24 @@ type Tactic sig m =
   , MonadPlus m
   )
 
-runTactic :: Named Problem
-  -> ReaderC Context (StateC ProofState (ThrowC Conflict (FreshC (NonDetC Identity)))) a
-  -> [Either Conflict (ProofState, a)]
-runTactic (Named name p) t = run . runNonDetA . evalFresh . runThrow
-  . runState (ProofState []) $ runReader datatypes do
-    subgoal name p
-    t
+runTactic :: ReaderC Context (StateC ProofState (ThrowC Conflict (FreshC (NonDetC Identity)))) a -> [Either Conflict (ProofState, a)]
+runTactic t = run . runNonDetA . evalFresh . runThrow
+  . runState (ProofState []) $ runReader datatypes t
 
-firstProblem :: Tactic sig m => m (Named (Problem, PolyProblem))
-firstProblem = do
-  prf <- get @ProofState
-  let (x:xs) = prf.subgoals
-  put $ ProofState xs
-  return x
+execTactic :: ReaderC Context (StateC ProofState (ThrowC Conflict (FreshC (NonDetC Identity)))) a -> [Either Conflict ProofState]
+execTactic t = run . runNonDetA . evalFresh . runThrow
+  . execState (ProofState []) $ runReader datatypes t
 
--- TODO: make this do the fresh stuff and return the hole name
 subgoal :: Tactic sig m => Text -> Problem -> m ()
 subgoal t p = do
   p' <- check p
   name <- freshName t
-  modify \(ProofState xs) -> ProofState (Named name (p, p'):xs)
+  c <- coverage p'
+  let sub = SubGoal name p.signature p.bindings p'.bindings c
+  modify \(ProofState xs) -> ProofState (sub:xs)
 
-tuple :: Tactic sig m => m ()
-tuple = do
-  Named name (prob, _) <- firstProblem
-  forM_ (zip [0 :: Nat ..] (projections prob)) \(i, p) ->
-    subgoal (name <> "_" <> Text.pack (show i)) p
+tuple :: Tactic sig m => Problem -> m ()
+tuple problem = forM_ (projections problem) $ subgoal "_"
 
 caseSplit :: Has (Reader Context) sig m =>
   Named Arg -> Problem -> m (Map Text (Named Arg, Problem))
@@ -155,39 +162,36 @@ caseSplit (Named name (Data d ts, terms)) prob = do
   return $ List.foldl' f e (zip terms prob.bindings)
 caseSplit _ _ = error "Not a datatype"
 
-split :: Tactic sig m => Nat -> m ()
-split n = do
-  problem <- firstProblem
-  (arg, prob) <- maybe (error "") return $ pickArg n (fst problem.value)
-  m <- caseSplit arg prob
+split :: Tactic sig m => Named Arg -> Problem -> m ()
+split arg problem = do
+  m <- caseSplit arg problem
   forM_ (Map.elems m) \(Named v a, p) -> do
     as <- forM (projections a) \x -> do
       name <- freshName v
       return $ Named name x
     subgoal v $ addArgs as p
 
-introMap :: Tactic sig m => m ()
-introMap = do
-  p <- firstProblem
-  (Named _ (ty, terms), problem) <- oneOf $ pickApart (fst p.value)
+introMap :: Tactic sig m => Named Arg -> Problem -> m ()
+introMap (Named _ (ty, terms)) problem = case (ty, problem.signature.goal) of
+  (Data "List" [t], Data "List" [u]) -> do
+    exs <- forM (zip terms problem.bindings) \case
+      (List inputs, Example scope (List outputs)) -> do
+        guard $ length inputs == length outputs
+        return $ zipWith (\x y -> Example (scope ++ [x]) y) inputs outputs
+      _ -> error "Not actually lists."
+    x <- freshName "x"
+    let Signature constraints context _ = problem.signature
+    let signature = Signature constraints (context ++ [Named x t]) u
+    subgoal "f" $ Declaration signature (concat exs)
+  _ -> mzero
 
-  case (ty, problem.signature.goal) of
-    (Data "List" [t], Data "List" [u]) -> do
-      exs <- forM (zip terms problem.bindings) \case
-        (List inputs, Example scope (List outputs)) -> do
-          guard $ length inputs == length outputs
-          return $ zipWith (\x y -> Example (scope ++ [x]) y) inputs outputs
-        _ -> error "Not actually lists."
-      x <- freshName "x"
-      let Signature constraints context _ = problem.signature
-      let signature = Signature constraints (context ++ [Named x t]) u
-      subgoal "f" $ Declaration signature (concat exs)
-    _ -> mzero
+foldArgs :: Tactic sig m => Problem -> m ()
+foldArgs problem = do
+  (arg, prob) <- oneOf $ pickApart problem
+  fold arg prob
 
-fold :: Tactic sig m => m ()
-fold = do
-  p <- firstProblem
-  (Named name (ty, terms), problem) <- oneOf $ pickApart (fst p.value)
+fold :: Tactic sig m => Named Arg -> Problem -> m ()
+fold (Named name (ty, terms)) problem = do
 
   let paired = zip terms problem.bindings
   polyProblem <- check Declaration
@@ -222,7 +226,6 @@ fold = do
 
     Data "Tree" [t, u] -> do
       let
-        -- We compute the constraints for the nil and the cons case.
         (leaf, node) = paired & mapEither \case
           (Ctr "Leaf" x, Example ins out) -> Left (Example (ins ++ [x]) out)
           (Ctr "Node" (Tuple [l, x, r]), Example ins out) ->
