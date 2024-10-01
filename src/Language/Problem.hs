@@ -1,7 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
-module Language.Declaration where
+module Language.Problem where
 
 import Data.List qualified as List
 import Data.Set qualified as Set
@@ -13,12 +13,10 @@ import Language.Expr
 import Language.Type
 
 -- | A declaration consists of a signature with some bindings.
-data Declaration binding = Declaration
+data Problem = Problem
   { signature :: Signature
-  , bindings  :: [binding]
+  , examples  :: [Example]
   } deriving stock (Eq, Ord, Show)
-
-type Problem = Declaration Example
 
 data Arg = Arg
   { mono :: Mono
@@ -51,7 +49,7 @@ instance Pretty Args where
 -- TODO: define this as an Iso from lens, or remove `constraints` and have it be
 -- a Lens
 toArgs :: Problem -> Args
-toArgs (Declaration signature examples) = Args
+toArgs (Problem signature examples) = Args
   { constraints = signature.constraints
   , inputs = zipWith (fmap . flip Arg) inputs signature.context
   , output = Arg signature.goal outputs
@@ -60,13 +58,13 @@ toArgs (Declaration signature examples) = Args
       $ examples <&> \ex -> (ex.inputs, ex.output)
 
 fromArgs :: Args -> Problem
-fromArgs (Args constraints args (Arg goal outputs)) = Declaration
+fromArgs (Args constraints args (Arg goal outputs)) = Problem
   { signature = Signature
     { constraints
     , context = args <&> fmap (.mono)
     , goal
     }
-  , bindings = zipWith Example (inputs ++ repeat []) outputs
+  , examples = zipWith Example (inputs ++ repeat []) outputs
   } where
     inputs = List.transpose $ args <&> \arg -> arg.value.terms
 
@@ -77,12 +75,12 @@ restrict :: Set Text -> Args -> Args
 restrict ss args =
   args { inputs = filter (\arg -> arg.name `Set.member` ss) args.inputs }
 
-instance Pretty (Named binding) => Pretty (Declaration binding) where
+instance Pretty Problem where
   pretty = prettyNamed "_"
 
-instance Pretty (Named binding) => Pretty (Named (Declaration binding)) where
-  pretty (Named name (Declaration sig exs)) =
-    statements (prettyNamed name sig : map (prettyNamed name) exs)
+instance Pretty (Named Problem) where
+  pretty (Named name (Problem sig exs)) = statements $
+    prettyNamed name sig : map (prettyNamed name) exs
 
 class Project a where
   projections :: Project a => a -> [a]
@@ -104,10 +102,10 @@ instance Project Signature where
   projections sig = projections sig.goal <&> \t -> sig { goal = t }
 
 instance Project Problem where
-  projections prob = zipWith Declaration ss bs
+  projections prob = zipWith Problem ss bs
     where
       ss = projections prob.signature
-      bs = List.transpose $ map projections prob.bindings
+      bs = List.transpose $ map projections prob.examples
 
 instance Project Arg where
   projections = \case

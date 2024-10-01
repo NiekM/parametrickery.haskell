@@ -13,7 +13,7 @@ import Base hiding (brackets, sep, some, many)
 import Data.Named
 import Language.Type
 import Language.Expr
-import Language.Declaration
+import Language.Problem
 
 type Lexer = Parsec Void Text
 
@@ -258,10 +258,10 @@ instance Parse (Named Problem) where
   parser = do
     Named name signature <- parser
     bs <- many (statementSep *> parser)
-    bindings <- forM bs \(Named name' b) -> do
+    examples <- forM bs \(Named name' b) -> do
       guard $ name == name'
       return b
-    return $ Named name Declaration { signature, bindings }
+    return $ Named name Problem { signature, examples }
 
 instance Parse Void where
   parser = mzero

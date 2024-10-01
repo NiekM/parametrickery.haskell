@@ -8,7 +8,7 @@ import Base
 import Data.Named
 import Language.Type
 import Language.Container.Morphism
-import Language.Declaration
+import Language.Problem
 import Language.Coverage
 
 subs :: Set a -> [Set a]
@@ -21,14 +21,15 @@ getError :: Has (Error e) sig m => m a -> m (Either e a)
 getError m = catchError (Right <$> m) (return . Left)
 
 sufficient :: (Has (Reader Context) sig m, Has (Error Conflict) sig m)
-  => Set Text -> Problem -> m (Either Conflict (PolyProblem, Coverage))
+  => Set Text -> Problem -> m (Either Conflict (Signature, [Rule], Coverage))
 sufficient xs problem = getError do
-  p <- check $ onArgs (restrict xs) problem
-  c <- coverage p
-  return (p, c)
+  let restricted = onArgs (restrict xs) problem
+  rules <- check restricted
+  cover <- coverage restricted.signature rules
+  return (restricted.signature, rules, cover)
 
 newtype Relevance = Relevance
-  { relevance :: NonEmpty (PolyProblem, Coverage)
+  { relevance :: NonEmpty (Signature, [Rule], Coverage)
   } deriving stock (Eq, Ord, Show)
 
 instance Pretty Relevance where

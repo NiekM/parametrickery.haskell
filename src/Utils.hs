@@ -1,5 +1,6 @@
 module Utils
-  ( allSame
+  ( altMap
+  , allSame
   , nonEmpty
   , partitionWith
   , mapEither
@@ -7,8 +8,13 @@ module Utils
   ) where
 
 import Data.Map.Strict qualified as Map
+import Control.Applicative
+import Data.Monoid (Alt(..))
 
 import Base
+
+altMap :: (Foldable f, Alternative m) => (a -> m b) -> f a -> m b
+altMap f = getAlt . foldMap (Alt . f)
 
 allSame :: Eq a => NonEmpty a -> Bool
 allSame (x :| xs) = all (== x) xs

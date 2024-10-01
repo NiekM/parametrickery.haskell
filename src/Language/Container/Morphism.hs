@@ -8,11 +8,8 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 
-import Control.Applicative
-import Data.Monoid (Alt(..))
 import Control.Carrier.Reader
 import Control.Carrier.Throw.Either
-import Data.Functor.Identity
 
 import Base
 import Data.Map.Multi (Multi)
@@ -21,7 +18,7 @@ import Data.Named
 
 import Language.Type
 import Language.Expr
-import Language.Declaration
+import Language.Problem
 import Language.Container
 import Language.Container.Relation
 import Prettyprinter.Utils
@@ -41,22 +38,18 @@ data Pattern = Pattern
 
 -- A polymorphic input-output example, i.e. an input-output example for
 -- container morphisms.
-data PolyExample = PolyExample
+data Rule = Rule
   { input   :: Pattern
   , output  :: Shape
   , origins :: Origins
   } deriving stock (Eq, Ord, Show)
-
-runCheck :: Context -> ReaderC Context (ThrowC Conflict Identity) a
-  -> Either Conflict a
-runCheck defs = run . runThrow . runReader defs 
 
 -- It seems that we only need to compute the relation for the inputs, since the
 -- output values are a subset (and if they are not, this is already a conflict).
 -- TODO: currently, no type checking is performed, so some nonsensical programs
 -- are considered realizable.
 checkExample :: (Has (Reader Context) sig m, Has (Throw Conflict) sig m) =>
-  Signature -> Example -> m PolyExample
+  Signature -> Example -> m Rule
 checkExample signature example = do
   let types = map (.value) signature.context
 
@@ -66,7 +59,7 @@ checkExample signature example = do
   let
     relations = computeRelations signature.constraints input.elements
     shapes = projections input.shape
-    result = PolyExample
+    result = Rule
       { input   = Pattern shapes relations
       , output  = output.shape
       , origins = computeOrigins input.elements output.elements
@@ -75,49 +68,43 @@ checkExample signature example = do
   when (length types /= length example.inputs)
     $ throwError $ ArgumentMismatch types example.inputs
   unless (Multi.consistent result.origins)
-    $ throwError $ MagicOutput Declaration { signature, bindings = [example] }
+    $ throwError $ MagicOutput Problem { signature, examples = [example] }
 
   return result
 
 -- | Combine multiple examples, checking if there are no conflicts.
-combine :: Has (Throw Conflict) sig m => [PolyExample] -> m [PolyExample]
+combine :: Has (Throw Conflict) sig m => [Rule] -> m [Rule]
 combine = traverse merge . NonEmpty.groupAllWith (.input)
   where
-    -- merge :: NonEmpty PolyExample -> m PolyExample
-    merge examples = case grouped of
+    merge :: Has (Throw Conflict) sig m => NonEmpty Rule -> m Rule
+    merge rules = case grouped of
       (result :| [])
         | Multi.consistent result.origins -> return result
-        | otherwise -> throwError $ PositionConflict (NonEmpty.nub examples)
+        | otherwise -> throwError $ PositionConflict (NonEmpty.nub rules)
       _ -> throwError $ ShapeConflict grouped
       where
-        grouped = intersect <$> NonEmpty.groupAllWith1 (.output) examples
+        grouped = intersect <$> NonEmpty.groupAllWith1 (.output) rules
 
-    intersect :: NonEmpty PolyExample -> PolyExample
-    intersect examples@(example :| _) = example
-      { origins = foldl1 Multi.intersection $ fmap (.origins) examples }
+    intersect :: NonEmpty Rule -> Rule
+    intersect rules@(rule :| _) = rule
+      { origins = foldl1 Multi.intersection $ fmap (.origins) rules }
 
 -- TODO: do something with these conflicts.
 data Conflict
   = ArgumentMismatch [Mono] [Term]
-  | ShapeConflict (NonEmpty PolyExample)
+  | ShapeConflict (NonEmpty Rule)
   | MagicOutput Problem
-  | PositionConflict (NonEmpty PolyExample)
+  | PositionConflict (NonEmpty Rule)
   deriving stock (Eq, Ord, Show)
-
-type PolyProblem = Declaration PolyExample
 
 -- TODO: before checking the realizability w.r.t. parametricity, it might be
 -- good to check whether the type is inhabited. Especially in the case were
 -- there are no examples, we should still be able to check automatically that
 -- e.g. `{x : a} -> b` is not realizable.
 check :: (Has (Reader Context) sig m, Has (Throw Conflict) sig m) =>
-  Problem -> m PolyProblem
-check (Declaration signature exs) = do
-  bindings <- combine =<< mapM (checkExample signature) exs
-  return Declaration { signature, bindings }
-
-altMap :: (Foldable f, Alternative m) => (a -> m b) -> f a -> m b
-altMap f = getAlt . foldMap (Alt . f)
+  Problem -> m [Rule]
+check problem =
+  combine =<< mapM (checkExample problem.signature) problem.examples
 
 matchShape :: Shape -> Term -> Maybe (Map Position Term)
 matchShape (Tuple xs) (Tuple ys) = Map.unions <$> zipWithM matchShape xs ys
@@ -132,15 +119,15 @@ matchPattern patt terms = do
   guard $ all (checkRelation elements) patt.relations
   return elements
 
-applyExample :: PolyExample -> [Term] -> Maybe Term
-applyExample example terms = do
-  inElements <- matchPattern example.input terms
+applyExample :: Rule -> [Term] -> Maybe Term
+applyExample rule terms = do
+  inElements <- matchPattern rule.input terms
   outElements <-
-    Multi.toMap $ Multi.compose (Multi.fromMap inElements) example.origins
-  accept <$> inject outElements example.output
+    Multi.toMap $ Multi.compose (Multi.fromMap inElements) rule.origins
+  accept <$> inject outElements rule.output
 
-applyProblem :: PolyProblem -> [Term] -> Maybe Term
-applyProblem problem terms = altMap (`applyExample` terms) problem.bindings
+applyProblem :: [Rule] -> [Term] -> Maybe Term
+applyProblem rules terms = altMap (`applyExample` terms) rules
 
 ------ Pretty ------
 
@@ -158,15 +145,15 @@ instance Pretty Pattern where
       inputs = sep (map prettyMaxPrec patt.shapes)
       relations = filter relevant patt.relations
 
-instance Pretty PolyExample where
-  pretty PolyExample { input, output, origins }
+instance Pretty Rule where
+  pretty Rule { input, output, origins }
     | null input.shapes = pretty output
     | otherwise = pretty input <+> "->" <+> out
     where
       out = pretty $ fmap (`Multi.lookup` origins) output
 
-instance Pretty (Named PolyExample) where
-  pretty (Named name PolyExample { input, output, origins })
+instance Pretty (Named Rule) where
+  pretty (Named name Rule { input, output, origins })
     | null input.shapes = pretty name <+> "=" <+> out
     | otherwise = pretty name <+> pretty input <+> "=" <+> out
     where

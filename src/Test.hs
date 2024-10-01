@@ -32,7 +32,7 @@ import Language.Container
 import Language.Container.Morphism
 import Language.Container.Relation
 import Language.Coverage
-import Language.Declaration
+import Language.Problem
 import Language.Parser
 import Language.Relevance
 import Utils
@@ -200,3 +200,14 @@ paperBench = runBench bench'
 
 fullBench :: IO ()
 fullBench = runBench bench
+
+-- TODO:
+-- - Are paramorphisms + relevance superior to catamorphisms?
+-- - Can we show that any function is a paramorphism? Or the opposite?
+-- - How well does relevance analysis reflect ease of synthesis?
+-- - Is progress purely based on relevance?
+--
+
+-- DONE:
+-- - Can we do anamorphisms? It seems not.
+--

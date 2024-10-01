@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Tactic where
 
@@ -25,7 +26,7 @@ import Base
 import Data.Named
 import Language.Type
 import Language.Expr
-import Language.Declaration
+import Language.Problem
 import Language.Container.Morphism
 import Language.Coverage
 import Language.Relevance
@@ -45,22 +46,22 @@ pickInput :: Nat -> Example -> Maybe (Term, Example)
 pickInput i (Example ins out) = fmap (`Example` out) <$> pick i ins
 
 pickArg :: Nat -> Problem -> Maybe (Named Arg, Problem)
-pickArg i (Declaration sig exs) = do
+pickArg i (Problem sig exs) = do
   (t, context) <- pick i sig.context
   (xs, examples) <- mapAndUnzipM (pickInput i) exs
-  return (fmap (`Arg` xs) t, Declaration sig { context } examples)
+  return (fmap (`Arg` xs) t, Problem sig { context } examples)
 
 -- All possible ways to pick one argument from a problem.
 pickApart :: Problem -> [(Named Arg, Problem)]
-pickApart p@(Declaration Signature { context } _) =
+pickApart p@(Problem Signature { context } _) =
   zipWith const [0..] context & mapMaybe (`pickArg` p)
 
 addArgs :: [Named Arg] -> Problem -> Problem
 addArgs [] p = p
-addArgs args Declaration { signature, bindings } =
-  Declaration
+addArgs args Problem { signature, examples } =
+  Problem
     { signature = signature { context = signature.context ++ types }
-    , bindings = zipWith addInputs terms bindings
+    , examples = zipWith addInputs terms examples
     }
   where
     types = args <&> fmap (.mono)
@@ -98,18 +99,21 @@ data SubGoal = SubGoal
   { name :: Text
   , signature :: Signature
   , examples :: [Example]
-  , polymorphic :: [PolyExample]
+  , polymorphic :: [Rule]
   , coverage :: Coverage
   , relevance :: Relevance
   } deriving stock (Eq, Ord, Show)
 
 subProblem :: SubGoal -> Problem
-subProblem g = Declaration g.signature g.examples
+subProblem g = Problem g.signature g.examples
 
 instance Pretty SubGoal where
   pretty g = statements
-    [pretty problem, parens $ pretty g.coverage, pretty g.relevance]
-    where problem = Named g.name $ Declaration g.signature g.polymorphic
+    [ pretty g.signature
+    , statements $ map (prettyNamed g.name) g.polymorphic
+    , parens $ pretty g.coverage
+    , pretty g.relevance
+    ]
 
 newtype ProofState = ProofState
   -- TODO: we probably want to remember all subgoals, but keep a separate queue
@@ -141,9 +145,9 @@ subgoal :: Tactic sig m => Text -> Problem -> m ()
 subgoal t p = do
   p' <- check p
   name <- freshName t
-  c <- coverage p'
+  c <- coverage p.signature p'
   r <- relevance p
-  let sub = SubGoal name p.signature p.bindings p'.bindings c r
+  let sub = SubGoal name p.signature p.examples p' c r
   modify \s -> s { subgoals = Queue.insert sub s.subgoals }
 
 next :: Tactic sig m => m (Maybe SubGoal)
@@ -180,16 +184,16 @@ caseSplit (Named name (Arg (Data d ts) terms)) prob = do
     e = Map.fromList $ cs <&> \c ->
       ( c.name
       , ( Named (name <> "_" <> c.name) (Arg c.field [])
-        , Declaration prob.signature []
+        , Problem prob.signature []
         )
       )
 
     f m (Ctr c x, ex) = Map.adjust (bimap
       (\(Named v (Arg ty ys)) -> Named v (Arg ty (x:ys)))
-      (\(Declaration sig exs) -> Declaration sig (ex:exs))) c m
+      (\(Problem sig exs) -> Problem sig (ex:exs))) c m
     f _ _ = error "Not a constructor"
 
-  return $ List.foldl' f e (zip terms prob.bindings)
+  return $ List.foldl' f e (zip terms prob.examples)
 caseSplit _ _ = error "Not a datatype"
 
 split :: Tactic sig m => Named Arg -> Problem -> m ()
@@ -204,7 +208,7 @@ split arg problem = do
 introMap :: Tactic sig m => Named Arg -> Problem -> m ()
 introMap (Named _ (Arg ty terms)) problem = case (ty, problem.signature.goal) of
   (Data "List" [t], Data "List" [u]) -> do
-    exs <- forM (zip terms problem.bindings) \case
+    exs <- forM (zip terms problem.examples) \case
       (List inputs, Example scope (List outputs)) -> do
         guard $ length inputs == length outputs
         return $ zipWith (\x y -> Example (scope ++ [x]) y) inputs outputs
@@ -212,7 +216,7 @@ introMap (Named _ (Arg ty terms)) problem = case (ty, problem.signature.goal) of
     x <- freshName "x"
     let Signature constraints context _ = problem.signature
     let signature = Signature constraints (context ++ [Named x t]) u
-    subgoal "f" $ Declaration signature (concat exs)
+    subgoal "f" $ Problem signature (concat exs)
   _ -> mzero
 
 foldArgs :: Tactic sig m => Problem -> m ()
@@ -223,11 +227,11 @@ foldArgs problem = do
 fold :: Tactic sig m => Named Arg -> Problem -> m ()
 fold (Named name (Arg ty terms)) problem = do
 
-  let paired = zip terms problem.bindings
-  polyProblem <- check Declaration
+  let paired = zip terms problem.examples
+  polyProblem <- check Problem
     { signature = problem.signature
       { context = Named name ty : problem.signature.context }
-    , bindings = paired <&> \(i, Example is o) -> Example (i:is) o
+    , examples = paired <&> \(i, Example is o) -> Example (i:is) o
     }
   let recurse = applyProblem polyProblem
 
@@ -243,11 +247,11 @@ fold (Named name (Arg ty terms)) problem = do
               Just r -> return $ Example (ins ++ [y, r]) out
           _ -> error "Expected a list!"
 
-      subgoal "e" $ problem { bindings = nil }
+      subgoal "e" $ problem { examples = nil }
 
       x <- freshName "x"
       r <- freshName "r"
-      subgoal "f" $ Declaration problem.signature
+      subgoal "f" $ Problem problem.signature
         { context = problem.signature.context ++
           [ Named x t
           , Named r problem.signature.goal
@@ -266,13 +270,13 @@ fold (Named name (Arg ty terms)) problem = do
           _ -> error "Expected a tree!"
 
       y <- freshName "y"
-      subgoal "e" $ Declaration problem.signature
+      subgoal "e" $ Problem problem.signature
         { context = problem.signature.context ++ [ Named y u ] } leaf
 
       l <- freshName "l"
       x <- freshName "x"
       r <- freshName "r"
-      subgoal "f" $ Declaration problem.signature
+      subgoal "f" $ Problem problem.signature
         { context = problem.signature.context ++
           [ Named l problem.signature.goal
           , Named x t

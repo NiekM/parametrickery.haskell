@@ -85,7 +85,7 @@ library
     , Language.Container.Morphism
     , Language.Container.Relation
     , Language.Coverage
-    , Language.Declaration
+    , Language.Problem
     , Language.Parser
     , Language.Relevance
     , Tactic
