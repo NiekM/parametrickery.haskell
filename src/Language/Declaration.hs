@@ -1,8 +1,10 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Language.Declaration where
 
 import Data.List qualified as List
+import Data.Set qualified as Set
 
 import Prettyprinter.Utils
 import Base
@@ -18,9 +20,66 @@ data Declaration binding = Declaration
 
 type Problem = Declaration Example
 
+data Arg = Arg
+  { mono :: Mono
+  , terms :: [Term]
+  } deriving (Eq, Ord, Show)
+
+instance Pretty Arg where
+  pretty (Arg t es) = pretty t
+    <+> "=" <+> encloseSep lbrace rbrace ", " (map pretty es)
+
+instance Pretty (Named Arg) where
+  pretty (Named name (Arg t es)) = prettyNamed name t
+    <+> "=" <+> encloseSep lbrace rbrace ", " (map pretty es)
+
+data Args = Args
+  { constraints :: [Constraint]
+  , inputs :: [Named Arg]
+  , output :: Arg
+  } deriving stock (Eq, Ord, Show)
+
+instance Pretty Args where
+  pretty (Args constraints inputs output) = statements $
+    constrs constraints ++
+    [ statements $ map pretty inputs
+    , "->" <+> pretty output
+    ] where
+      constrs [] = []
+      constrs xs = [tupled (map pretty xs)]
+
+-- TODO: define this as an Iso from lens, or remove `constraints` and have it be
+-- a Lens
+toArgs :: Problem -> Args
+toArgs (Declaration signature examples) = Args
+  { constraints = signature.constraints
+  , inputs = zipWith (fmap . flip Arg) inputs signature.context
+  , output = Arg signature.goal outputs
+  } where
+    (inputs, outputs) = first List.transpose . unzip
+      $ examples <&> \ex -> (ex.inputs, ex.output)
+
+fromArgs :: Args -> Problem
+fromArgs (Args constraints args (Arg goal outputs)) = Declaration
+  { signature = Signature
+    { constraints
+    , context = args <&> fmap (.mono)
+    , goal
+    }
+  , bindings = zipWith Example (inputs ++ repeat []) outputs
+  } where
+    inputs = List.transpose $ args <&> \arg -> arg.value.terms
+
+onArgs :: (Args -> Args) -> Problem -> Problem
+onArgs f = fromArgs . f . toArgs
+
+restrict :: Set Text -> Args -> Args
+restrict ss args =
+  args { inputs = filter (\arg -> arg.name `Set.member` ss) args.inputs }
+
 instance Pretty (Named binding) => Pretty (Declaration binding) where
   pretty = prettyNamed "_"
- 
+
 instance Pretty (Named binding) => Pretty (Named (Declaration binding)) where
   pretty (Named name (Declaration sig exs)) =
     statements (prettyNamed name sig : map (prettyNamed name) exs)
@@ -50,9 +109,7 @@ instance Project Problem where
       ss = projections prob.signature
       bs = List.transpose $ map projections prob.bindings
 
-type Arg = (Mono, [Term])
-
 instance Project Arg where
   projections = \case
-    (Product ts, es) -> zip ts . List.transpose $ map projections es
+    Arg (Product ts) es -> zipWith Arg ts . List.transpose $ map projections es
     a -> [a]

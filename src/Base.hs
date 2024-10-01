@@ -12,10 +12,11 @@ module Base
   , module Data.Tuple
   , module Data.Either
   , module Control.Monad
-  , module Control.Effect.Throw
+  , module Control.Effect.Error
+  , module Control.Effect.NonDet
   , module Control.Effect.Reader
   , module Control.Effect.State
-  , module Control.Effect.NonDet
+  , module Control.Effect.Throw
   , module Prettyprinter
   , Nat
   ) where
@@ -39,10 +40,11 @@ import Data.Either (partitionEithers)
 
 import Control.Monad
 
-import Control.Effect.Throw
+import Control.Effect.Error
+import Control.Effect.NonDet
 import Control.Effect.Reader
 import Control.Effect.State
-import Control.Effect.NonDet
+import Control.Effect.Throw
 
 import Prettyprinter
 

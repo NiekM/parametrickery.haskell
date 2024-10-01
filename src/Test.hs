@@ -8,6 +8,7 @@ import Data.Coerce (coerce)
 import Data.Either (isRight, fromRight)
 import Data.Bifunctor (bimap)
 import Data.Foldable (asum)
+import Data.Set qualified as Set
 import Data.Map qualified as Map
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
@@ -18,6 +19,9 @@ import Data.Text.IO qualified as Text
 import Prettyprinter
 import System.IO.Unsafe qualified as Unsafe
 import System.Directory
+
+import Data.PQueue.Max (MaxQueue)
+import Data.PQueue.Max qualified as Queue
 
 import Base
 import Data.Map.Multi qualified as Multi
@@ -30,6 +34,7 @@ import Language.Container.Relation
 import Language.Coverage
 import Language.Declaration
 import Language.Parser
+import Language.Relevance
 import Utils
 
 import Tactic
@@ -146,8 +151,13 @@ incr = parse
   \_ [4,5] = [5,6]\n\
   \_ [6] = [7]"
 
+rel :: Problem
+rel = parse
+  "_ : {x : a, y : a, z : a} -> List a\n\
+  \_ 1 2 1 = [1,2]"
+
 isFold :: Problem -> [Either Conflict [SubGoal]]
-isFold p = execTactic (foldArgs p) <&> fmap (.subgoals)
+isFold p = execTactic (foldArgs p) <&> fmap (Queue.toList . (.subgoals))
 
 runBench :: [Named Problem] -> IO ()
 runBench benchmark = do

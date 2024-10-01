@@ -87,6 +87,7 @@ library
     , Language.Coverage
     , Language.Declaration
     , Language.Parser
+    , Language.Relevance
     , Tactic
 
   -- Modules included in this library but not exported.
@@ -107,6 +108,7 @@ library
     , text
     , lens
     , megaparsec
+    , pqueue
     , fused-effects
 
   -- Directories containing source files.
