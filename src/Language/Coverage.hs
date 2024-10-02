@@ -83,18 +83,11 @@ expectedCoverage ctx signature = Set.fromList <$> coveringPatterns ctx
   signature.constraints
   (map (.value) signature.context)
 
-bindingCoverage :: [Rule] -> Set Pattern
-bindingCoverage = Set.fromList <$> map (.input)
+ruleCoverage :: [Rule] -> Set Pattern
+ruleCoverage = Set.fromList <$> map (.input)
 
 data Coverage = Total | Partial | Missing (Set Pattern)
   deriving (Eq, Ord, Show)
-
-instance Pretty Coverage where
-  pretty = \case
-    Total -> "Total"
-    Partial -> "Partial"
-    Missing c -> vcat $ "Partial, missing cases:"
-      : map pretty (Set.toList c)
 
 -- TODO: what kind of coverage do we need? how do we check shape coverage
 -- nicely? maybe translate to Map Shape Relation? might be better in general as
@@ -112,7 +105,7 @@ coverage signature examples = do
     Nothing -> Partial
     Just expected ->
       let
-        covered = bindingCoverage examples
+        covered = ruleCoverage examples
         missing = expected Set.\\ covered
         -- shapes = Set.map (.shapes) expected Set.\\ Set.map (.shapes) covered
       in if null missing then Total else Missing missing

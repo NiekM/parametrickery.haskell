@@ -86,6 +86,7 @@ library
     , Language.Container.Relation
     , Language.Coverage
     , Language.Problem
+    , Language.Pretty
     , Language.Parser
     , Language.Relevance
     , Tactic
@@ -95,7 +96,6 @@ library
       Base
     , Data.Map.Utils
     , Data.Map.Multi
-    , Prettyprinter.Utils
     , Utils
     , Test
 

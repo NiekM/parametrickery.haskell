@@ -5,7 +5,6 @@ import Data.Map qualified as Map
 
 import Base
 import Data.Named
-import Prettyprinter.Utils
 
 -- We could try to design our framework to be generic over the types and
 -- expressions, by creating some type class that provides e.g. a lens to the
@@ -122,42 +121,3 @@ data Signature = Signature
   , context     :: [Named Mono]
   , goal        :: Mono
   } deriving stock (Eq, Ord, Show)
-
------- Pretty ------
-
-instance Pretty Base where
-  pretty = viaShow
-
-instance Pretty Constraint where
-  pretty = \case
-    Eq  a -> "Eq"  <+> pretty a
-    Ord a -> "Ord" <+> pretty a
-
-instance Pretty Mono where
-  pretty = prettyMinPrec
-
-instance Pretty (Prec Mono) where
-  pretty (Prec p t) = case t of
-    Free v -> pretty v
-    Product ts -> tupled $ map pretty ts
-    Data d [] -> pretty d
-    Data d ts -> parensIf (p > 2) $ pretty d <+> sep (prettyPrec 3 <$> ts)
-    Base b -> pretty b
-
-instance Pretty (Named Mono) where
-  pretty (Named x t) = pretty x <+> ":" <+> pretty t
-
-instance Pretty Signature where
-  pretty Signature { constraints, context, goal } = cat
-    [ constrs constraints
-    , arguments context
-    , pretty goal
-    ] where
-      constrs [] = ""
-      constrs [x] = pretty x <+> "=> "
-      constrs xs = tupled (map pretty xs) <+> "=> "
-      arguments [] = ""
-      arguments xs = encloseSep lbrace rbrace ", " (map pretty xs) <+> "-> "
-
-instance Pretty (Named Signature) where
-  pretty (Named name sig) = pretty name <+> ":" <+> pretty sig

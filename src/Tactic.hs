@@ -30,9 +30,9 @@ import Language.Problem
 import Language.Container.Morphism
 import Language.Coverage
 import Language.Relevance
+import Language.Pretty
 
 import Utils
-import Prettyprinter.Utils
 
 import Control.Algebra
 import Data.Kind
@@ -208,7 +208,7 @@ split arg problem = do
 introMap :: Tactic sig m => Named Arg -> Problem -> m ()
 introMap (Named _ (Arg ty terms)) problem = case (ty, problem.signature.goal) of
   (Data "List" [t], Data "List" [u]) -> do
-    exs <- forM (zip terms problem.examples) \case
+    examples <- forM (zip terms problem.examples) \case
       (List inputs, Example scope (List outputs)) -> do
         guard $ length inputs == length outputs
         return $ zipWith (\x y -> Example (scope ++ [x]) y) inputs outputs
@@ -216,7 +216,7 @@ introMap (Named _ (Arg ty terms)) problem = case (ty, problem.signature.goal) of
     x <- freshName "x"
     let Signature constraints context _ = problem.signature
     let signature = Signature constraints (context ++ [Named x t]) u
-    subgoal "f" $ Problem signature (concat exs)
+    subgoal "f" $ Problem signature (concat examples)
   _ -> mzero
 
 foldArgs :: Tactic sig m => Problem -> m ()
@@ -228,12 +228,12 @@ fold :: Tactic sig m => Named Arg -> Problem -> m ()
 fold (Named name (Arg ty terms)) problem = do
 
   let paired = zip terms problem.examples
-  polyProblem <- check Problem
+  rules <- check Problem
     { signature = problem.signature
       { context = Named name ty : problem.signature.context }
     , examples = paired <&> \(i, Example is o) -> Example (i:is) o
     }
-  let recurse = applyProblem polyProblem
+  let recurse = applyRules rules
 
   case ty of
     Data "List" [t] -> do 

@@ -5,6 +5,7 @@ module Utils
   , partitionWith
   , mapEither
   , extract, inject
+  , ordered
   ) where
 
 import Data.Map.Strict qualified as Map
@@ -37,3 +38,7 @@ extract = swap . traverse \(x, y) -> (Map.singleton x y, x)
 
 inject :: (Traversable f, Ord k) => Map k v -> f k -> Maybe (f v)
 inject m = traverse (`Map.lookup` m)
+
+ordered :: Ord a => [a] -> Bool
+ordered [] = True
+ordered (x:xs) = and $ zipWith (<) (x:xs) xs

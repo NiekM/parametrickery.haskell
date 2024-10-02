@@ -1,12 +1,8 @@
-{-# LANGUAGE UndecidableInstances #-}
-
 module Language.Expr where
 
 import Data.Foldable
 
 import Base
-import Data.Named
-import Prettyprinter.Utils
 
 newtype Lit = MkInt Int
   deriving stock (Eq, Ord, Show)
@@ -83,39 +79,3 @@ data Example = Example
   { inputs :: [Term]
   , output :: Term
   } deriving stock (Eq, Ord, Show)
-
------- Pretty ------
-
-instance Pretty Lit where
-  pretty = \case
-    MkInt n -> pretty n
-
-instance Pretty (Hole Void) where
-  pretty (MkHole h) = absurd h
-
-instance Pretty (Hole ()) where
-  pretty = const "_"
-
-instance Pretty (Hole Text) where
-  pretty (MkHole h) = braces $ pretty h
-
-instance Pretty (Hole h) => Pretty (Expr h) where
-  pretty = prettyMinPrec
-
-instance Pretty (Hole h) => Pretty (Prec (Expr h)) where
-  pretty (Prec p e) = case e of
-    Tuple xs -> tupled $ map pretty xs
-    List xs -> pretty xs
-    Ctr c Unit -> pretty c
-    Ctr c x -> parensIf (p > 2) $ pretty c <+> prettyPrec 3 x
-    Lit l -> pretty l
-    Hole v -> pretty v
-
-instance Pretty Example where
-  pretty (Example [] out) = pretty out
-  pretty (Example ins out) =
-    sep (map prettyMaxPrec ins) <+> "->" <+> pretty out
-
-instance Pretty (Named Example) where
-  pretty (Named name (Example ins out)) =
-    sep (pretty name : map prettyMaxPrec ins ++ ["=", pretty out])

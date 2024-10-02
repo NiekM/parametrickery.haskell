@@ -1,4 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Language.Problem where
@@ -6,7 +5,6 @@ module Language.Problem where
 import Data.List qualified as List
 import Data.Set qualified as Set
 
-import Prettyprinter.Utils
 import Base
 import Data.Named
 import Language.Expr
@@ -21,30 +19,13 @@ data Problem = Problem
 data Arg = Arg
   { mono :: Mono
   , terms :: [Term]
-  } deriving (Eq, Ord, Show)
-
-instance Pretty Arg where
-  pretty (Arg t es) = pretty t
-    <+> "=" <+> encloseSep lbrace rbrace ", " (map pretty es)
-
-instance Pretty (Named Arg) where
-  pretty (Named name (Arg t es)) = prettyNamed name t
-    <+> "=" <+> encloseSep lbrace rbrace ", " (map pretty es)
+  } deriving stock (Eq, Ord, Show)
 
 data Args = Args
   { constraints :: [Constraint]
   , inputs :: [Named Arg]
   , output :: Arg
   } deriving stock (Eq, Ord, Show)
-
-instance Pretty Args where
-  pretty (Args constraints inputs output) = statements $
-    constrs constraints ++
-    [ statements $ map pretty inputs
-    , "->" <+> pretty output
-    ] where
-      constrs [] = []
-      constrs xs = [tupled (map pretty xs)]
 
 -- TODO: define this as an Iso from lens, or remove `constraints` and have it be
 -- a Lens
@@ -74,13 +55,6 @@ onArgs f = fromArgs . f . toArgs
 restrict :: Set Text -> Args -> Args
 restrict ss args =
   args { inputs = filter (\arg -> arg.name `Set.member` ss) args.inputs }
-
-instance Pretty Problem where
-  pretty = prettyNamed "_"
-
-instance Pretty (Named Problem) where
-  pretty (Named name (Problem sig exs)) = statements $
-    prettyNamed name sig : map (prettyNamed name) exs
 
 class Project a where
   projections :: Project a => a -> [a]

@@ -24,8 +24,7 @@ data Container = Container
 
 -- Traverse an expression along with its type, introducing holes at free
 -- variables.
-poly :: Has (Reader Context) sig m =>
-  Mono -> Expr a -> m (Expr (Text, Expr a))
+poly :: Has (Reader Context) sig m => Mono -> Expr a -> m (Expr (Text, Expr a))
 poly = \cases
   (Free v) x -> return $ return (v, x)
   (Product ts) (Tuple xs) -> Tuple <$> zipWithM poly ts xs
@@ -36,8 +35,8 @@ poly = \cases
         <+> "does not have a constructor" <+> pretty c <> "."
       Just ct -> Ctr c <$> poly ct.field x
   (Base _) (Lit x) -> return $ Lit x
-  t x -> error . show $
-    pretty (void x) <+> "does not have type" <+> pretty t <> "."
+  t x -> error $
+    show (void x) <> " does not have type " <> show t <> "."
 
 computePositions :: Expr (Text, Term) -> Expr (Position, Term)
 computePositions e = run $ evalState @(Map Text Nat) mempty do
@@ -54,16 +53,3 @@ fromContainer :: Container -> Term
 fromContainer Container { shape, elements } = case inject elements shape of
   Nothing -> error "Missing position"
   Just e -> accept e
-
------- Pretty ------
-
-instance Pretty Position where
-  pretty (Position a n) = pretty a <> pretty n
-
-instance Pretty (Hole Position) where
-  pretty (MkHole p) = pretty p
-
-instance Pretty Container where
-  pretty (Container s p) = pretty s <+> encloseSep lbrace rbrace ", " xs
-    where
-      xs = Map.assocs p <&> \(i, x) -> pretty i <+> "=" <+> pretty x

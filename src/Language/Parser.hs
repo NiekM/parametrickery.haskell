@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+
 module Language.Parser (Parse(..), lexParse, test) where
 
 import Prelude hiding (foldr1)

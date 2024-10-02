@@ -10,6 +10,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
 import Base
+import Utils
 
 import Language.Type
 import Language.Expr
@@ -44,10 +45,6 @@ computeRelation p = \case
 computeRelations :: [Constraint] -> Map Position Term -> [Relation]
 computeRelations cs p = cs <&> computeRelation p
 
-ordered :: Ord a => [a] -> Bool
-ordered [] = True
-ordered (x:xs) = and $ zipWith (<) (x:xs) xs
-
 checkRelation :: Map Position Term -> Relation -> Bool
 checkRelation elements = \case
   RelEq r ->
@@ -56,15 +53,3 @@ checkRelation elements = \case
   RelOrd r ->
     let q = map (Set.map (elements Map.!?)) r
     in all ((== 1) . Set.size) q && ordered q
-
------- Pretty ------
-
-eqClass :: Pretty a => Set a -> Doc ann
-eqClass s = case Set.toList s of
-  [x] -> pretty x
-  xs  -> encloseSep mempty mempty " == " $ map pretty xs
-
-instance Pretty Relation where
-  pretty = \case
-    RelEq  eq  -> encloseSep mempty mempty " /= " . fmap eqClass $ Set.toList eq
-    RelOrd ord -> encloseSep mempty mempty " < "  $ fmap eqClass ord

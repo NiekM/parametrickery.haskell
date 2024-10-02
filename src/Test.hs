@@ -34,6 +34,7 @@ import Language.Container.Relation
 import Language.Coverage
 import Language.Problem
 import Language.Parser
+import Language.Pretty
 import Language.Relevance
 import Utils
 

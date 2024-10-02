@@ -32,9 +32,6 @@ newtype Relevance = Relevance
   { relevance :: NonEmpty (Signature, [Rule], Coverage)
   } deriving stock (Eq, Ord, Show)
 
-instance Pretty Relevance where
-  pretty (Relevance rel) = pretty rel
-
 relevance :: (Has (Reader Context) sig m, Has (Error Conflict) sig m)
   => Problem -> m Relevance
 relevance problem = do

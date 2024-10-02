@@ -1,12 +1,7 @@
--- TODO: perhaps rename to Language.Container.Example?
---       although it is a bit confusing...
-
-{-# OPTIONS_GHC -Wno-orphans #-}
 module Language.Container.Morphism where
 
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
-import Data.Set qualified as Set
 
 import Control.Carrier.Reader
 import Control.Carrier.Throw.Either
@@ -21,7 +16,6 @@ import Language.Expr
 import Language.Problem
 import Language.Container
 import Language.Container.Relation
-import Prettyprinter.Utils
 import Utils
 
 -- TODO: maybe rewrite with some other datatype?
@@ -119,50 +113,12 @@ matchPattern patt terms = do
   guard $ all (checkRelation elements) patt.relations
   return elements
 
-applyExample :: Rule -> [Term] -> Maybe Term
-applyExample rule terms = do
+applyRule :: Rule -> [Term] -> Maybe Term
+applyRule rule terms = do
   inElements <- matchPattern rule.input terms
   outElements <-
     Multi.toMap $ Multi.compose (Multi.fromMap inElements) rule.origins
   accept <$> inject outElements rule.output
 
-applyProblem :: [Rule] -> [Term] -> Maybe Term
-applyProblem rules terms = altMap (`applyExample` terms) rules
-
------- Pretty ------
-
-instance Pretty (Hole (Set Position)) where
-  pretty (MkHole ps) = case Set.toList ps of
-    [x] -> pretty x
-    xs  -> encloseSep lbrace rbrace ", " $ map pretty xs
-
-instance Pretty Pattern where
-  pretty patt
-    | null relations = inputs
-    | otherwise = inputs <+> "|" <+>
-      concatWith (surround ", ") (pretty <$> relations)
-    where
-      inputs = sep (map prettyMaxPrec patt.shapes)
-      relations = filter relevant patt.relations
-
-instance Pretty Rule where
-  pretty Rule { input, output, origins }
-    | null input.shapes = pretty output
-    | otherwise = pretty input <+> "->" <+> out
-    where
-      out = pretty $ fmap (`Multi.lookup` origins) output
-
-instance Pretty (Named Rule) where
-  pretty (Named name Rule { input, output, origins })
-    | null input.shapes = pretty name <+> "=" <+> out
-    | otherwise = pretty name <+> pretty input <+> "=" <+> out
-    where
-      out = pretty $ fmap (`Multi.lookup` origins) output
-
-instance Pretty Conflict where
-  pretty = \case
-    ArgumentMismatch ts es -> "ArgumentMismatch!" <+> indent 2
-      (vcat [pretty ts, pretty es])
-    ShapeConflict xs -> "ShapeConflict!" <+> indent 2 (pretty xs)
-    MagicOutput x -> "MagicOutput!" <+> indent 2 (pretty x)
-    PositionConflict xs -> "PositionConflict!" <+> indent 2 (pretty xs)
+applyRules :: [Rule] -> [Term] -> Maybe Term
+applyRules rules terms = altMap (`applyRule` terms) rules
