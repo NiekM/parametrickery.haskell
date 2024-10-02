@@ -94,6 +94,7 @@ library
   -- Modules included in this library but not exported.
   other-modules:
       Base
+    , Control.Effect.Fresh.Named
     , Data.Map.Utils
     , Data.Map.Multi
     , Utils

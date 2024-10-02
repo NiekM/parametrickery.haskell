@@ -1,8 +1,5 @@
 module Utils
   ( altMap
-  , allSame
-  , nonEmpty
-  , partitionWith
   , mapEither
   , extract, inject
   , ordered
@@ -16,19 +13,6 @@ import Base
 
 altMap :: (Foldable f, Alternative m) => (a -> m b) -> f a -> m b
 altMap f = getAlt . foldMap (Alt . f)
-
-allSame :: Eq a => NonEmpty a -> Bool
-allSame (x :| xs) = all (== x) xs
-
-nonEmpty :: Set a -> Maybe (Set a)
-nonEmpty x
-  | null x    = Nothing
-  | otherwise = Just x
-
-partitionWith :: (a -> Either b c) -> [a] -> ([b], [c])
-partitionWith f = ([], []) & foldr \x -> case f x of
-  Left  a -> first  (a:)
-  Right b -> second (b:)
 
 mapEither :: (a -> Either b c) -> [a] -> ([b], [c])
 mapEither f = partitionEithers . fmap f

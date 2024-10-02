@@ -22,8 +22,7 @@ data Arg = Arg
   } deriving stock (Eq, Ord, Show)
 
 data Args = Args
-  { constraints :: [Constraint]
-  , inputs :: [Named Arg]
+  { inputs :: [Named Arg]
   , output :: Arg
   } deriving stock (Eq, Ord, Show)
 
@@ -31,15 +30,14 @@ data Args = Args
 -- a Lens
 toArgs :: Problem -> Args
 toArgs (Problem signature examples) = Args
-  { constraints = signature.constraints
-  , inputs = zipWith (fmap . flip Arg) inputs signature.context
+  { inputs = zipWith (fmap . flip Arg) inputs signature.context
   , output = Arg signature.goal outputs
   } where
     (inputs, outputs) = first List.transpose . unzip
       $ examples <&> \ex -> (ex.inputs, ex.output)
 
-fromArgs :: Args -> Problem
-fromArgs (Args constraints args (Arg goal outputs)) = Problem
+fromArgs :: [Constraint] -> Args -> Problem
+fromArgs constraints (Args args (Arg goal outputs)) = Problem
   { signature = Signature
     { constraints
     , context = args <&> fmap (.mono)
@@ -50,14 +48,14 @@ fromArgs (Args constraints args (Arg goal outputs)) = Problem
     inputs = List.transpose $ args <&> \arg -> arg.value.terms
 
 onArgs :: (Args -> Args) -> Problem -> Problem
-onArgs f = fromArgs . f . toArgs
+onArgs f p = fromArgs p.signature.constraints . f $ toArgs p
 
 restrict :: Set Text -> Args -> Args
 restrict ss args =
   args { inputs = filter (\arg -> arg.name `Set.member` ss) args.inputs }
 
 class Project a where
-  projections :: Project a => a -> [a]
+  projections :: a -> [a]
 
 instance Project (Expr h) where
   projections = \case

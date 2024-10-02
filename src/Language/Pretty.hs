@@ -129,13 +129,10 @@ instance Pretty (Named Arg) where
     <+> "=" <+> braced (map pretty es)
 
 instance Pretty Args where
-  pretty (Args constraints inputs output) = statements $
-    constrs constraints ++
+  pretty (Args inputs output) = statements
     [ statements $ map pretty inputs
     , "->" <+> pretty output
-    ] where
-      constrs [] = []
-      constrs xs = [tupled (map pretty xs)]
+    ]
 
 instance Pretty Relevance where
   pretty (Relevance rel) = pretty rel

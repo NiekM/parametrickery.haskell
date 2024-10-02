@@ -1,19 +1,15 @@
-{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Tactic where
 
 import Data.Map qualified as Map
-import Data.Text qualified as Text
 import Data.List qualified as List
 
 import Data.Functor.Identity
-import Control.Monad.Fail as Fail
-import Control.Monad.Fix
-import Control.Monad.IO.Class
 
 import Control.Effect.Throw
 import Control.Effect.Reader
+import Control.Effect.Fresh.Named
 import Control.Carrier.Error.Either
 import Control.Carrier.Reader
 import Control.Carrier.State.Strict
@@ -34,22 +30,16 @@ import Language.Pretty
 
 import Utils
 
-import Control.Algebra
-import Data.Kind
-
 pick :: Nat -> [a] -> Maybe (a, [a])
 pick i xs = case List.genericSplitAt i xs of
   (ys, z:zs) -> Just (z, ys ++ zs)
   _ -> Nothing
 
-pickInput :: Nat -> Example -> Maybe (Term, Example)
-pickInput i (Example ins out) = fmap (`Example` out) <$> pick i ins
-
 pickArg :: Nat -> Problem -> Maybe (Named Arg, Problem)
-pickArg i (Problem sig exs) = do
-  (t, context) <- pick i sig.context
-  (xs, examples) <- mapAndUnzipM (pickInput i) exs
-  return (fmap (`Arg` xs) t, Problem sig { context } examples)
+pickArg n p = do
+  let args = toArgs p
+  (arg, inputs) <- pick n args.inputs
+  return (arg, fromArgs p.signature.constraints args { inputs })
 
 -- All possible ways to pick one argument from a problem.
 pickApart :: Problem -> [(Named Arg, Problem)]
@@ -69,50 +59,20 @@ addArgs args Problem { signature, examples } =
     addInputs :: [Term] -> Example -> Example
     addInputs new (Example inputs output) = Example (inputs ++ new) output
 
-data Fresh (m :: Type -> Type) a where
-  Fresh :: Text -> Fresh m Nat
-
-fresh :: Has Fresh sig m => Text -> m Nat
-fresh t = send (Fresh t)
-
-freshName :: Has Fresh sig m => Text -> m Text
-freshName t = do
-  n <- fresh t
-  return $ t <> Text.pack (show n)
-
-newtype FreshC m a = FreshC { runFreshC :: StateC (Map Text Nat) m a }
-  deriving newtype (Alternative, Applicative, Functor, Monad, Fail.MonadFail, MonadFix, MonadIO, MonadPlus)
-
-evalFresh :: Functor m => FreshC m a -> m a
-evalFresh (FreshC s) = evalState mempty s
-
-instance Algebra sig m => Algebra (Fresh :+: sig) (FreshC m) where
-  alg hdl sig ctx = FreshC $ case sig of
-    L (Fresh t) -> do
-      m <- get
-      let n = fromMaybe 0 $ Map.lookup t m
-      modify $ Map.insert t (n + 1)
-      return (n <$ ctx)
-    R other -> alg ((.runFreshC) . hdl) (R other) ctx
-
 data SubGoal = SubGoal
   { name :: Text
-  , signature :: Signature
-  , examples :: [Example]
-  , polymorphic :: [Rule]
+  , problem :: Problem
+  , rules :: [Rule]
   , coverage :: Coverage
   , relevance :: Relevance
   } deriving stock (Eq, Ord, Show)
 
-subProblem :: SubGoal -> Problem
-subProblem g = Problem g.signature g.examples
-
 instance Pretty SubGoal where
-  pretty g = statements
-    [ pretty g.signature
-    , statements $ map (prettyNamed g.name) g.polymorphic
-    , parens $ pretty g.coverage
-    , pretty g.relevance
+  pretty goal = statements
+    [ pretty goal.problem.signature
+    , statements $ map (prettyNamed goal.name) goal.rules
+    , parens $ pretty goal.coverage
+    , pretty goal.relevance
     ]
 
 newtype ProofState = ProofState
@@ -133,21 +93,24 @@ type Tactic sig m =
   , MonadPlus m
   )
 
-runTactic :: ReaderC Context (StateC ProofState (ErrorC Conflict (FreshC (NonDetC Identity)))) a -> [Either Conflict (ProofState, a)]
+type TacticC = ReaderC Context (StateC ProofState
+  (ErrorC Conflict (FreshC (NonDetC Identity))))
+
+runTactic :: TacticC a -> [Either Conflict (ProofState, a)]
 runTactic t = run . runNonDetA . evalFresh . runError
   . runState (ProofState Queue.empty) $ runReader datatypes t
 
-execTactic :: ReaderC Context (StateC ProofState (ErrorC Conflict (FreshC (NonDetC Identity)))) a -> [Either Conflict ProofState]
+execTactic :: TacticC a -> [Either Conflict ProofState]
 execTactic t = run . runNonDetA . evalFresh . runError
   . execState (ProofState Queue.empty) $ runReader datatypes t
 
 subgoal :: Tactic sig m => Text -> Problem -> m ()
 subgoal t p = do
-  p' <- check p
+  rules <- check p
   name <- freshName t
-  c <- coverage p.signature p'
+  c <- coverage p.signature rules
   r <- relevance p
-  let sub = SubGoal name p.signature p.examples p' c r
+  let sub = SubGoal name p rules c r
   modify \s -> s { subgoals = Queue.insert sub s.subgoals }
 
 next :: Tactic sig m => m (Maybe SubGoal)
@@ -170,7 +133,7 @@ folds n = do
   case x of
     Nothing -> get
     Just g -> do
-      foldArgs $ subProblem g
+      foldArgs g.problem
       folds (n - 1)
 
 tuple :: Tactic sig m => Problem -> m ()
