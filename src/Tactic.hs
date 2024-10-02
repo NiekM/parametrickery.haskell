@@ -28,8 +28,6 @@ import Language.Coverage
 import Language.Relevance
 import Language.Pretty
 
-import Utils
-
 pick :: Nat -> [a] -> Maybe (a, [a])
 pick i xs = case List.genericSplitAt i xs of
   (ys, z:zs) -> Just (z, ys ++ zs)
@@ -126,18 +124,49 @@ next = do
 
 -- TODO: deal with trace incompleteness: do we just disallow fold?
 -- TODO: implement relevancy check
+-- TODO: catch errors and throw away unrealizable cases
 folds :: Tactic sig m => Nat -> m ProofState
 folds 0 = get
-folds n = do
-  x <- next
-  case x of
-    Nothing -> get
-    Just g -> do
-      foldArgs g.problem
-      folds (n - 1)
+folds n = next >>= \case
+  Nothing -> get
+  Just goal -> do
+    catchError @Conflict
+      ( msum
+        [ foldArgs goal.problem
+        , introCons goal.problem
+        , assumption goal.problem
+        ]
+      )
+      (const mzero)
+    folds (n - 1)
+
+assumption :: Tactic sig m => Problem -> m ()
+assumption problem = do
+  (arg, _) <- oneOf $ pickApart problem
+  guard $ arg.value == (toArgs problem).output
 
 tuple :: Tactic sig m => Problem -> m ()
 tuple problem = forM_ (projections problem) $ subgoal "_"
+
+introCons :: Tactic sig m => Problem -> m ()
+introCons problem = case problem.signature.goal of
+  Data "List" [t] -> do
+    exs <- forM problem.examples \example -> case example.output of
+      Cons x xs -> return
+        ( example { output = x  } :: Example
+        , example { output = xs } :: Example
+        )
+      _ -> mzero
+    let (hd, tl) = unzip exs
+    subgoal "h" Problem
+      { signature = problem.signature { goal = t }
+      , examples = hd
+      }
+    subgoal "t" Problem
+      { signature = problem.signature
+      , examples = tl
+      }
+  _ -> mzero
 
 caseSplit :: Has (Reader Context) sig m =>
   Named Arg -> Problem -> m (Map Text (Named Arg, Problem))
@@ -200,15 +229,15 @@ fold (Named name (Arg ty terms)) problem = do
 
   case ty of
     Data "List" [t] -> do 
-      let
-        (nil, cons) = paired & mapEither \case
-          (Nil, ex) -> Left ex
-          (Cons y ys, Example ins out) ->
-            case recurse (ys:ins) of
-              -- TODO: how do we collect missing inputs?
-              Nothing -> error "Not shape complete!"
-              Just r -> return $ Example (ins ++ [y, r]) out
-          _ -> error "Expected a list!"
+      constrs <- forM paired \case
+        (Nil, ex) -> return $ Left ex
+        (Cons y ys, Example ins out) ->
+          case recurse (ys:ins) of
+            Nothing -> mzero
+            Just r -> return . Right $ Example (ins ++ [y, r]) out
+        _ -> error "Expected a list!"
+
+      let (nil, cons) = partitionEithers constrs
 
       subgoal "e" $ problem { examples = nil }
 
@@ -222,15 +251,17 @@ fold (Named name (Arg ty terms)) problem = do
         } cons
 
     Data "Tree" [t, u] -> do
-      let
-        (leaf, node) = paired & mapEither \case
-          (Ctr "Leaf" x, Example ins out) -> Left (Example (ins ++ [x]) out)
+      constrs <- forM paired \case
+          (Ctr "Leaf" x, Example ins out) -> return . Left $
+            Example (ins ++ [x]) out
           (Ctr "Node" (Tuple [l, x, r]), Example ins out) ->
             case (recurse (l:ins), recurse (r:ins)) of
-              (Just left, Just right) -> return $
+              (Just left, Just right) -> return . Right $
                 Example (ins ++ [left, x, right]) out
-              _ -> error "Not shape complete!"
+              _ -> mzero
           _ -> error "Expected a tree!"
+
+      let (leaf, node) = partitionEithers constrs
 
       y <- freshName "y"
       subgoal "e" $ Problem problem.signature
