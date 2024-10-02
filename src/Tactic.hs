@@ -4,6 +4,7 @@ module Tactic where
 
 import Data.Map qualified as Map
 import Data.List qualified as List
+import Data.List.NonEmpty qualified as NonEmpty
 
 import Data.Functor.Identity
 
@@ -133,7 +134,8 @@ folds n = next >>= \case
     catchError @Conflict
       ( msum
         [ foldArgs goal.problem
-        , introCons goal.problem
+        -- , introCons goal.problem
+        , introCtr goal.problem
         , assumption goal.problem
         ]
       )
@@ -147,6 +149,31 @@ assumption problem = do
 
 tuple :: Tactic sig m => Problem -> m ()
 tuple problem = forM_ (projections problem) $ subgoal "_"
+
+-- TODO: test this properly
+introCtr :: Tactic sig m => Problem -> m ()
+introCtr problem = case problem.signature.goal of
+  Data d ts -> do
+    cs <- asks $ getConstructors d ts
+    -- TODO: getConstructor that returns the fields of one specific ctr
+    exs <- forM problem.examples \example -> case example.output of
+      Ctr c e -> (c,) <$> forM (projections e) \x ->
+        return (example { output = x } :: Example)
+      _ -> mzero
+    case NonEmpty.groupAllWith fst exs of
+      [] -> error "no examples"
+      (_:_:_) -> mzero -- Not all examples agree.
+      [xs] -> do
+        let c = fst $ NonEmpty.head xs
+        let exampless = List.transpose $ snd <$> NonEmpty.toList xs
+        case List.find (\ct -> ct.name == c) cs of
+          Nothing -> error "unknown constructor"
+          Just ct -> do
+            let goals = projections ct.field
+            forM_ (zip exampless goals) \(examples, goal) -> do
+              let signature = problem.signature { goal }
+              subgoal "_" Problem { signature, examples }
+  _ -> mzero
 
 introCons :: Tactic sig m => Problem -> m ()
 introCons problem = case problem.signature.goal of
