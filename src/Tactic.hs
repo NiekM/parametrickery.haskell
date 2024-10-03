@@ -7,6 +7,7 @@ import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
 
 import Data.Functor.Identity
+import Data.Either (rights)
 
 import Control.Effect.Throw
 import Control.Effect.Reader
@@ -14,7 +15,10 @@ import Control.Effect.Fresh.Named
 import Control.Carrier.Error.Either
 import Control.Carrier.Reader
 import Control.Carrier.State.Strict
+import Control.Carrier.Writer.Strict
 import Control.Carrier.NonDet.Church
+
+import Debug.Trace
 
 import Data.PQueue.Max (MaxQueue)
 import Data.PQueue.Max qualified as Queue
@@ -42,86 +46,119 @@ pickArg n p = do
 
 -- All possible ways to pick one argument from a problem.
 pickApart :: Problem -> [(Named Arg, Problem)]
-pickApart p@(Problem Signature { context } _) =
-  zipWith const [0..] context & mapMaybe (`pickArg` p)
+pickApart p@(Problem Signature { inputs } _) =
+  zipWith const [0..] inputs & mapMaybe (`pickArg` p)
 
 addArgs :: [Named Arg] -> Problem -> Problem
 addArgs [] p = p
 addArgs args Problem { signature, examples } =
   Problem
-    { signature = signature { context = signature.context ++ types }
+    { signature = signature { inputs = signature.inputs ++ types }
     , examples = zipWith addInputs terms examples
     }
   where
     types = args <&> fmap (.mono)
-    terms = List.transpose $ args <&> \x -> x.value.terms
-    addInputs :: [Term] -> Example -> Example
+    terms = List.transpose $ map (.value.terms) args
+    addInputs :: [Value] -> Example -> Example
     addInputs new (Example inputs output) = Example (inputs ++ new) output
 
-data SubGoal = SubGoal
-  { name :: Text
-  , problem :: Problem
+data Extract
+  = Fun (Named (Program Text))
+  | Rules Text [Rule]
+  deriving stock (Eq, Ord, Show)
+
+instance Pretty Extract where
+  pretty = \case
+    Fun p -> pretty p
+    Rules t r -> statements $ prettyNamed t <$> r
+
+data Spec = Spec
+  { problem :: Problem
   , rules :: [Rule]
   , coverage :: Coverage
   , relevance :: Relevance
   } deriving stock (Eq, Ord, Show)
 
-instance Pretty SubGoal where
-  pretty goal = statements
-    [ pretty goal.problem.signature
-    , statements $ map (prettyNamed goal.name) goal.rules
-    , parens $ pretty goal.coverage
-    , pretty goal.relevance
+instance Pretty Spec where
+  pretty = prettyNamed "_"
+
+instance Pretty (Named Spec) where
+  pretty (Named name spec) = statements
+    [ pretty spec.problem.signature
+    , statements $ map (prettyNamed name) spec.rules
+    , parens $ pretty spec.coverage
+    -- , pretty goal.relevance
     ]
 
-newtype ProofState = ProofState
-  -- TODO: we probably want to remember all subgoals, but keep a separate queue
-  -- of unresolved subgoals to handle.
-  { subgoals :: MaxQueue SubGoal
+data ProofState = ProofState
+  { goals    :: [Named Spec]
+  , unsolved :: MaxQueue Text
   } deriving stock (Eq, Ord, Show)
 
+instance Semigroup ProofState where
+  a <> b = ProofState (a.goals <> b.goals) (a.unsolved <> b.unsolved)
+
+instance Monoid ProofState where
+  mempty = ProofState [] mempty
+
 instance Pretty ProofState where
-  pretty p = statements $ pretty <$> Queue.toList p.subgoals
+  pretty p = statements $ pretty <$> p.goals
 
 type Tactic sig m =
   ( Has (Reader Context) sig m
   , Has Fresh sig m
   , Has (Error Conflict) sig m
   , Has (State ProofState) sig m
+  , Has (Writer [Extract]) sig m
   , Has NonDet sig m
   , MonadPlus m
   )
 
-type TacticC = ReaderC Context (StateC ProofState
-  (ErrorC Conflict (FreshC (NonDetC Identity))))
+type TacticC = ReaderC Context (StateC ProofState (WriterC [Extract]
+  (ErrorC Conflict (FreshC (NonDetC Identity)))))
 
-runTactic :: TacticC a -> [Either Conflict (ProofState, a)]
+runTactic :: TacticC a -> [Either Conflict ([Extract], (ProofState, a))]
 runTactic t = run . runNonDetA . evalFresh . runError
-  . runState (ProofState Queue.empty) $ runReader datatypes t
+  . runWriter . runState mempty $ runReader datatypes t
 
-execTactic :: TacticC a -> [Either Conflict ProofState]
+execTactic :: TacticC a -> [Either Conflict ([Extract], ProofState)]
 execTactic t = run . runNonDetA . evalFresh . runError
-  . execState (ProofState Queue.empty) $ runReader datatypes t
+  . runWriter . execState mempty $ runReader datatypes t
 
-subgoal :: Tactic sig m => Text -> Problem -> m ()
+done :: TacticC a -> Maybe [Extract]
+done x = List.find bar . map fst . rights $ execTactic x
+  where bar = any \case (Fun a) -> a.name == "done"; _ -> False
+
+subgoal :: Tactic sig m => Text -> Problem -> m (Program Text)
 subgoal t p = do
   rules <- check p
   name <- freshName t
   c <- coverage p.signature rules
   r <- relevance p
-  let sub = SubGoal name p rules c r
-  modify \s -> s { subgoals = Queue.insert sub s.subgoals }
+  let sub = Named name $ Spec p rules c r
+  modify \s -> s { goals = sub : s.goals }
+  case c of
+    Total -> tell [Rules name rules]
+    _ -> modify \s -> s { unsolved = Queue.insert name s.unsolved }
+  return . Hole $ MkHole name
 
-next :: Tactic sig m => m (Maybe SubGoal)
+tactic :: Tactic sig m => (Spec -> m (Program Text)) -> m ()
+tactic f = next >>= \case
+  Nothing -> error "TODO: no more holes"
+  Just (Named name spec) -> do
+    e <- f spec
+    tell [Fun $ Named name e]
+
+next :: Tactic sig m => m (Maybe (Named Spec))
 next = do
-  gs <- gets @ProofState (.subgoals)
-  case Queue.maxView gs of
+  gs <- get @ProofState
+  case Queue.maxView gs.unsolved of
     Nothing -> return Nothing
-    Just (x, xs) -> do
-      modify \s -> s { subgoals = xs }
-      case x.coverage of
-        Total -> next
-        _ -> return $ Just x
+    Just (x, xs) -> case List.find (\g -> g.name == x) gs.goals of
+      Nothing -> error "unknown goal"
+      Just g -> do
+        modify \s -> s { unsolved = xs }
+        return $ Just g
 
 -- TODO: deal with trace incompleteness: do we just disallow fold?
 -- TODO: implement relevancy check
@@ -129,30 +166,37 @@ next = do
 folds :: Tactic sig m => Nat -> m ProofState
 folds 0 = get
 folds n = next >>= \case
-  Nothing -> get
+  Nothing -> tell [Fun (Named "done" $ Hole $ MkHole "!!")] >> get
   Just goal -> do
     catchError @Conflict
-      ( msum
-        [ foldArgs goal.problem
-        -- , introCons goal.problem
-        , introCtr goal.problem
-        , assumption goal.problem
-        ]
+      ( do
+        let p = goal.value.problem
+        x <- msum
+          [ foldArgs p
+          -- , introCons goal.problem
+          , introCtr p
+          , tuple p
+          , assumption p
+          ]
+        tell [Fun (Named goal.name x)]
       )
       (const mzero)
     folds (n - 1)
 
-assumption :: Tactic sig m => Problem -> m ()
+assumption :: Tactic sig m => Problem -> m (Program Text)
 assumption problem = do
   (arg, _) <- oneOf $ pickApart problem
   guard $ arg.value == (toArgs problem).output
+  return $ Var arg.name
 
-tuple :: Tactic sig m => Problem -> m ()
-tuple problem = forM_ (projections problem) $ subgoal "_"
+tuple :: Tactic sig m => Problem -> m (Program Text)
+tuple problem = case problem.signature.output of
+  Product _ -> Tuple <$> forM (projections problem) (subgoal "_")
+  _ -> mzero
 
 -- TODO: test this properly
-introCtr :: Tactic sig m => Problem -> m ()
-introCtr problem = case problem.signature.goal of
+introCtr :: Tactic sig m => Problem -> m (Program Text)
+introCtr problem = case problem.signature.output of
   Data d ts -> do
     cs <- asks $ getConstructors d ts
     -- TODO: getConstructor that returns the fields of one specific ctr
@@ -161,7 +205,7 @@ introCtr problem = case problem.signature.goal of
         return (example { output = x } :: Example)
       _ -> mzero
     case NonEmpty.groupAllWith fst exs of
-      [] -> error "no examples"
+      [] -> mzero --error "no examples"
       (_:_:_) -> mzero -- Not all examples agree.
       [xs] -> do
         let c = fst $ NonEmpty.head xs
@@ -170,13 +214,15 @@ introCtr problem = case problem.signature.goal of
           Nothing -> error "unknown constructor"
           Just ct -> do
             let goals = projections ct.field
-            forM_ (zip exampless goals) \(examples, goal) -> do
-              let signature = problem.signature { goal }
+            -- tell [Fun (Named "_" (Ctr c (Hole (MkHole "Text"))))]
+            es <- forM (zip exampless goals) \(examples, output) -> do
+              let signature = problem.signature { output } :: Signature
               subgoal "_" Problem { signature, examples }
+            return . Ctr c $ Tuple es
   _ -> mzero
 
 introCons :: Tactic sig m => Problem -> m ()
-introCons problem = case problem.signature.goal of
+introCons problem = case problem.signature.output of
   Data "List" [t] -> do
     exs <- forM problem.examples \example -> case example.output of
       Cons x xs -> return
@@ -185,14 +231,15 @@ introCons problem = case problem.signature.goal of
         )
       _ -> mzero
     let (hd, tl) = unzip exs
-    subgoal "h" Problem
-      { signature = problem.signature { goal = t }
+    _ <- subgoal "h" Problem
+      { signature = problem.signature { output = t }
       , examples = hd
       }
-    subgoal "t" Problem
+    _ <- subgoal "t" Problem
       { signature = problem.signature
       , examples = tl
       }
+    return ()
   _ -> mzero
 
 caseSplit :: Has (Reader Context) sig m =>
@@ -208,7 +255,7 @@ caseSplit (Named name (Arg (Data d ts) terms)) prob = do
       )
 
     f m (Ctr c x, ex) = Map.adjust (bimap
-      (\(Named v (Arg ty ys)) -> Named v (Arg ty (x:ys)))
+      (fmap \(Arg ty ys) -> Arg ty (x:ys))
       (\(Problem sig exs) -> Problem sig (ex:exs))) c m
     f _ _ = error "Not a constructor"
 
@@ -225,31 +272,33 @@ split arg problem = do
     subgoal v $ addArgs as p
 
 introMap :: Tactic sig m => Named Arg -> Problem -> m ()
-introMap (Named _ (Arg ty terms)) problem = case (ty, problem.signature.goal) of
-  (Data "List" [t], Data "List" [u]) -> do
-    examples <- forM (zip terms problem.examples) \case
-      (List inputs, Example scope (List outputs)) -> do
-        guard $ length inputs == length outputs
-        return $ zipWith (\x y -> Example (scope ++ [x]) y) inputs outputs
-      _ -> error "Not actually lists."
-    x <- freshName "x"
-    let Signature constraints context _ = problem.signature
-    let signature = Signature constraints (context ++ [Named x t]) u
-    subgoal "f" $ Problem signature (concat examples)
-  _ -> mzero
+introMap (Named _ (Arg ty terms)) problem =
+  case (ty, problem.signature.output) of
+    (Data "List" [t], Data "List" [u]) -> do
+      examples <- forM (zip terms problem.examples) \case
+        (List inputs, Example scope (List outputs)) -> do
+          guard $ length inputs == length outputs
+          return $ zipWith (\x y -> Example (scope ++ [x]) y) inputs outputs
+        _ -> error "Not actually lists."
+      x <- freshName "x"
+      let Signature constraints context _ = problem.signature
+      let signature = Signature constraints (context ++ [Named x t]) u
+      _ <- subgoal "f" $ Problem signature (concat examples)
+      return ()
+    _ -> mzero
 
-foldArgs :: Tactic sig m => Problem -> m ()
+foldArgs :: Tactic sig m => Problem -> m (Program Text)
 foldArgs problem = do
   (arg, prob) <- oneOf $ pickApart problem
   fold arg prob
 
-fold :: Tactic sig m => Named Arg -> Problem -> m ()
+fold :: Tactic sig m => Named Arg -> Problem -> m (Program Text)
 fold (Named name (Arg ty terms)) problem = do
 
   let paired = zip terms problem.examples
   rules <- check Problem
     { signature = problem.signature
-      { context = Named name ty : problem.signature.context }
+      { inputs = Named name ty : problem.signature.inputs }
     , examples = paired <&> \(i, Example is o) -> Example (i:is) o
     }
   let recurse = applyRules rules
@@ -260,22 +309,25 @@ fold (Named name (Arg ty terms)) problem = do
         (Nil, ex) -> return $ Left ex
         (Cons y ys, Example ins out) ->
           case recurse (ys:ins) of
-            Nothing -> mzero
+            Nothing -> do
+              traceM $ show (pretty name) ++ ": trace incomplete"
+              mzero
             Just r -> return . Right $ Example (ins ++ [y, r]) out
         _ -> error "Expected a list!"
 
       let (nil, cons) = partitionEithers constrs
 
-      subgoal "e" $ problem { examples = nil }
+      e <- subgoal "e" $ problem { examples = nil }
 
       x <- freshName "x"
       r <- freshName "r"
-      subgoal "f" $ Problem problem.signature
-        { context = problem.signature.context ++
+      f <- subgoal "f" $ Problem problem.signature
+        { inputs = problem.signature.inputs ++
           [ Named x t
-          , Named r problem.signature.goal
+          , Named r problem.signature.output
           ]
         } cons
+      return $ apps (Var "fold") [f, e]
 
     Data "Tree" [t, u] -> do
       constrs <- forM paired \case
@@ -291,18 +343,19 @@ fold (Named name (Arg ty terms)) problem = do
       let (leaf, node) = partitionEithers constrs
 
       y <- freshName "y"
-      subgoal "e" $ Problem problem.signature
-        { context = problem.signature.context ++ [ Named y u ] } leaf
+      e <- subgoal "e" $ Problem problem.signature
+        { inputs = problem.signature.inputs ++ [ Named y u ] } leaf
 
       l <- freshName "l"
       x <- freshName "x"
       r <- freshName "r"
-      subgoal "f" $ Problem problem.signature
-        { context = problem.signature.context ++
-          [ Named l problem.signature.goal
+      f <- subgoal "f" $ Problem problem.signature
+        { inputs = problem.signature.inputs ++
+          [ Named l problem.signature.output
           , Named x t
-          , Named r problem.signature.goal
+          , Named r problem.signature.output
           ]
         } node
+      return $ apps (Var "fold") [f, e]
 
     _ -> mzero

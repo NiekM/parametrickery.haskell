@@ -35,7 +35,7 @@ newtype Relevance = Relevance
 relevance :: (Has (Reader Context) sig m, Has (Error Conflict) sig m)
   => Problem -> m Relevance
 relevance problem = do
-  let vars = problem.signature.context <&> (.name)
+  let vars = problem.signature.inputs <&> (.name)
   let sets = subs $ Set.fromList vars
   xs <- catMaybes <$> forM sets \set -> do
     s <- sufficient set problem

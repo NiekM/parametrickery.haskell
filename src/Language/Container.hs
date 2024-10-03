@@ -14,17 +14,17 @@ import Language.Expr
 data Position = Position { var :: Text, pos :: Nat }
   deriving stock (Eq, Ord, Show)
 
-type Shape = Expr Position
+type Shape = Term Position
 
 -- TODO: maybe try to rework this to use IntMap, as it is much more efficient.
 data Container = Container
   { shape    :: Shape
-  , elements :: Map Position Term
+  , elements :: Map Position Value
   } deriving stock (Eq, Ord, Show)
 
 -- Traverse an expression along with its type, introducing holes at free
 -- variables.
-poly :: Has (Reader Context) sig m => Mono -> Expr a -> m (Expr (Text, Expr a))
+poly :: Has (Reader Context) sig m => Mono -> Term a -> m (Term (Text, Term a))
 poly = \cases
   (Free v) x -> return $ return (v, x)
   (Product ts) (Tuple xs) -> Tuple <$> zipWithM poly ts xs
@@ -38,7 +38,7 @@ poly = \cases
   t x -> error $
     show (void x) <> " does not have type " <> show t <> "."
 
-computePositions :: Expr (Text, Term) -> Expr (Position, Term)
+computePositions :: Term (Text, Value) -> Term (Position, Value)
 computePositions e = run $ evalState @(Map Text Nat) mempty do
   forM e \(v, x) -> do
     m <- get
@@ -46,10 +46,10 @@ computePositions e = run $ evalState @(Map Text Nat) mempty do
     modify $ Map.insert v (n + 1)
     return (Position v n, x)
 
-toContainer :: Has (Reader Context) sig m => Mono -> Term -> m Container
+toContainer :: Has (Reader Context) sig m => Mono -> Value -> m Container
 toContainer t = fmap (uncurry Container . extract . computePositions) . poly t
 
-fromContainer :: Container -> Term
+fromContainer :: Container -> Value
 fromContainer Container { shape, elements } = case inject elements shape of
   Nothing -> error "Missing position"
   Just e -> accept e

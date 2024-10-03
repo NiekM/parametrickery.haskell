@@ -45,10 +45,10 @@ data Rule = Rule
 checkExample :: (Has (Reader Context) sig m, Has (Throw Conflict) sig m) =>
   Signature -> Example -> m Rule
 checkExample signature example = do
-  let types = map (.value) signature.context
+  let types = map (.value) signature.inputs
 
   input  <- toContainer (Product types) (Tuple example.inputs)
-  output <- toContainer signature.goal example.output
+  output <- toContainer signature.output example.output
 
   let
     relations = computeRelations signature.constraints input.elements
@@ -85,7 +85,7 @@ combine = traverse merge . NonEmpty.groupAllWith (.input)
 
 -- TODO: do something with these conflicts.
 data Conflict
-  = ArgumentMismatch [Mono] [Term]
+  = ArgumentMismatch [Mono] [Value]
   | ShapeConflict (NonEmpty Rule)
   | MagicOutput Problem
   | PositionConflict (NonEmpty Rule)
@@ -100,25 +100,25 @@ check :: (Has (Reader Context) sig m, Has (Throw Conflict) sig m) =>
 check problem =
   combine =<< mapM (checkExample problem.signature) problem.examples
 
-matchShape :: Shape -> Term -> Maybe (Map Position Term)
+matchShape :: Shape -> Value -> Maybe (Map Position Value)
 matchShape (Tuple xs) (Tuple ys) = Map.unions <$> zipWithM matchShape xs ys
 matchShape (Ctr c x) (Ctr d y) | c == d = matchShape x y
 matchShape (Lit i) (Lit j) | i == j = Just Map.empty
 matchShape (Hole (MkHole p)) x = Just $ Map.singleton p x
 matchShape _ _ = Nothing
 
-matchPattern :: Pattern -> [Term] -> Maybe (Map Position Term)
+matchPattern :: Pattern -> [Value] -> Maybe (Map Position Value)
 matchPattern patt terms = do
   elements <- Map.unions <$> zipWithM matchShape patt.shapes terms
   guard $ all (checkRelation elements) patt.relations
   return elements
 
-applyRule :: Rule -> [Term] -> Maybe Term
+applyRule :: Rule -> [Value] -> Maybe Value
 applyRule rule terms = do
   inElements <- matchPattern rule.input terms
   outElements <-
     Multi.toMap $ Multi.compose (Multi.fromMap inElements) rule.origins
   accept <$> inject outElements rule.output
 
-applyRules :: [Rule] -> [Term] -> Maybe Term
+applyRules :: [Rule] -> [Value] -> Maybe Value
 applyRules rules terms = altMap (`applyRule` terms) rules

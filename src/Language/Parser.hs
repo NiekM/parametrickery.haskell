@@ -185,12 +185,12 @@ instance Parse Signature where
       , (:[]) <$> parser <* op "=>"
       , mempty
       ]
-    context <- choice
+    inputs <- choice
       [ parseList Curly (Named <$> identifier <* op ":" <*> parser) <* op "->"
       , mempty
       ]
-    goal <- parser
-    return Signature { constraints, context, goal }
+    output <- parser
+    return Signature { constraints, inputs, output }
 
 instance Parse (Named Signature) where
   parser = Named <$> identifier <* op ":" <*> parser
@@ -206,10 +206,10 @@ instance Parse (Hole ()) where
     "_" <- identifier
     return ()
 
-instance Parse (Hole h) => Parse (Hole (Expr h)) where
+instance Parse (Hole h) => Parse (Hole (Expr l h)) where
   parser = MkHole <$> brackets Curly parser
 
-parenExpr :: Parse (Hole h) => Parser (Expr h)
+parenExpr :: Parse (Hole h) => Parser (Expr l h)
 parenExpr = brackets Round do
   choice
     [ do
@@ -221,7 +221,7 @@ parenExpr = brackets Round do
     , return Unit
     ]
 
-instance Parse (Hole h) => Parse (Expr h) where
+instance Parse (Hole h) => Parse (Expr l h) where
   parser = choice
     [ parenExpr
     , Ctr <$> constructor <*> option Unit parser
@@ -230,7 +230,7 @@ instance Parse (Hole h) => Parse (Expr h) where
     , Hole <$> parser
     ]
 
-spacedExprUntil :: Parse (Hole h) => Lexeme -> Parser [Expr h]
+spacedExprUntil :: Parse (Hole h) => Lexeme -> Parser [Expr l h]
 spacedExprUntil l = many $ choice
   [ parenExpr
   , mkList <$> parseList Square parser

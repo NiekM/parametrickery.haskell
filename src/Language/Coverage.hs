@@ -14,11 +14,11 @@ import Language.Container.Morphism
 import Language.Container.Relation
 import Language.Problem
 
-coveringShapes :: Context -> Mono -> Maybe [Expr Text]
+coveringShapes :: Context -> Mono -> Maybe [Term Text]
 coveringShapes ctx = go []
   where
     -- We keep track of datatype names to recognize recursion.
-    go :: [Text] -> Mono -> Maybe [Expr Text]
+    go :: [Text] -> Mono -> Maybe [Term Text]
     go recs = \case
       -- Holes remember their type, so that we can fill in the positions later.
       Free a -> return [Hole $ MkHole a]
@@ -59,7 +59,7 @@ coveringRelations ps = \case
     let qs = filter (\x -> x.var == a) ps
     in RelOrd . map Set.fromList <$> concatMap orderings (subs qs)
 
-toShape :: Expr Text -> Shape
+toShape :: Term Text -> Shape
 toShape e = run $ evalState @(Map Text Nat) mempty do
   forM e \v -> do
     m <- get
@@ -81,7 +81,7 @@ coveringPatterns ctx constraints context = do
 expectedCoverage :: Context -> Signature -> Maybe (Set Pattern)
 expectedCoverage ctx signature = Set.fromList <$> coveringPatterns ctx
   signature.constraints
-  (map (.value) signature.context)
+  (map (.value) signature.inputs)
 
 ruleCoverage :: [Rule] -> Set Pattern
 ruleCoverage = Set.fromList <$> map (.input)

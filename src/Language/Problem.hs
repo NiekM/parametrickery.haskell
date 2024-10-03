@@ -17,8 +17,8 @@ data Problem = Problem
   } deriving stock (Eq, Ord, Show)
 
 data Arg = Arg
-  { mono :: Mono
-  , terms :: [Term]
+  { mono  :: Mono
+  , terms :: [Value]
   } deriving stock (Eq, Ord, Show)
 
 data Args = Args
@@ -30,22 +30,22 @@ data Args = Args
 -- a Lens
 toArgs :: Problem -> Args
 toArgs (Problem signature examples) = Args
-  { inputs = zipWith (fmap . flip Arg) inputs signature.context
-  , output = Arg signature.goal outputs
+  { inputs = zipWith (fmap . flip Arg) inputs signature.inputs
+  , output = Arg signature.output outputs
   } where
     (inputs, outputs) = first List.transpose . unzip
       $ examples <&> \ex -> (ex.inputs, ex.output)
 
 fromArgs :: [Constraint] -> Args -> Problem
-fromArgs constraints (Args args (Arg goal outputs)) = Problem
+fromArgs constraints (Args inputs (Arg goal outputs)) = Problem
   { signature = Signature
     { constraints
-    , context = args <&> fmap (.mono)
-    , goal
+    , inputs = inputs <&> fmap (.mono)
+    , output = goal
     }
-  , examples = zipWith Example (inputs ++ repeat []) outputs
+  , examples = zipWith Example (exInputs ++ repeat []) outputs
   } where
-    inputs = List.transpose $ args <&> \arg -> arg.value.terms
+    exInputs = List.transpose $ map (.value.terms) inputs
 
 onArgs :: (Args -> Args) -> Problem -> Problem
 onArgs f p = fromArgs p.signature.constraints . f $ toArgs p
@@ -57,7 +57,7 @@ restrict ss args =
 class Project a where
   projections :: a -> [a]
 
-instance Project (Expr h) where
+instance Project (Expr l h) where
   projections = \case
     Tuple xs -> xs
     x -> [x]
@@ -71,7 +71,9 @@ instance Project Example where
   projections (Example ins out) = Example ins <$> projections out
 
 instance Project Signature where
-  projections sig = projections sig.goal <&> \t -> sig { goal = t }
+  projections sig = do
+    output <- projections sig.output
+    return (sig { output } :: Signature)
 
 instance Project Problem where
   projections prob = zipWith Problem ss bs

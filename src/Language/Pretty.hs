@@ -56,17 +56,23 @@ instance Pretty (Hole ()) where
 instance Pretty (Hole Text) where
   pretty (MkHole h) = braces $ pretty h
 
-instance Pretty (Hole h) => Pretty (Expr h) where
+instance Pretty (Hole h) => Pretty (Expr l h) where
   pretty = prettyMinPrec
 
-instance Pretty (Hole h) => Pretty (Prec (Expr h)) where
+instance Pretty (Hole h) => Pretty (Prec (Expr l h)) where
   pretty (Prec p e) = case e of
     Tuple xs -> tupled $ map pretty xs
     List xs -> pretty xs
     Ctr c Unit -> pretty c
     Ctr c x -> parensIf (p > 2) $ pretty c <+> prettyPrec 3 x
     Lit l -> pretty l
-    Hole v -> pretty v
+    Var v -> pretty v
+    Lam v x -> parensIf (p > 1) $ "\\" <> pretty v <> "." <+> pretty x
+    App f x -> parensIf (p > 2) $ prettyPrec 2 f <+> prettyPrec 3 x
+    Hole h -> pretty h
+
+instance Pretty (Hole h) => Pretty (Named (Expr l h)) where
+  pretty (Named name expr) = pretty name <+> "=" <+> pretty expr
 
 instance Pretty Example where
   pretty (Example [] out) = pretty out
@@ -100,10 +106,10 @@ instance Pretty (Named Mono) where
   pretty (Named x t) = pretty x <+> ":" <+> pretty t
 
 instance Pretty Signature where
-  pretty Signature { constraints, context, goal } = cat
+  pretty Signature { constraints, inputs, output } = cat
     [ constrs constraints
-    , arguments context
-    , pretty goal
+    , arguments inputs
+    , pretty output
     ] where
       constrs [] = ""
       constrs [x] = pretty x <+> "=> "

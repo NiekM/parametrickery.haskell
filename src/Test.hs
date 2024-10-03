@@ -40,19 +40,6 @@ import Utils
 
 import Tactic
 
--- ToExpr is no longer really necessary now that we have parsing, but it's still
--- useful sometimes.
-class    ToExpr a    where toVal :: a -> Expr h
-instance ToExpr Int  where toVal = Lit . MkInt
-instance ToExpr Bool where toVal = flip Ctr Unit . Text.pack . show
-instance ToExpr ()   where toVal = const $ Tuple []
-
-instance ToExpr a => ToExpr [a] where
-  toVal = mkList . map toVal
-
-instance (ToExpr a, ToExpr b) => ToExpr (a, b) where
-  toVal (x, y) = Tuple [toVal x, toVal y]
-
 ------ Utilities ------
 
 parse :: Parse a => Text -> a
@@ -157,8 +144,8 @@ rel = parse
   "_ : {x : a, y : a, z : a} -> List a\n\
   \_ 1 2 1 = [1,2]"
 
-isFold :: Problem -> [Either Conflict [SubGoal]]
-isFold p = execTactic (foldArgs p) <&> fmap (Queue.toList . (.subgoals))
+isFold :: Problem -> [Either Conflict [Named Spec]]
+isFold p = execTactic (foldArgs p) <&> fmap ((.goals) . snd)
 
 runBench :: [Named Problem] -> IO ()
 runBench benchmark = do

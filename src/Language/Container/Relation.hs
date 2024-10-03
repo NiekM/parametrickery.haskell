@@ -30,22 +30,22 @@ relevant = \case
   RelEq  eq  -> Set.size (Set.unions eq ) > 1
   RelOrd ord -> Set.size (Set.unions ord) > 1
 
-order :: Text -> Map Position Term -> [Set Position]
+order :: Text -> Map Position Value -> [Set Position]
 order a
   = fmap (Set.fromList . NonEmpty.toList . fmap fst)
   . NonEmpty.groupAllWith snd
   . Map.assocs
   . Map.filterWithKey \Position { var } _ -> a == var
 
-computeRelation :: Map Position Term -> Constraint -> Relation
+computeRelation :: Map Position Value -> Constraint -> Relation
 computeRelation p = \case
   Eq  a -> RelEq . Set.fromList $ order a p
   Ord a -> RelOrd $ order a p
 
-computeRelations :: [Constraint] -> Map Position Term -> [Relation]
+computeRelations :: [Constraint] -> Map Position Value -> [Relation]
 computeRelations cs p = cs <&> computeRelation p
 
-checkRelation :: Map Position Term -> Relation -> Bool
+checkRelation :: Map Position Value -> Relation -> Bool
 checkRelation elements = \case
   RelEq r ->
     let q = Set.map (Set.map (elements Map.!?)) r

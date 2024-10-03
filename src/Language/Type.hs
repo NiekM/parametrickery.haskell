@@ -118,6 +118,6 @@ data Constraint = Eq Text | Ord Text
 
 data Signature = Signature
   { constraints :: [Constraint]
-  , context     :: [Named Mono]
-  , goal        :: Mono
+  , inputs      :: [Named Mono]
+  , output      :: Mono
   } deriving stock (Eq, Ord, Show)
