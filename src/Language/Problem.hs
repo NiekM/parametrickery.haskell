@@ -83,5 +83,6 @@ instance Project Problem where
 
 instance Project Arg where
   projections = \case
-    Arg (Product ts) es -> zipWith Arg ts . List.transpose $ map projections es
+    Arg (Product ts) es ->
+      zipWith Arg ts . (++ repeat []) . List.transpose $ map projections es
     a -> [a]

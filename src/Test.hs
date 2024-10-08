@@ -12,7 +12,7 @@ import Data.Set qualified as Set
 import Data.Map qualified as Map
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Monoid (Alt(..))
+import Data.Monoid (Alt(..), Sum(..))
 import Data.Maybe (fromJust)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
@@ -146,7 +146,7 @@ rel = parse
   \_ 1 2 1 = [1,2]"
 
 isFold :: Problem -> [Either Conflict [Named Spec]]
-isFold p = execTactic (foldArgs p) <&> fmap ((.goals) . snd)
+isFold p = execTactic (anywhere cata p) <&> fmap ((.goals) . snd)
 
 runBench :: [Named Problem] -> IO ()
 runBench benchmark = do
@@ -192,7 +192,7 @@ fullBench = runBench bench
 
 synth :: Named Problem ->
   Maybe (Sum Nat, Either Conflict ([Extract], ProofState))
-synth p = runSearchBest . search $ subgoal p.name p.value >> folds 50
+synth p = runSearchBest . search $ subgoal p.name p.value >> auto 50
 
 -- TODO:
 -- - Are paramorphisms + relevance superior to catamorphisms?

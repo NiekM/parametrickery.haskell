@@ -1,8 +1,9 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
+-- | Tactics inspired by refinery.
 module Tactic where
 
-import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
 
@@ -12,7 +13,6 @@ import Control.Effect.Throw
 import Control.Effect.Reader
 import Control.Effect.Fresh.Named
 import Control.Effect.Weight
-import Control.Carrier.Fail.Either
 import Control.Carrier.Error.Either
 import Control.Carrier.Reader
 import Control.Carrier.State.Strict
@@ -91,7 +91,6 @@ instance Pretty (Named Spec) where
     [ prettyNamed name spec.problem.signature
     , statements $ map (prettyNamed name) spec.rules
     , parens $ pretty spec.coverage
-    -- , pretty goal.relevance
     ]
 
 data ProofState = ProofState
@@ -138,7 +137,8 @@ execTactic t = run . runNonDetA . ignoreWeight . evalFresh . runError
   . runWriter . execState mempty $ runReader datatypes t
 
 subgoal :: Tactic sig m => Text -> Problem -> m (Program Text)
-subgoal t p = do
+subgoal t p' = do
+  let p = postprocess p'
   rules <- check p
   name <- freshName t
   c <- coverage p.signature rules
@@ -150,12 +150,12 @@ subgoal t p = do
     _ -> modify \s -> s { unsolved = Queue.insert name s.unsolved }
   return . Hole $ MkHole name
 
-tactic :: Tactic sig m => (Spec -> m (Program Text)) -> m ()
-tactic f = next >>= \case
-  Nothing -> error "TODO: no more holes"
-  Just (Named name spec) -> do
-    e <- f spec
-    tell [Fun $ Named name e]
+-- tactic :: Tactic sig m => (Spec -> m (Program Text)) -> m ()
+-- tactic f = next >>= \case
+--   Nothing -> error "TODO: no more holes"
+--   Just (Named name spec) -> do
+--     e <- f spec
+--     tell [Fun $ Named name e]
 
 next :: Tactic sig m => m (Maybe (Named Spec))
 next = do
@@ -168,43 +168,58 @@ next = do
         modify \s -> s { unsolved = xs }
         return $ Just g
 
+postprocess :: Problem -> Problem
+postprocess problem =
+  fromArgs problem.signature.constraints (Args split args.output)
+  where
+    args = toArgs problem
+    inputs = args.inputs
+    split = inputs >>= \(Named name arg) -> case arg.mono of
+      Product _ -> zipWith (\i -> Named $ name <> "_" <> Text.pack (show i))
+        [0 :: Nat ..] (projections arg)
+      _ -> [Named name arg]
+
 -- TODO: deal with trace incompleteness: do we just disallow fold?
 -- TODO: implement relevancy check
 -- TODO: catch errors and throw away unrealizable cases
-folds :: Tactic sig m => Nat -> m ProofState
-folds 0 = get
-folds n = next >>= \case
-  Nothing -> do
-    get
-    -- s <- get @ProofState
-    -- error . show . pretty $ s
-    -- fail . show . pretty $ s
+auto :: Tactic sig m => Nat -> m ProofState
+auto 0 = mzero
+auto n = next >>= \case
+  Nothing -> get
   Just goal -> do
     catchError @Conflict
       ( do
         let p = goal.value.problem
         x <- msum
-          [ weigh 3 >> foldArgs p
-          -- , introCons goal.problem
+          [ weigh 3 >> anywhere cata p
           , weigh 1 >> introCtr p
-          , weigh 0 >> tuple p
-          , weigh 0 >> assumption p
+          , weigh 0 >> introTuple p
+          , weigh 0 >> anywhere assume p
           ]
         tell [Fun (Named goal.name x)]
       )
       (const mzero)
-    folds (n - 1)
+    auto (n - 1)
 
-assumption :: Tactic sig m => Problem -> m (Program Text)
-assumption problem = do
-  (arg, _) <- oneOf $ pickApart problem
+assume :: Tactic sig m => Named Arg -> Problem -> m (Program Text)
+assume arg problem = do
   guard $ arg.value == (toArgs problem).output
   return $ Var arg.name
 
-tuple :: Tactic sig m => Problem -> m (Program Text)
-tuple problem = case problem.signature.output of
+introTuple :: Tactic sig m => Problem -> m (Program Text)
+introTuple problem = case problem.signature.output of
   Product _ -> Tuple <$> forM (projections problem) (subgoal "_")
   _ -> mzero
+
+-- elimTuple :: Tactic sig m => Named Arg -> Problem -> m (Program Text)
+-- elimTuple arg problem = case arg.value.mono of
+--   Product _ -> do
+--     let
+--       args = zipWith
+--         (\i -> Named (arg.name <> "_" <> Text.pack (show i))) [0 :: Nat ..]
+--         $ projections arg.value
+--     subgoal "_" $ addArgs args problem
+--   _ -> mzero
 
 -- TODO: test this properly
 introCtr :: Tactic sig m => Problem -> m (Program Text)
@@ -233,55 +248,32 @@ introCtr problem = case problem.signature.output of
             return . Ctr c $ Tuple es
   _ -> mzero
 
-introCons :: Tactic sig m => Problem -> m ()
-introCons problem = case problem.signature.output of
-  Data "List" [t] -> do
-    exs <- forM problem.examples \example -> case example.output of
-      Cons x xs -> return
-        ( example { output = x  } :: Example
-        , example { output = xs } :: Example
-        )
-      _ -> mzero
-    let (hd, tl) = unzip exs
-    _ <- subgoal "h" Problem
-      { signature = problem.signature { output = t }
-      , examples = hd
-      }
-    _ <- subgoal "t" Problem
-      { signature = problem.signature
-      , examples = tl
-      }
-    return ()
-  _ -> mzero
+-- caseSplit :: Has (Reader Context) sig m =>
+--   Named Arg -> Problem -> m (Map Text (Named Arg, Problem))
+-- caseSplit (Named name (Arg (Data d ts) terms)) prob = do
+--   cs <- asks $ getConstructors d ts
+--   let
+--     e = Map.fromList $ cs <&> \c ->
+--       ( c.name
+--       , ( Named (name <> "_" <> c.name) (Arg c.field [])
+--         , Problem prob.signature []
+--         )
+--       )
+--     f m (Ctr c x, ex) = Map.adjust (bimap
+--       (fmap \(Arg ty ys) -> Arg ty (x:ys))
+--       (\(Problem sig exs) -> Problem sig (ex:exs))) c m
+--     f _ _ = error "Not a constructor"
+--   return $ List.foldl' f e (zip terms prob.examples)
+-- caseSplit _ _ = error "Not a datatype"
 
-caseSplit :: Has (Reader Context) sig m =>
-  Named Arg -> Problem -> m (Map Text (Named Arg, Problem))
-caseSplit (Named name (Arg (Data d ts) terms)) prob = do
-  cs <- asks $ getConstructors d ts
-  let
-    e = Map.fromList $ cs <&> \c ->
-      ( c.name
-      , ( Named (name <> "_" <> c.name) (Arg c.field [])
-        , Problem prob.signature []
-        )
-      )
-
-    f m (Ctr c x, ex) = Map.adjust (bimap
-      (fmap \(Arg ty ys) -> Arg ty (x:ys))
-      (\(Problem sig exs) -> Problem sig (ex:exs))) c m
-    f _ _ = error "Not a constructor"
-
-  return $ List.foldl' f e (zip terms prob.examples)
-caseSplit _ _ = error "Not a datatype"
-
-split :: Tactic sig m => Named Arg -> Problem -> m ()
-split arg problem = do
-  m <- caseSplit arg problem
-  forM_ (Map.elems m) \(Named v a, p) -> do
-    as <- forM (projections a) \x -> do
-      name <- freshName v
-      return $ Named name x
-    subgoal v $ addArgs as p
+-- split :: Tactic sig m => Named Arg -> Problem -> m ()
+-- split arg problem = do
+--   m <- caseSplit arg problem
+--   forM_ (Map.elems m) \(Named v a, p) -> do
+--     as <- forM (projections a) \x -> do
+--       name <- freshName v
+--       return $ Named name x
+--     subgoal v $ addArgs as p
 
 introMap :: Tactic sig m => Named Arg -> Problem -> m ()
 introMap (Named _ (Arg ty terms)) problem =
@@ -299,13 +291,13 @@ introMap (Named _ (Arg ty terms)) problem =
       return ()
     _ -> mzero
 
-foldArgs :: Tactic sig m => Problem -> m (Program Text)
-foldArgs problem = do
+anywhere :: Tactic sig m => (Named Arg -> Problem -> m a) -> Problem -> m a
+anywhere f problem = do
   (arg, prob) <- oneOf $ pickApart problem
-  fold arg prob
+  f arg prob
 
-fold :: Tactic sig m => Named Arg -> Problem -> m (Program Text)
-fold (Named name (Arg ty terms)) problem = do
+cata :: Tactic sig m => Named Arg -> Problem -> m (Program Text)
+cata (Named name (Arg ty terms)) problem = do
 
   let paired = zip terms problem.examples
   rules <- check Problem
@@ -322,7 +314,9 @@ fold (Named name (Arg ty terms)) problem = do
         (Cons y ys, Example ins out) ->
           case recurse (ys:ins) of
             Nothing -> do
-              traceM $ show (pretty name) ++ ": trace incomplete"
+              traceM . show $ pretty name <> ": trace incomplete"
+              traceM . show $ "missing: " <> pretty (ys:ins)
+              traceM . show . pretty $ paired
               mzero
             Just r -> return . Right $ Example (ins ++ [y, r]) out
         _ -> error "Expected a list!"
