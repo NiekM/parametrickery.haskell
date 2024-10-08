@@ -7,11 +7,12 @@ import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
 
 import Data.Functor.Identity
-import Data.Either (rights)
 
 import Control.Effect.Throw
 import Control.Effect.Reader
 import Control.Effect.Fresh.Named
+import Control.Effect.Weight
+import Control.Carrier.Fail.Either
 import Control.Carrier.Error.Either
 import Control.Carrier.Reader
 import Control.Carrier.State.Strict
@@ -22,6 +23,9 @@ import Debug.Trace
 
 import Data.PQueue.Max (MaxQueue)
 import Data.PQueue.Max qualified as Queue
+
+import Control.Monad.Search
+import Control.Effect.Search ()
 
 import Base
 import Data.Named
@@ -84,7 +88,7 @@ instance Pretty Spec where
 
 instance Pretty (Named Spec) where
   pretty (Named name spec) = statements
-    [ pretty spec.problem.signature
+    [ prettyNamed name spec.problem.signature
     , statements $ map (prettyNamed name) spec.rules
     , parens $ pretty spec.coverage
     -- , pretty goal.relevance
@@ -110,24 +114,28 @@ type Tactic sig m =
   , Has (Error Conflict) sig m
   , Has (State ProofState) sig m
   , Has (Writer [Extract]) sig m
+  , Has Weight sig m
   , Has NonDet sig m
   , MonadPlus m
   )
 
-type TacticC = ReaderC Context (StateC ProofState (WriterC [Extract]
-  (ErrorC Conflict (FreshC (NonDetC Identity)))))
+type SearchC = ReaderC Context (StateC ProofState (WriterC [Extract]
+  (ErrorC Conflict (FreshC (Search (Sum Nat))))))
 
-runTactic :: TacticC a -> [Either Conflict ([Extract], (ProofState, a))]
-runTactic t = run . runNonDetA . evalFresh . runError
-  . runWriter . runState mempty $ runReader datatypes t
+-- TODO: can we get rid of the Either Conflict? Since these should all be
+-- caught, right? Perhaps Tactic should not contain Error Conflict, and the
+-- function tactic allows Conflicts locally but then turns them into Empty.
+search :: SearchC a ->
+  Search (Sum Nat) (Either Conflict ([Extract], ProofState))
+search t = evalFresh . runError . runWriter . execState mempty
+  $ runReader datatypes t
+
+type TacticC = ReaderC Context (StateC ProofState (WriterC [Extract]
+  (ErrorC Conflict (FreshC (IgnoreC (NonDetC Identity))))))
 
 execTactic :: TacticC a -> [Either Conflict ([Extract], ProofState)]
-execTactic t = run . runNonDetA . evalFresh . runError
+execTactic t = run . runNonDetA . ignoreWeight . evalFresh . runError
   . runWriter . execState mempty $ runReader datatypes t
-
-done :: TacticC a -> Maybe [Extract]
-done x = List.find bar . map fst . rights $ execTactic x
-  where bar = any \case (Fun a) -> a.name == "done"; _ -> False
 
 subgoal :: Tactic sig m => Text -> Problem -> m (Program Text)
 subgoal t p = do
@@ -166,17 +174,21 @@ next = do
 folds :: Tactic sig m => Nat -> m ProofState
 folds 0 = get
 folds n = next >>= \case
-  Nothing -> tell [Fun (Named "done" $ Hole $ MkHole "!!")] >> get
+  Nothing -> do
+    get
+    -- s <- get @ProofState
+    -- error . show . pretty $ s
+    -- fail . show . pretty $ s
   Just goal -> do
     catchError @Conflict
       ( do
         let p = goal.value.problem
         x <- msum
-          [ foldArgs p
+          [ weigh 3 >> foldArgs p
           -- , introCons goal.problem
-          , introCtr p
-          , tuple p
-          , assumption p
+          , weigh 1 >> introCtr p
+          , weigh 0 >> tuple p
+          , weigh 0 >> assumption p
           ]
         tell [Fun (Named goal.name x)]
       )

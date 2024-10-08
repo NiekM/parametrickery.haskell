@@ -20,6 +20,7 @@ import Prettyprinter
 import System.IO.Unsafe qualified as Unsafe
 import System.Directory
 
+import Control.Monad.Search
 import Data.PQueue.Max (MaxQueue)
 import Data.PQueue.Max qualified as Queue
 
@@ -188,6 +189,10 @@ paperBench = runBench bench'
 
 fullBench :: IO ()
 fullBench = runBench bench
+
+synth :: Named Problem ->
+  Maybe (Sum Nat, Either Conflict ([Extract], ProofState))
+synth p = runSearchBest . search $ subgoal p.name p.value >> folds 50
 
 -- TODO:
 -- - Are paramorphisms + relevance superior to catamorphisms?

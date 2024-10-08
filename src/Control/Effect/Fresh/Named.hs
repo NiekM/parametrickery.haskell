@@ -32,7 +32,7 @@ evalFresh :: Functor m => FreshC m a -> m a
 evalFresh (FreshC s) = evalState mempty s
 
 instance Algebra sig m => Algebra (Fresh :+: sig) (FreshC m) where
-  alg hdl sig ctx = FreshC $ case sig of
+  alg hdl sig ctx = FreshC case sig of
     L (Fresh t) -> do
       m <- get
       let n = fromMaybe 0 $ Map.lookup t m

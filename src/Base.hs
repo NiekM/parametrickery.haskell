@@ -5,6 +5,7 @@ module Base
   , module Data.Void
   , module Data.Ord
   , module Data.Text
+  , module Data.Monoid
   , module Data.Map
   , module Data.Set
   , module Data.Maybe
@@ -30,6 +31,7 @@ import Data.Ord
 import Numeric.Natural (Natural)
 import Data.Text (Text)
 
+import Data.Monoid (Sum(..))
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Maybe (fromMaybe, mapMaybe, isJust, isNothing)

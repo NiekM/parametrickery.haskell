@@ -94,7 +94,9 @@ library
   -- Modules included in this library but not exported.
   other-modules:
       Base
+    , Control.Effect.Search
     , Control.Effect.Fresh.Named
+    , Control.Effect.Weight
     , Data.Map.Utils
     , Data.Map.Multi
     , Utils
@@ -111,6 +113,7 @@ library
     , megaparsec
     , pqueue
     , fused-effects
+    , monad-dijkstra
 
   -- Directories containing source files.
   hs-source-dirs:   src
