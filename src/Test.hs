@@ -190,9 +190,40 @@ paperBench = runBench bench'
 fullBench :: IO ()
 fullBench = runBench bench
 
-synth :: Named Problem ->
-  Maybe (Sum Nat, Either Conflict ([Extract], ProofState))
-synth p = runSearchBest . search $ subgoal p.name p.value >> auto 50
+synth :: Named Problem -> Maybe (Sum Nat, Either Conflict [Extract])
+synth p = runSearchBest . fmap (fmap fst) . search $
+  subgoal p.name p.value >> auto 50
+
+fillHole :: Expr l Text -> Named (Expr l Text) -> Expr l Text
+fillHole expr (Named name filling) = expr >>= \hole ->
+  if name == hole then filling else Hole $ MkHole hole
+
+combineFuns :: [Named (Program Text)] -> Named (Program Text)
+combineFuns = List.foldl1' \x y -> fmap (`fillHole` y) x
+
+isHole :: Expr l h -> Maybe h
+isHole (Hole (MkHole h)) = Just h
+isHole _ = Nothing
+
+fromRules :: Named [Rule] -> Maybe (Named (Program Text))
+fromRules = mapM \case
+  [rule]
+    | null rule.input.relations
+    , Just ps <- mapM isHole rule.input.shapes
+    -> do
+    let f p = fromJust . Set.lookupMin $ Multi.lookup p rule.origins
+    let fromPos p = Text.pack $ show $ pretty p
+    let y = fromTerm rule.output >>= Var . fromPos . f
+    return $ lams (fromPos <$> ps) y
+  _ -> Nothing
+
+extrs :: [Extract] -> (Named (Program Text), [Named [Rule]])
+extrs xs = (norm mempty <$> combineFuns (as ++ cs), ds)
+  where
+    (as, bs) = xs & mapEither \case
+      Fun p -> Left p
+      Rules name rs -> Right $ Named name rs
+    (cs, ds) = bs & mapEither \r -> maybe (Right r) Left $ fromRules r
 
 -- TODO:
 -- - Are paramorphisms + relevance superior to catamorphisms?

@@ -54,6 +54,9 @@ restrict :: Set Text -> Args -> Args
 restrict ss args =
   args { inputs = filter (\arg -> arg.name `Set.member` ss) args.inputs }
 
+variables :: Problem -> [Text]
+variables problem = problem.signature.inputs <&> (.name)
+
 class Project a where
   projections :: a -> [a]
 

@@ -69,12 +69,14 @@ instance Pretty (Hole h) => Pretty (Prec (Expr l h)) where
     Ctr c x -> parensIf (p > 2) $ pretty c <+> prettyPrec 3 x
     Lit l -> pretty l
     Var v -> pretty v
-    Lam v x -> parensIf (p > 1) $ "\\" <> pretty v <> "." <+> pretty x
+    Lam v (Lams vs x) -> parensIf (p > 1) $
+      "\\" <> sep (map pretty (v:vs)) <> "." <+> pretty x
     App f x -> parensIf (p > 2) $ prettyPrec 2 f <+> prettyPrec 3 x
     Hole h -> pretty h
 
 instance Pretty (Hole h) => Pretty (Named (Expr l h)) where
-  pretty (Named name expr) = pretty name <+> "=" <+> pretty expr
+  pretty (Named name (Lams args expr)) =
+    sep (map pretty (name : args)) <+> "=" <+> pretty expr
 
 instance Pretty Example where
   pretty (Example [] out) = pretty out
@@ -183,6 +185,9 @@ instance Pretty (Named Rule) where
     | otherwise = pretty name <+> pretty input <+> "=" <+> out
     where
       out = pretty $ fmap (`Multi.lookup` origins) output
+
+instance Pretty (Named [Rule]) where
+  pretty (Named name xs) = statements $ prettyNamed name <$> xs
 
 instance Pretty Conflict where
   pretty = \case

@@ -19,8 +19,6 @@ import Control.Carrier.State.Strict
 import Control.Carrier.Writer.Strict
 import Control.Carrier.NonDet.Church
 
-import Debug.Trace
-
 import Data.PQueue.Max (MaxQueue)
 import Data.PQueue.Max qualified as Queue
 
@@ -196,7 +194,7 @@ auto n = next >>= \case
           , weigh 0 >> introTuple p
           , weigh 0 >> anywhere assume p
           ]
-        tell [Fun (Named goal.name x)]
+        tell [Fun (Named goal.name (lams (map (.name) p.signature.inputs) x))]
       )
       (const mzero)
     auto (n - 1)
@@ -245,7 +243,8 @@ introCtr problem = case problem.signature.output of
             es <- forM (zip exampless goals) \(examples, output) -> do
               let signature = problem.signature { output } :: Signature
               subgoal "_" Problem { signature, examples }
-            return . Ctr c $ Tuple es
+            let vars = Var <$> variables problem
+            return . Ctr c $ Tuple (es <&> \e -> apps e vars)
   _ -> mzero
 
 -- caseSplit :: Has (Reader Context) sig m =>
@@ -313,11 +312,7 @@ cata (Named name (Arg ty terms)) problem = do
         (Nil, ex) -> return $ Left ex
         (Cons y ys, Example ins out) ->
           case recurse (ys:ins) of
-            Nothing -> do
-              traceM . show $ pretty name <> ": trace incomplete"
-              traceM . show $ "missing: " <> pretty (ys:ins)
-              traceM . show . pretty $ paired
-              mzero
+            Nothing -> mzero
             Just r -> return . Right $ Example (ins ++ [y, r]) out
         _ -> error "Expected a list!"
 
@@ -333,7 +328,8 @@ cata (Named name (Arg ty terms)) problem = do
           , Named r problem.signature.output
           ]
         } cons
-      return $ apps (Var "fold") [f, e]
+      let vars = Var <$> variables problem
+      return $ apps (Var "fold") [apps f vars, apps e vars, Var name]
 
     Data "Tree" [t, u] -> do
       constrs <- forM paired \case
@@ -362,6 +358,7 @@ cata (Named name (Arg ty terms)) problem = do
           , Named r problem.signature.output
           ]
         } node
-      return $ apps (Var "fold") [f, e]
+      let vars = Var <$> variables problem
+      return $ apps (Var "fold") [apps f vars, apps e vars, Var name]
 
     _ -> mzero

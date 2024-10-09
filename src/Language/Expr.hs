@@ -89,27 +89,52 @@ pattern List :: [Expr l h] -> Expr l h
 pattern List xs <- (unList -> Just xs)
   where List xs = mkList xs
 
+fromTerm :: Term h -> Program h
+fromTerm = \case
+  Tuple xs -> Tuple (map fromTerm xs)
+  Ctr c x -> Ctr c (fromTerm x)
+  Lit i -> Lit i
+  Hole h -> Hole h
+
+unLams :: Expr l h -> ([Text], Expr l h)
+unLams = \case
+  Lam x e -> first (x:) $ unLams e
+  e -> ([], e)
+
+{-# COMPLETE Lams #-}
+pattern Lams :: [Text] -> Expr l h -> Expr l h
+pattern Lams xs e <- (unLams -> (xs, e))
+
+lams :: [Text] -> Program h -> Program h
+lams = flip $ foldr Lam
+
+unApps :: Expr l h -> (Expr l h, [Expr l h])
+unApps = \case
+  App f e -> second (++ [e]) $ unApps f
+  e -> (e, [])
+
+{-# COMPLETE Apps #-}
+pattern Apps :: Expr l h -> [Expr l h] -> Expr l h
+pattern Apps f xs <- (unApps -> (f, xs))
+
 apps :: Program h -> [Program h] -> Program h
 apps = foldl' App
 
-eval :: Map Text (Program h) -> Program h -> Maybe (Program h)
-eval ctx = \case
-  Tuple xs -> Tuple <$> mapM (eval ctx) xs
-  Ctr c x -> Ctr c <$> eval ctx x
-  Lit i -> Just $ Lit i
-  Var v -> Map.lookup v ctx >>= eval ctx
-  Lam v x -> Just $ Lam v x
-  App f x -> eval ctx f >>= \case
-    Lam v y -> eval (Map.insert v y ctx) x
-    y -> Just $ App f y
-  Hole h -> Just $ Hole h
-
-toValue :: Expr l h -> Maybe Value
-toValue = \case
-  Tuple xs -> Tuple <$> mapM toValue xs
-  Ctr c x -> Ctr c <$> toValue x
-  Lit i -> Just $ Lit i
-  _ -> Nothing
+norm :: Map Text (Program h) -> Program h -> Program h
+norm ctx e = case e of
+  Tuple xs -> Tuple $ map (norm ctx) xs
+  Ctr c x -> Ctr c $ norm ctx x
+  Lit i -> Lit i
+  Var v -> case Map.lookup v ctx of
+    Just x -> x
+    Nothing -> Var v
+  Lam v x -> case norm ctx x of
+    App f (Var w) | v == w -> f
+    y -> Lam v y
+  App f x -> case norm ctx f of
+    Lam v y -> norm (Map.insert v (norm ctx x) ctx) y
+    g -> App g $ norm ctx x
+  Hole h -> Hole h
 
 -- A monomorphic input-output example according to some function signature. We
 -- do not have to give a specific type instantiation, because we may make the
