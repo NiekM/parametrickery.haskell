@@ -108,7 +108,6 @@ instance Pretty ProofState where
 type Tactic sig m =
   ( Has (Reader Context) sig m
   , Has Fresh sig m
-  , Has (Error Conflict) sig m
   , Has (State ProofState) sig m
   , Has (Writer [Extract]) sig m
   , Has Weight sig m
@@ -117,27 +116,24 @@ type Tactic sig m =
   )
 
 type SearchC = ReaderC Context (StateC ProofState (WriterC [Extract]
-  (ErrorC Conflict (FreshC (Search (Sum Nat))))))
+  (FreshC (Search (Sum Nat)))))
 
 -- TODO: can we get rid of the Either Conflict? Since these should all be
 -- caught, right? Perhaps Tactic should not contain Error Conflict, and the
 -- function tactic allows Conflicts locally but then turns them into Empty.
-search :: SearchC a ->
-  Search (Sum Nat) (Either Conflict ([Extract], ProofState))
-search t = evalFresh . runError . runWriter . execState mempty
-  $ runReader datatypes t
+search :: SearchC a -> Search (Sum Nat) ([Extract], ProofState)
+search t = evalFresh . runWriter . execState mempty $ runReader datatypes t
 
 type TacticC = ReaderC Context (StateC ProofState (WriterC [Extract]
-  (ErrorC Conflict (FreshC (IgnoreC (NonDetC Identity))))))
+  (FreshC (IgnoreC (NonDetC Identity)))))
 
-execTactic :: TacticC a -> [Either Conflict ([Extract], ProofState)]
-execTactic t = run . runNonDetA . ignoreWeight . evalFresh . runError
-  . runWriter . execState mempty $ runReader datatypes t
+execTactic :: TacticC a -> [([Extract], ProofState)]
+execTactic t = run . runNonDetA . ignoreWeight . evalFresh .
+  runWriter . execState mempty $ runReader datatypes t
 
 subgoal :: Tactic sig m => Text -> Problem -> m (Program Text)
-subgoal t p' = do
-  let p = postprocess p'
-  rules <- check p
+subgoal t p = do
+  rules <- runError @Conflict (check p) >>= either (const mzero) return
   name <- freshName t
   c <- coverage p.signature rules
   r <- relevance p
@@ -166,14 +162,11 @@ next = do
         modify \s -> s { unsolved = xs }
         return $ Just g
 
-postprocess :: Problem -> Problem
-postprocess problem =
-  fromArgs problem.signature.constraints (Args split args.output)
+flatten :: Problem -> Problem
+flatten = onArgs \args -> Args (split args) args.output
   where
-    args = toArgs problem
-    inputs = args.inputs
-    split = inputs >>= \(Named name arg) -> case arg.mono of
-      Product _ -> zipWith (\i -> Named $ name <> "_" <> Text.pack (show i))
+    split args = args.inputs >>= \(Named name arg) -> case arg.mono of
+      Product _ -> zipWith (\i -> Named $ name <> "." <> Text.pack (show i))
         [0 :: Nat ..] (projections arg)
       _ -> [Named name arg]
 
@@ -185,18 +178,14 @@ auto 0 = mzero
 auto n = next >>= \case
   Nothing -> get
   Just goal -> do
-    catchError @Conflict
-      ( do
-        let p = goal.value.problem
-        x <- msum
-          [ weigh 3 >> anywhere cata p
-          , weigh 1 >> introCtr p
-          , weigh 0 >> introTuple p
-          , weigh 0 >> anywhere assume p
-          ]
-        tell [Fun (Named goal.name (lams (map (.name) p.signature.inputs) x))]
-      )
-      (const mzero)
+    let p = goal.value.problem
+    x <- msum
+      [ weigh 3 >> anywhere cata p
+      , weigh 1 >> introCtr p
+      , weigh 0 >> introTuple p
+      , weigh 0 >> anywhere assume p
+      ]
+    tell [Fun (Named goal.name (lams (map (.name) p.signature.inputs) x))]
     auto (n - 1)
 
 assume :: Tactic sig m => Named Arg -> Problem -> m (Program Text)
@@ -206,18 +195,11 @@ assume arg problem = do
 
 introTuple :: Tactic sig m => Problem -> m (Program Text)
 introTuple problem = case problem.signature.output of
-  Product _ -> Tuple <$> forM (projections problem) (subgoal "_")
+  Product _ -> do
+    let vars = Var <$> variables problem
+    es <- forM (projections problem) (subgoal "_")
+    return . Tuple $ es <&> \e -> apps e vars
   _ -> mzero
-
--- elimTuple :: Tactic sig m => Named Arg -> Problem -> m (Program Text)
--- elimTuple arg problem = case arg.value.mono of
---   Product _ -> do
---     let
---       args = zipWith
---         (\i -> Named (arg.name <> "_" <> Text.pack (show i))) [0 :: Nat ..]
---         $ projections arg.value
---     subgoal "_" $ addArgs args problem
---   _ -> mzero
 
 -- TODO: test this properly
 introCtr :: Tactic sig m => Problem -> m (Program Text)
@@ -239,7 +221,6 @@ introCtr problem = case problem.signature.output of
           Nothing -> error "unknown constructor"
           Just ct -> do
             let goals = projections ct.field
-            -- tell [Fun (Named "_" (Ctr c (Hole (MkHole "Text"))))]
             es <- forM (zip exampless goals) \(examples, output) -> do
               let signature = problem.signature { output } :: Signature
               subgoal "_" Problem { signature, examples }
@@ -292,18 +273,27 @@ introMap (Named _ (Arg ty terms)) problem =
 
 anywhere :: Tactic sig m => (Named Arg -> Problem -> m a) -> Problem -> m a
 anywhere f problem = do
-  (arg, prob) <- oneOf $ pickApart problem
+  (arg, prob) <- oneOf $ pickApart (flatten problem)
   f arg prob
 
 cata :: Tactic sig m => Named Arg -> Problem -> m (Program Text)
 cata (Named name (Arg ty terms)) problem = do
 
-  let paired = zip terms problem.examples
-  rules <- check Problem
-    { signature = problem.signature
-      { inputs = Named name ty : problem.signature.inputs }
-    , examples = paired <&> \(i, Example is o) -> Example (i:is) o
-    }
+  let
+    paired = zip terms problem.examples
+    restructured = Problem
+      { signature = problem.signature
+        { inputs = Named name ty : problem.signature.inputs }
+      , examples = paired <&> \(i, Example is o) -> Example (i:is) o
+      }
+
+  -- TODO: recapture conflict info. maybe tactics should return a bit more:
+  -- - did they apply?
+  -- - if so, did they succeed?
+  -- we can use this info for deciding which tactics to try next
+  rules <- runError @Conflict (check restructured) >>=
+    either (const mzero) return
+
   let recurse = applyRules rules
 
   case ty of

@@ -24,6 +24,8 @@ import Control.Monad.Search
 import Data.PQueue.Max (MaxQueue)
 import Data.PQueue.Max qualified as Queue
 
+import Control.Carrier.Reader
+
 import Base
 import Data.Map.Multi qualified as Multi
 import Data.Named
@@ -145,8 +147,9 @@ rel = parse
   "_ : {x : a, y : a, z : a} -> List a\n\
   \_ 1 2 1 = [1,2]"
 
-isFold :: Problem -> [Either Conflict [Named Spec]]
-isFold p = execTactic (anywhere cata p) <&> fmap ((.goals) . snd)
+-- TODO: rewrite this so that we get errors again.
+isFold :: Problem -> [[Named Spec]]
+isFold p = execTactic (anywhere cata p) <&> ((.goals) . snd)
 
 runBench :: [Named Problem] -> IO ()
 runBench benchmark = do
@@ -156,8 +159,7 @@ runBench benchmark = do
     putStrLn ""
     -- TODO: report when it is not applicable (i.e. no list in scope)
     forM_ (isFold problem) \case
-      Left e -> print $ pretty e
-      Right [f, e] -> do
+      [f, e] -> do
         print $ pretty name <+> "= fold" <+> pretty f.name <+> pretty e.name
         putStrLn "  where"
         print . indent 4 $ pretty f
@@ -190,9 +192,8 @@ paperBench = runBench bench'
 fullBench :: IO ()
 fullBench = runBench bench
 
-synth :: Named Problem -> Maybe (Sum Nat, Either Conflict [Extract])
-synth p = runSearchBest . fmap (fmap fst) . search $
-  subgoal p.name p.value >> auto 50
+synth :: Named Problem -> Maybe (Sum Nat, [Extract])
+synth p = runSearchBest . fmap fst . search $ subgoal p.name p.value >> auto 50
 
 fillHole :: Expr l Text -> Named (Expr l Text) -> Expr l Text
 fillHole expr (Named name filling) = expr >>= \hole ->
@@ -224,6 +225,9 @@ extrs xs = (norm mempty <$> combineFuns (as ++ cs), ds)
       Fun p -> Left p
       Rules name rs -> Right $ Named name rs
     (cs, ds) = bs & mapEither \r -> maybe (Right r) Left $ fromRules r
+
+runCheck :: Problem -> Either Conflict [Rule]
+runCheck = runReader datatypes . check
 
 -- TODO:
 -- - Are paramorphisms + relevance superior to catamorphisms?

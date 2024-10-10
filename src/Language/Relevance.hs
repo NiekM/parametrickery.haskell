@@ -4,6 +4,8 @@ import Data.Maybe
 import Data.Set qualified as Set
 import Data.List.NonEmpty qualified as NonEmpty
 
+import Control.Carrier.Error.Either
+
 import Base
 import Data.Named
 import Language.Type
@@ -17,12 +19,9 @@ subs = Set.toList . Set.powerSet
 minimal :: Ord a => [Set a] -> [Set a]
 minimal xs = filter (\x -> not $ any (`Set.isProperSubsetOf` x) xs) xs
 
-getError :: Has (Error e) sig m => m a -> m (Either e a)
-getError m = catchError (Right <$> m) (return . Left)
-
-sufficient :: (Has (Reader Context) sig m, Has (Error Conflict) sig m)
-  => Set Text -> Problem -> m (Either Conflict (Signature, [Rule], Coverage))
-sufficient xs problem = getError do
+sufficient :: forall sig m. Has (Reader Context) sig m =>
+  Set Text -> Problem -> m (Either Conflict (Signature, [Rule], Coverage))
+sufficient xs problem = runError do
   let restricted = onArgs (restrict xs) problem
   rules <- check restricted
   cover <- coverage restricted.signature rules
@@ -32,8 +31,8 @@ newtype Relevance = Relevance
   { relevance :: NonEmpty (Signature, [Rule], Coverage)
   } deriving stock (Eq, Ord, Show)
 
-relevance :: (Has (Reader Context) sig m, Has (Error Conflict) sig m)
-  => Problem -> m Relevance
+relevance :: Has (Reader Context) sig m =>
+  Problem -> m Relevance
 relevance problem = do
   let vars = problem.signature.inputs <&> (.name)
   let sets = subs $ Set.fromList vars

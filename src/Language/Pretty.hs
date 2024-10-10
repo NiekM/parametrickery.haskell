@@ -76,7 +76,7 @@ instance Pretty (Hole h) => Pretty (Prec (Expr l h)) where
 
 instance Pretty (Hole h) => Pretty (Named (Expr l h)) where
   pretty (Named name (Lams args expr)) =
-    sep (map pretty (name : args)) <+> "=" <+> pretty expr
+    sep (pretty name : map pretty args) <+> "=" <+> pretty expr
 
 instance Pretty Example where
   pretty (Example [] out) = pretty out
