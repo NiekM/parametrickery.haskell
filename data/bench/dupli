@@ -1,0 +1,4 @@
+dupli : {xs : List a} -> List a
+dupli []     = []
+dupli [0]    = [0, 0]
+dupli [1, 0] = [1, 1, 0, 0]

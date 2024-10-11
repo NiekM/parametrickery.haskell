@@ -139,8 +139,22 @@ subgoal t p = do
   r <- relevance p
   let sub = Named name $ Spec p rules c r
   modify \s -> s { goals = sub : s.goals }
-  case c of
-    Total -> tell [Rules name rules]
+  -- Note that here we make the decision to accept a solution that ignores
+  -- some of the input. This is a valid decision, but we should be very
+  -- considerate about it, since it may lead to overfitting. By first checking
+  -- that the input gives total coverage, we avoid this overfitting.
+  -- We always make some assumptions about missing examples
+  let
+    allowIgnoringInputs = True
+
+    foo = msum $ r.relevance <&> \case
+      (_, rs, Total) -> Just rs
+      _ -> Nothing
+    bar = case c of
+      Total -> Just rules
+      _ -> Nothing
+  case (if allowIgnoringInputs then foo else bar) of
+    Just rs -> tell [Rules name rs]
     _ -> modify \s -> s { unsolved = Queue.insert name s.unsolved }
   return . Hole $ MkHole name
 
@@ -163,12 +177,19 @@ next = do
         return $ Just g
 
 flatten :: Problem -> Problem
-flatten = onArgs \args -> Args (split args) args.output
-  where
-    split args = args.inputs >>= \(Named name arg) -> case arg.mono of
-      Product _ -> zipWith (\i -> Named $ name <> "." <> Text.pack (show i))
-        [0 :: Nat ..] (projections arg)
-      _ -> [Named name arg]
+flatten = onArgs \args ->
+  let
+    scope = args.inputs >>= \(Named name arg) -> split (Var name, arg)
+
+    split :: (Program Void, Arg) -> [(Program Void, Arg)]
+    split (expr, arg) = case arg.mono of
+      Product _ -> concat $ zipWith (\i e -> split (Prj i expr, e))
+        [0..] (projections arg)
+      _ -> [(expr, arg)]
+
+    inputs = scope <&> \(x, a) -> Named (Text.pack . show $ pretty x) a
+
+  in Args inputs args.output
 
 -- TODO: deal with trace incompleteness: do we just disallow fold?
 -- TODO: implement relevancy check
@@ -178,14 +199,16 @@ auto 0 = mzero
 auto n = next >>= \case
   Nothing -> get
   Just goal -> do
-    let p = goal.value.problem
+    let subproblem = flatten goal.value.problem
     x <- msum
-      [ weigh 3 >> anywhere cata p
-      , weigh 1 >> introCtr p
-      , weigh 0 >> introTuple p
-      , weigh 0 >> anywhere assume p
+      [ weigh 3 >> anywhere cata subproblem
+       -- TODO: should we always perform introTuple after introCtr?
+      , weigh 1 >> introCtr subproblem
+      , weigh 0 >> introTuple subproblem
+      , weigh 0 >> anywhere assume subproblem
       ]
-    tell [Fun (Named goal.name (lams (map (.name) p.signature.inputs) x))]
+    let vars = (.name) <$> goal.value.problem.signature.inputs
+    tell [Fun (Named goal.name (lams vars x))]
     auto (n - 1)
 
 assume :: Tactic sig m => Named Arg -> Problem -> m (Program Text)
@@ -273,7 +296,7 @@ introMap (Named _ (Arg ty terms)) problem =
 
 anywhere :: Tactic sig m => (Named Arg -> Problem -> m a) -> Problem -> m a
 anywhere f problem = do
-  (arg, prob) <- oneOf $ pickApart (flatten problem)
+  (arg, prob) <- oneOf $ pickApart problem
   f arg prob
 
 cata :: Tactic sig m => Named Arg -> Problem -> m (Program Text)

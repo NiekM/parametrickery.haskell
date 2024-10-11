@@ -50,9 +50,12 @@ fromArgs constraints (Args inputs (Arg goal outputs)) = Problem
 onArgs :: (Args -> Args) -> Problem -> Problem
 onArgs f p = fromArgs p.signature.constraints . f $ toArgs p
 
-restrict :: Set Text -> Args -> Args
-restrict ss args =
-  args { inputs = filter (\arg -> arg.name `Set.member` ss) args.inputs }
+disable :: Set Text -> Args -> Args
+disable ss args = args { inputs = map enable args.inputs }
+  where
+    enable (Named name arg)
+      | name `Set.notMember` ss = Named name arg
+      | otherwise = Named name . Arg (Free "_") $ Unit <$ arg.terms
 
 variables :: Problem -> [Text]
 variables problem = problem.signature.inputs <&> (.name)

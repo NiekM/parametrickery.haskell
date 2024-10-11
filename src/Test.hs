@@ -192,6 +192,20 @@ paperBench = runBench bench'
 fullBench :: IO ()
 fullBench = runBench bench
 
+synthAll :: IO ()
+synthAll = do
+  forM_ bench \problem -> do
+    putStrLn ""
+    print $ "Problem:" <+> pretty problem.name
+    putStrLn ""
+    -- TODO: report when it is not applicable (i.e. no list in scope)
+    case synth problem of
+      Nothing -> putStrLn "Synthesis failed"
+      Just (_n, r) -> do
+        let (f, gs) = extrs r
+        print . indent 2 $ pretty f
+        forM_ gs $ print . indent 4 . pretty
+
 synth :: Named Problem -> Maybe (Sum Nat, [Extract])
 synth p = runSearchBest . fmap fst . search $ subgoal p.name p.value >> auto 50
 
@@ -200,7 +214,8 @@ fillHole expr (Named name filling) = expr >>= \hole ->
   if name == hole then filling else Hole $ MkHole hole
 
 combineFuns :: [Named (Program Text)] -> Named (Program Text)
-combineFuns = List.foldl1' \x y -> fmap (`fillHole` y) x
+combineFuns [] = Named "" (Var "")
+combineFuns xs = xs & List.foldl1' \x y -> fmap (`fillHole` y) x
 
 isHole :: Expr l h -> Maybe h
 isHole (Hole (MkHole h)) = Just h
@@ -209,7 +224,7 @@ isHole _ = Nothing
 fromRules :: Named [Rule] -> Maybe (Named (Program Text))
 fromRules = mapM \case
   [rule]
-    | null rule.input.relations
+    | not $ any relevant rule.input.relations
     , Just ps <- mapM isHole rule.input.shapes
     -> do
     let f p = fromJust . Set.lookupMin $ Multi.lookup p rule.origins

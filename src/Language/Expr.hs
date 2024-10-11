@@ -14,7 +14,7 @@ newtype Hole h = MkHole { hole :: h }
   deriving stock (Functor, Foldable, Traversable)
 
 data Expr (l :: Bool) h where
-  -- Data expressions
+  -- Constructions
   Tuple :: [Expr l h] -> Expr l h
   Ctr :: Text -> Expr l h -> Expr l h
   Lit :: Lit -> Expr l h
@@ -22,6 +22,8 @@ data Expr (l :: Bool) h where
   Var :: Text -> Program h
   Lam :: Text -> Program h -> Program h
   App :: Program h -> Program h -> Program h
+  -- Deconstructions
+  Prj :: Nat -> Program h -> Program h
   -- Holes
   Hole :: Hole h -> Expr l h
 
@@ -71,6 +73,7 @@ accept = \case
   Var v -> Var v
   Lam v x -> Lam v (accept x)
   App f x -> App (accept f) (accept x)
+  Prj i x -> Prj i (accept x)
   Hole e -> e.hole
 
 holes :: Expr l h -> [h]
@@ -134,6 +137,9 @@ norm ctx e = case e of
   App f x -> case norm ctx f of
     Lam v y -> norm (Map.insert v (norm ctx x) ctx) y
     g -> App g $ norm ctx x
+  Prj i x -> case norm ctx x of
+    Tuple xs -> xs !! fromIntegral i
+    y -> Prj i y
   Hole h -> Hole h
 
 -- A monomorphic input-output example according to some function signature. We

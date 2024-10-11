@@ -22,7 +22,7 @@ minimal xs = filter (\x -> not $ any (`Set.isProperSubsetOf` x) xs) xs
 sufficient :: forall sig m. Has (Reader Context) sig m =>
   Set Text -> Problem -> m (Either Conflict (Signature, [Rule], Coverage))
 sufficient xs problem = runError do
-  let restricted = onArgs (restrict xs) problem
+  let restricted = onArgs (disable xs) problem
   rules <- check restricted
   cover <- coverage restricted.signature rules
   return (restricted.signature, rules, cover)

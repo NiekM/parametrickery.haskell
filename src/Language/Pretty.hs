@@ -72,6 +72,7 @@ instance Pretty (Hole h) => Pretty (Prec (Expr l h)) where
     Lam v (Lams vs x) -> parensIf (p > 1) $
       "\\" <> sep (map pretty (v:vs)) <> "." <+> pretty x
     App f x -> parensIf (p > 2) $ prettyPrec 2 f <+> prettyPrec 3 x
+    Prj i x -> prettyMaxPrec x <> "." <> pretty i
     Hole h -> pretty h
 
 instance Pretty (Hole h) => Pretty (Named (Expr l h)) where
