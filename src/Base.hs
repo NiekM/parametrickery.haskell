@@ -19,6 +19,7 @@ module Base
   , module Control.Effect.State
   , module Control.Effect.Throw
   , module Prettyprinter
+  , module Data.Name
   , Nat
   ) where
 
@@ -49,5 +50,7 @@ import Control.Effect.State
 import Control.Effect.Throw
 
 import Prettyprinter
+
+import Data.Name
 
 type Nat = Natural

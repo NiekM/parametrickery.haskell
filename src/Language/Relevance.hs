@@ -7,7 +7,6 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Control.Carrier.Error.Either
 
 import Base
-import Data.Named
 import Language.Type
 import Language.Container.Morphism
 import Language.Problem
@@ -20,7 +19,7 @@ minimal :: Ord a => [Set a] -> [Set a]
 minimal xs = filter (\x -> not $ any (`Set.isProperSubsetOf` x) xs) xs
 
 sufficient :: forall sig m. Has (Reader Context) sig m =>
-  Set Text -> Problem -> m (Either Conflict (Signature, [Rule], Coverage))
+  Set Name -> Problem -> m (Either Conflict (Signature, [Rule], Coverage))
 sufficient xs problem = runError do
   let restricted = onArgs (disable xs) problem
   rules <- check restricted

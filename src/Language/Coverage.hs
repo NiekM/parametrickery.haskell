@@ -6,7 +6,6 @@ import Data.Set qualified as Set
 import Data.Map.Strict qualified as Map
 
 import Base
-import Data.Named
 import Language.Expr
 import Language.Type
 import Language.Container
@@ -14,11 +13,11 @@ import Language.Container.Morphism
 import Language.Container.Relation
 import Language.Problem
 
-coveringShapes :: Context -> Mono -> Maybe [Term Text]
+coveringShapes :: Context -> Mono -> Maybe [Term Name]
 coveringShapes ctx = go []
   where
     -- We keep track of datatype names to recognize recursion.
-    go :: [Text] -> Mono -> Maybe [Term Text]
+    go :: [Name] -> Mono -> Maybe [Term Name]
     go recs = \case
       -- Holes remember their type, so that we can fill in the positions later.
       Free a -> return [Hole $ MkHole a]
@@ -59,8 +58,8 @@ coveringRelations ps = \case
     let qs = filter (\x -> x.var == a) ps
     in RelOrd . map Set.fromList <$> concatMap orderings (subs qs)
 
-toShape :: Term Text -> Shape
-toShape e = run $ evalState @(Map Text Nat) mempty do
+toShape :: Term Name -> Shape
+toShape e = run $ evalState @(Map Name Nat) mempty do
   forM e \v -> do
     m <- get
     let n = fromMaybe 0 $ Map.lookup v m

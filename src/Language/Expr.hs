@@ -16,11 +16,11 @@ newtype Hole h = MkHole { hole :: h }
 data Expr (l :: Bool) h where
   -- Constructions
   Tuple :: [Expr l h] -> Expr l h
-  Ctr :: Text -> Expr l h -> Expr l h
+  Ctr :: Name -> Expr l h -> Expr l h
   Lit :: Lit -> Expr l h
   -- Lambda expressions
-  Var :: Text -> Program h
-  Lam :: Text -> Program h -> Program h
+  Var :: Name -> Program h
+  Lam :: Name -> Program h -> Program h
   App :: Program h -> Program h -> Program h
   -- Deconstructions
   Prj :: Nat -> Program h -> Program h
@@ -99,16 +99,16 @@ fromTerm = \case
   Lit i -> Lit i
   Hole h -> Hole h
 
-unLams :: Expr l h -> ([Text], Expr l h)
+unLams :: Expr l h -> ([Name], Expr l h)
 unLams = \case
   Lam x e -> first (x:) $ unLams e
   e -> ([], e)
 
 {-# COMPLETE Lams #-}
-pattern Lams :: [Text] -> Expr l h -> Expr l h
+pattern Lams :: [Name] -> Expr l h -> Expr l h
 pattern Lams xs e <- (unLams -> (xs, e))
 
-lams :: [Text] -> Program h -> Program h
+lams :: [Name] -> Program h -> Program h
 lams = flip $ foldr Lam
 
 unApps :: Expr l h -> (Expr l h, [Expr l h])
@@ -123,7 +123,7 @@ pattern Apps f xs <- (unApps -> (f, xs))
 apps :: Program h -> [Program h] -> Program h
 apps = foldl' App
 
-norm :: Map Text (Program h) -> Program h -> Program h
+norm :: Map Name (Program h) -> Program h -> Program h
 norm ctx e = case e of
   Tuple xs -> Tuple $ map (norm ctx) xs
   Ctr c x -> Ctr c $ norm ctx x

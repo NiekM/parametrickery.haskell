@@ -9,7 +9,6 @@ import Control.Carrier.Throw.Either
 import Base
 import Data.Map.Multi (Multi)
 import Data.Map.Multi qualified as Multi
-import Data.Named
 
 import Language.Type
 import Language.Expr

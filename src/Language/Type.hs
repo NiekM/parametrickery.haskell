@@ -4,7 +4,6 @@ import Data.List qualified as List
 import Data.Map qualified as Map
 
 import Base
-import Data.Named
 
 -- We could try to design our framework to be generic over the types and
 -- expressions, by creating some type class that provides e.g. a lens to the
@@ -12,16 +11,16 @@ import Data.Named
 -- deep/shallow and typed/untyped their embedding is, as long as they provide
 -- the right interface.
 data Mono where
-  Free :: Text -> Mono
+  Free :: Name -> Mono
   Product :: [Mono] -> Mono
-  Data :: Text -> [Mono] -> Mono
+  Data :: Name -> [Mono] -> Mono
   Base :: Base -> Mono
   deriving stock (Eq, Ord, Show)
 
 pattern Top :: Mono
 pattern Top = Product []
 
-instantiate :: Map Text Mono -> Mono -> Mono
+instantiate :: Map Name Mono -> Mono -> Mono
 instantiate m = \case
   Free a | Just t <- Map.lookup a m -> t
   Free a -> Free a
@@ -34,13 +33,13 @@ data Base = Int
   deriving stock (Eq, Ord, Show)
 
 data Constructor = Constructor
-  { name  :: Text
+  { name  :: Name
   , field :: Mono
   } deriving stock (Eq, Ord, Show)
 
 data Datatype = Datatype
-  { name :: Text
-  , arguments :: [Text]
+  { name :: Name
+  , arguments :: [Name]
   , constructors :: [Constructor]
   } deriving stock (Eq, Ord, Show)
 
@@ -48,7 +47,7 @@ newtype Context = Context
   { datatypes :: [Datatype]
   } deriving stock (Eq, Ord, Show)
 
-getConstructors :: Text -> [Mono] -> Context -> [Constructor]
+getConstructors :: Name -> [Mono] -> Context -> [Constructor]
 getConstructors name ts ctx =
   case List.find (\d -> d.name == name) ctx.datatypes of
     Nothing -> error "Unknown datatype"
@@ -113,7 +112,7 @@ datatypes = Context
     }
   ]
 
-data Constraint = Eq Text | Ord Text
+data Constraint = Eq Name | Ord Name
   deriving stock (Eq, Ord, Show)
 
 data Signature = Signature

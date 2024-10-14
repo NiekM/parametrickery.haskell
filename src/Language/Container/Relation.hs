@@ -30,7 +30,7 @@ relevant = \case
   RelEq  eq  -> Set.size (Set.unions eq ) > 1
   RelOrd ord -> Set.size (Set.unions ord) > 1
 
-order :: Text -> Map Position Value -> [Set Position]
+order :: Name -> Map Position Value -> [Set Position]
 order a
   = fmap (Set.fromList . NonEmpty.toList . fmap fst)
   . NonEmpty.groupAllWith snd

@@ -6,7 +6,6 @@ import Data.List qualified as List
 import Data.Set qualified as Set
 
 import Base
-import Data.Named
 import Language.Expr
 import Language.Type
 
@@ -50,14 +49,14 @@ fromArgs constraints (Args inputs (Arg goal outputs)) = Problem
 onArgs :: (Args -> Args) -> Problem -> Problem
 onArgs f p = fromArgs p.signature.constraints . f $ toArgs p
 
-disable :: Set Text -> Args -> Args
+disable :: Set Name -> Args -> Args
 disable ss args = args { inputs = map enable args.inputs }
   where
     enable (Named name arg)
       | name `Set.notMember` ss = Named name arg
       | otherwise = Named name . Arg (Free "_") $ Unit <$ arg.terms
 
-variables :: Problem -> [Text]
+variables :: Problem -> [Name]
 variables problem = problem.signature.inputs <&> (.name)
 
 class Project a where

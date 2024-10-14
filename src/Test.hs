@@ -28,7 +28,6 @@ import Control.Carrier.Reader
 
 import Base
 import Data.Map.Multi qualified as Multi
-import Data.Named
 import Language.Type
 import Language.Expr
 import Language.Container
@@ -67,7 +66,7 @@ bench = Unsafe.unsafePerformIO do
     content <- Text.readFile $ "data/bench/" <> name
     return $ parse content
 
-getBench :: Text -> Problem
+getBench :: Name -> Problem
 getBench name = maybe (error "unknown benchmark") (.value) $
   bench & List.find \problem -> problem.name == name
 
@@ -149,7 +148,8 @@ rel = parse
 
 -- TODO: rewrite this so that we get errors again.
 isFold :: Problem -> [[Named Spec]]
-isFold p = execTactic (anywhere cata p) <&> ((.goals) . snd)
+isFold p = runSearch f <&> \(_, s) -> s.goals
+  where f = search $ goal (Named "p" p) >> anywhere (\a -> applyTactic "p0" . cata a) p
 
 runBench :: [Named Problem] -> IO ()
 runBench benchmark = do
@@ -206,40 +206,8 @@ synthAll = do
         print . indent 2 $ pretty f
         forM_ gs $ print . indent 4 . pretty
 
-synth :: Named Problem -> Maybe (Sum Nat, [Extract])
-synth p = runSearchBest . fmap fst . search $ subgoal p.name p.value >> auto 50
-
-fillHole :: Expr l Text -> Named (Expr l Text) -> Expr l Text
-fillHole expr (Named name filling) = expr >>= \hole ->
-  if name == hole then filling else Hole $ MkHole hole
-
-combineFuns :: [Named (Program Text)] -> Named (Program Text)
-combineFuns [] = Named "" (Var "")
-combineFuns xs = xs & List.foldl1' \x y -> fmap (`fillHole` y) x
-
-isHole :: Expr l h -> Maybe h
-isHole (Hole (MkHole h)) = Just h
-isHole _ = Nothing
-
-fromRules :: Named [Rule] -> Maybe (Named (Program Text))
-fromRules = mapM \case
-  [rule]
-    | not $ any relevant rule.input.relations
-    , Just ps <- mapM isHole rule.input.shapes
-    -> do
-    let f p = fromJust . Set.lookupMin $ Multi.lookup p rule.origins
-    let fromPos p = Text.pack $ show $ pretty p
-    let y = fromTerm rule.output >>= Var . fromPos . f
-    return $ lams (fromPos <$> ps) y
-  _ -> Nothing
-
-extrs :: [Extract] -> (Named (Program Text), [Named [Rule]])
-extrs xs = (norm mempty <$> combineFuns (as ++ cs), ds)
-  where
-    (as, bs) = xs & mapEither \case
-      Fun p -> Left p
-      Rules name rs -> Right $ Named name rs
-    (cs, ds) = bs & mapEither \r -> maybe (Right r) Left $ fromRules r
+synth :: Named Problem -> Maybe (Sum Nat, [Named Extract])
+synth p = runSearchBest . fmap (.extract) . search $ goal p >> auto 50
 
 runCheck :: Problem -> Either Conflict [Rule]
 runCheck = runReader datatypes . check

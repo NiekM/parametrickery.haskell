@@ -10,7 +10,6 @@ import Prettyprinter
 
 import Base
 
-import Data.Named
 import Data.Map.Multi qualified as Multi
 
 import Language.Type
@@ -55,7 +54,7 @@ instance Pretty (Hole Void) where
 instance Pretty (Hole ()) where
   pretty = const "_"
 
-instance Pretty (Hole Text) where
+instance Pretty (Hole Name) where
   pretty (MkHole h) = braces $ pretty h
 
 instance Pretty (Hole h) => Pretty (Expr l h) where

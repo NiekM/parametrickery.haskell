@@ -11,7 +11,6 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Set qualified as Set
 
 import Base hiding (brackets, sep, some, many)
-import Data.Named
 import Language.Type
 import Language.Expr
 import Language.Problem
@@ -114,13 +113,13 @@ parseList b p = brackets b (alt p (sep ","))
 statementSep :: Parser Lexeme
 statementSep = newline 0 <|> sep ";"
 
-identifier :: Parser Text
-identifier = flip token Set.empty \case
+identifier :: Parser Name
+identifier = Name <$> flip token Set.empty \case
   Identifier i -> Just i
   _ -> Nothing
 
-constructor :: Parser Text
-constructor = flip token Set.empty \case
+constructor :: Parser Name
+constructor = Name <$> flip token Set.empty \case
   Constr i -> Just i
   _ -> Nothing
 
