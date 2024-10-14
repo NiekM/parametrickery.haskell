@@ -89,6 +89,7 @@ library
     , Language.Pretty
     , Language.Parser
     , Language.Relevance
+    , Synth
     , Tactic
 
   -- Modules included in this library but not exported.

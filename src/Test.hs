@@ -41,6 +41,7 @@ import Language.Relevance
 import Utils
 
 import Tactic
+import Synth
 
 ------ Utilities ------
 
