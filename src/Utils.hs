@@ -25,4 +25,4 @@ inject m = traverse (`Map.lookup` m)
 
 ordered :: Ord a => [a] -> Bool
 ordered [] = True
-ordered (x:xs) = and $ zipWith (<) (x:xs) xs
+ordered (x:xs) = and $ zipWith (<=) (x:xs) xs

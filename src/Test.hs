@@ -19,6 +19,7 @@ import Data.Text.IO qualified as Text
 import Prettyprinter
 import System.IO.Unsafe qualified as Unsafe
 import System.Directory
+import System.Timeout
 
 import Control.Monad.Search
 import Data.PQueue.Max (MaxQueue)
@@ -68,7 +69,7 @@ bench = Unsafe.unsafePerformIO do
     return $ parse content
 
 getBench :: Name -> Problem
-getBench name = fromJust (error "unknown benchmark") $ find name bench
+getBench name = fromJust $ find name bench
 
 -- triple :: Problem
 -- triple = loadProblem "triple"
@@ -163,7 +164,6 @@ runBench benchmark = do
     putStrLn ""
     print $ "Problem:" <+> pretty name
     putStrLn ""
-    -- TODO: report when it is not applicable (i.e. no list in scope)
     forM_ (isFold problem) \case
       [f, e, _] -> do
         print $ pretty name <+> "= fold" <+> pretty f.name <+> pretty e.name
@@ -204,8 +204,7 @@ synthAll = do
     putStrLn ""
     print $ "Problem:" <+> pretty problem.name
     putStrLn ""
-    -- TODO: report when it is not applicable (i.e. no list in scope)
-    case synth problem of
+    timeout 1_000_000 case synth problem of
       Nothing -> putStrLn "Synthesis failed"
       Just (_n, r) -> do
         let (f, gs) = extrs r
@@ -213,7 +212,7 @@ synthAll = do
         forM_ gs $ print . indent 4 . pretty
 
 synth :: Named Problem -> Maybe (Sum Nat, [Named Extract])
-synth p = runSearchBest . fmap (.extract) . search $ goal p >> auto 50
+synth p = runSearchBest . fmap (.extract) . search $ goal p >> auto 10
 
 runCheck :: Problem -> Either Conflict [Rule]
 runCheck = runReader datatypes . check

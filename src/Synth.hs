@@ -204,7 +204,8 @@ auto n = next >>= \case
   Just spec -> do
     let subproblem = flatten . (.problem) <$> spec
     applyTactic subproblem $ msum
-      [ weigh 3 >> anywhere fold
+      [ weigh 4 >> anywhere fold
+      , weigh 2 >> anywhere elim
       , weigh 1 >> introCtr
       , weigh 0 >> introTuple
       , weigh 0 >> anywhere assume

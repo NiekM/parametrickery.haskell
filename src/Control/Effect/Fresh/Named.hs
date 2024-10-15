@@ -24,6 +24,11 @@ freshName t = do
   n <- fresh t
   return $ t <> fromString (show n)
 
+nominate :: Has Fresh sig m => Name -> a -> m (Named a)
+nominate t x = do
+  name <- freshName t
+  return $ Named name x
+
 newtype FreshC m a = FreshC { runFreshC :: StateC (Map Name Nat) m a }
   deriving newtype (Alternative, Applicative, Functor, Monad, Fail.MonadFail, MonadFix, MonadIO, MonadPlus)
 

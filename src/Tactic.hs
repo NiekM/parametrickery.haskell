@@ -4,12 +4,14 @@
 module Tactic
   ( Tactic
   , TacticFailure(..)
-  , fold
+  , assume
   , introCtr
   , introTuple
-  , assume
+  , elim
+  , fold
   ) where
 
+import Data.Map qualified as Map
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
 
@@ -62,7 +64,7 @@ introTuple = do
     Product _ -> do
       let vars = Var <$> variables problem
       es <- forM (projections problem) (hole "_")
-      return . Tuple $ es <&> \e -> apps e vars
+      return . tuple $ es <&> \e -> apps e vars
     _ -> throwError NotApplicable -- not a tuple
 
 -- TODO: test this properly
@@ -91,35 +93,36 @@ introCtr = do
                 let signature = problem.signature { output } :: Signature
                 hole "_" $ Problem { signature, examples }
               let vars = Var <$> variables problem
-              return . Ctr c $ Tuple (es <&> \e -> apps e vars)
+              return . Ctr c $ tuple (es <&> \e -> apps e vars)
     _ -> throwError NotApplicable -- not a datatype
 
--- caseSplit :: Has (Reader Context) sig m =>
---   Named Arg -> Problem -> m (Map Text (Named Arg, Problem))
--- caseSplit (Named name (Arg (Data d ts) terms)) prob = do
---   cs <- asks $ getConstructors d ts
---   let
---     e = Map.fromList $ cs <&> \c ->
---       ( c.name
---       , ( Named (name <> "_" <> c.name) (Arg c.field [])
---         , Problem prob.signature []
---         )
---       )
---     f m (Ctr c x, ex) = Map.adjust (bimap
---       (fmap \(Arg ty ys) -> Arg ty (x:ys))
---       (\(Problem sig exs) -> Problem sig (ex:exs))) c m
---     f _ _ = error "Not a constructor"
---   return $ List.foldl' f e (zip terms prob.examples)
--- caseSplit _ _ = error "Not a datatype"
+caseSplit :: Tactic sig m => Arg -> Problem -> m (Map Name (Arg, Problem))
+caseSplit (Arg (Data d ts) terms) prob = do
+  cs <- asks $ getConstructors d ts
+  let
+    e = Map.fromList $ cs <&> \c ->
+      ( c.name
+      , ( Arg c.value []
+        , Problem prob.signature []
+        )
+      )
+    f m (Ctr c x, ex) = Map.adjust (bimap
+      (\(Arg ty ys) -> Arg ty (x:ys))
+      (\(Problem sig exs) -> Problem sig (ex:exs))) c m
+    f _ _ = error "Not a constructor"
+  return $ List.foldl' f e (zip terms prob.examples)
+caseSplit _ _ = throwError NotApplicable
 
--- split :: Tactic sig m => Named Arg -> Problem -> m ()
--- split arg problem = do
---   m <- caseSplit arg problem
---   forM_ (Map.elems m) \(Named v a, p) -> do
---     as <- forM (projections a) \x -> do
---       name <- freshName v
---       return $ Named name x
---     subgoal v $ addArgs as p
+elim :: Tactic sig m => Name -> m (Program (Named Problem))
+elim name = do
+  arg <- getArg name
+  local (hide name) do
+    problem <- ask
+    m <- caseSplit arg problem
+    arms <- forM (Map.elems m) \(a, p) -> do
+      xs <- forM (projections a) (nominate "x")
+      hole "_" (addInputs xs p)
+    return $ apps (Var "elim") (arms ++ [Var name])
 
 -- introMap :: Tactic sig m => Named Arg -> Problem -> m ()
 -- introMap (Named _ (Arg ty terms)) problem =

@@ -63,6 +63,9 @@ hide :: Name -> Problem -> Problem
 hide name = onArgs \args -> args
   { inputs = filter (\arg -> arg.name /= name) args.inputs }
 
+addInputs :: [Named Arg] -> Problem -> Problem
+addInputs new = onArgs \args -> args { inputs = new ++ args.inputs }
+
 inputArgs :: Problem -> [Named Arg]
 inputArgs problem = (toArgs problem).inputs
 

@@ -123,6 +123,10 @@ pattern Apps f xs <- (unApps -> (f, xs))
 apps :: Program h -> [Program h] -> Program h
 apps = foldl' App
 
+tuple :: [Expr l h] -> Expr l h
+tuple [x] = x
+tuple xs = Tuple xs
+
 norm :: Map Name (Program h) -> Program h -> Program h
 norm ctx e = case e of
   Tuple xs -> Tuple $ map (norm ctx) xs
