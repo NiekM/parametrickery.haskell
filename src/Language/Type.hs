@@ -32,10 +32,7 @@ instantiate m = \case
 data Base = Int
   deriving stock (Eq, Ord, Show)
 
-data Constructor = Constructor
-  { name  :: Name
-  , field :: Mono
-  } deriving stock (Eq, Ord, Show)
+type Constructor = Named Mono
 
 data Datatype = Datatype
   { name :: Name
@@ -53,8 +50,8 @@ getConstructors name ts ctx =
     Nothing -> error "Unknown datatype"
     Just datatype ->
       let mapping = Map.fromList $ zip datatype.arguments ts
-      in datatype.constructors <&> \(Constructor c t) ->
-        Constructor c (instantiate mapping t)
+      in datatype.constructors <&> \(Named c t) ->
+        Named c (instantiate mapping t)
 
 -- TODO: have some sort of Prelude file
 datatypes :: Context
@@ -63,51 +60,45 @@ datatypes = Context
     { name = "Bool"
     , arguments = []
     , constructors =
-      [ Constructor { name = "False", field = Top }
-      , Constructor { name = "True" , field = Top }
+      [ Named "False" Top
+      , Named "True"  Top
       ]
     }
   , Datatype
     { name = "Maybe"
     , arguments = ["a"]
     , constructors =
-      [ Constructor { name = "Nothing", field = Top }
-      , Constructor { name = "Just"   , field = Free "a" }
+      [ Named "Nothing" Top
+      , Named "Just"    (Free "a")
       ]
     }
   , Datatype
     { name = "Either"
     , arguments = ["a", "b"]
     , constructors =
-      [ Constructor { name = "Left" , field = Free "a" }
-      , Constructor { name = "Right", field = Free "b" }
+      [ Named "Left"  (Free "a")
+      , Named "Right" (Free "b")
       ]
     }
   , Datatype
     { name = "List"
     , arguments = ["a"]
     , constructors =
-      [ Constructor { name = "Nil", field = Top }
-      , Constructor
-        { name = "Cons"
-        , field = Product [Free "a", Data "List" [Free "a"]]
-        }
+      [ Named "Nil"  Top
+      , Named "Cons" (Product [Free "a", Data "List" [Free "a"]])
       ]
     }
   , Datatype
     { name = "Tree"
     , arguments = ["a", "b"]
     , constructors =
-      [ Constructor { name = "Leaf", field = Free "b" }
-      , Constructor
-        { name = "Node"
-        , field = Product
-          -- TODO: perhaps we can do recursion by using e.g. `Free "rec"`
-          [ Data "Tree" [Free "a", Free "b"]
-          , Free "a"
-          , Data "Tree" [Free "a", Free "b"]
-          ]
-        }
+      [ Named "Leaf" (Free "b")
+      , Named "Node" $ Product
+        -- TODO: perhaps we can do recursion by using e.g. `Free "rec"`
+        [ Data "Tree" [Free "a", Free "b"]
+        , Free "a"
+        , Data "Tree" [Free "a", Free "b"]
+        ]
       ]
     }
   ]

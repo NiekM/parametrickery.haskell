@@ -8,6 +8,7 @@ module Synth
   , search
   , auto
   , goal
+  , next
   , extrs
   , applyTactic
   , anywhere
@@ -46,22 +47,6 @@ import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Map.Multi qualified as Multi
 import Tactic
-
-pick :: Nat -> [a] -> Maybe (a, [a])
-pick i xs = case List.genericSplitAt i xs of
-  (ys, z:zs) -> Just (z, ys ++ zs)
-  _ -> Nothing
-
-pickArg :: Nat -> Problem -> Maybe (Named Arg, Problem)
-pickArg n p = do
-  let args = toArgs p
-  (arg, inputs) <- pick n args.inputs
-  return (arg, fromArgs p.signature.constraints args { inputs })
-
--- All possible ways to pick one argument from a problem.
-pickApart :: Problem -> [(Named Arg, Problem)]
-pickApart p@(Problem Signature { inputs } _) =
-  zipWith const [0..] inputs & mapMaybe (`pickArg` p)
 
 data Extract = Fun (Program Name) | Rules [Rule]
   deriving stock (Eq, Ord, Show)
@@ -131,26 +116,28 @@ goal problem = do
   modify \s -> s { toplevel = problem.name : s.toplevel}
   subgoal problem
 
-applyTactic :: Synth sig m => Name ->
-  ErrorC Conflict (ErrorC TacticFailure m) (Program (Named Problem)) -> m ()
-applyTactic name m = runError (runError m) >>= \case
-  Left _tacticFailure -> mzero
+applyTactic :: Synth sig m => Named Problem ->
+  ReaderC Problem (ErrorC Conflict (ErrorC TacticFailure m)) (Program (Named Problem)) -> m ()
+applyTactic problem m = runError (runError (runReader problem.value m))
+  >>= \case
+  Left NotApplicable -> mzero
+  Left TraceIncomplete -> mzero -- TODO: can we deal with trace incompleteness?
   Right (Left _conflict) -> mzero
-  Right (Right p) -> Synth.fill name p
+  Right (Right program) -> Synth.fill problem.name program
 
 names :: Traversable f => f (Named v) -> (Map Name v, f Name)
 names = traverse \(Named name x) -> (Map.singleton name x, name)
 
 fill :: Synth sig m => Name -> Program (Named Problem) -> m ()
-fill h p = do
-  st <- get @ProofState
-  case st.goals & List.find \x -> x.name == h of
+fill name filling = do
+  ProofState { goals } <- get
+  case find name goals of
     Nothing -> error "Unknown hole"
-    Just (Named name spec) -> do
-      let (new, p'') = names p
+    Just spec -> do
+      let (new, p') = names filling
       let vars = (.name) <$> spec.problem.signature.inputs
       modify \s -> s { extract =
-        s.extract ++ [Named name . Fun $ lams vars p''] }
+        s.extract ++ [Named name . Fun $ lams vars p'] }
       forM_ (Map.assocs new) $ subgoal . uncurry Named
 
 subgoal :: Synth sig m => Named Problem -> m ()
@@ -183,14 +170,14 @@ subgoal (Named name p) = do
 
 next :: Synth sig m => m (Maybe (Named Spec))
 next = do
-  gs <- get @ProofState
-  case Queue.maxView gs.unsolved of
+  ProofState { unsolved, goals } <- get
+  case Queue.maxView unsolved of
     Nothing -> return Nothing
-    Just (x, xs) -> case List.find (\g -> g.name == x) gs.goals of
+    Just (hole, xs) -> case find hole goals of
       Nothing -> error "unknown goal"
       Just g -> do
         modify \s -> s { unsolved = xs }
-        return $ Just g
+        return . Just $ Named hole g
 
 flatten :: Problem -> Problem
 flatten = onArgs \args ->
@@ -207,27 +194,26 @@ flatten = onArgs \args ->
 
   in Args inputs args.output
 
--- TODO: deal with trace incompleteness: do we just disallow fold?
--- TODO: implement relevancy check
+-- TODO: use relevancy
 auto :: Synth sig m => Nat -> m ProofState
 auto 0 = mzero
 auto n = next >>= \case
   Nothing -> get
   Just spec -> do
-    let subproblem = flatten spec.value.problem
-    _ <- msum
-      [ weigh 3 >> anywhere (\a -> applyTactic spec.name . cata a) subproblem
-       -- TODO: should we always perform introTuple after introCtr?
-      , weigh 1 >> applyTactic spec.name (introCtr subproblem)
-      , weigh 0 >> applyTactic spec.name (introTuple subproblem)
-      , weigh 0 >> anywhere (\a -> applyTactic spec.name . assume a) subproblem
+    let subproblem = flatten . (.problem) <$> spec
+    applyTactic subproblem $ msum
+      [ weigh 3 >> anywhere fold
+      , weigh 1 >> introCtr
+      , weigh 0 >> introTuple
+      , weigh 0 >> anywhere assume
       ]
     auto (n - 1)
 
-anywhere :: Synth sig m => (Named Arg -> Problem -> m a) -> Problem -> m a
-anywhere f problem = do
-  (arg, prob) <- oneOf $ pickApart problem
-  f arg prob
+anywhere :: (Tactic sig m, MonadPlus m) => (Name -> m a) -> m a
+anywhere tactic = do
+  xs <- asks @Problem (.signature.inputs)
+  name <- oneOf $ map (.name) xs
+  tactic name
 
 fillHole :: Expr l Name -> Named (Expr l Name) -> Expr l Name
 fillHole expr (Named name filling) = expr >>= \h ->

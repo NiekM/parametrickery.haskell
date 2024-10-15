@@ -31,11 +31,11 @@ relevant = \case
   RelOrd ord -> Set.size (Set.unions ord) > 1
 
 order :: Name -> Map Position Value -> [Set Position]
-order a
+order name
   = fmap (Set.fromList . NonEmpty.toList . fmap fst)
   . NonEmpty.groupAllWith snd
   . Map.assocs
-  . Map.filterWithKey \Position { var } _ -> a == var
+  . Map.filterWithKey \pos _ -> name == pos.name
 
 computeRelation :: Map Position Value -> Constraint -> Relation
 computeRelation p = \case

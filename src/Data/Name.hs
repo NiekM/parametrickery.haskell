@@ -3,11 +3,13 @@ module Data.Name
   , Named(..)
   , fromString
   , prettyNamed
+  , find
   ) where
 
 import Data.String
+import Data.List qualified as List
 
-import Data.Text
+import Data.Text (Text)
 import Prettyprinter
 
 newtype Name = Name { getName :: Text }
@@ -22,3 +24,6 @@ data Named a = Named { name :: Name, value :: a }
 -- 'Named' can be used as a wrapper before calling 'pretty'.
 prettyNamed :: Pretty (Named a) => Name -> a -> Doc ann
 prettyNamed name = pretty . Named name
+
+find :: Name -> [Named a] -> Maybe a
+find name = fmap (.value) . List.find \x -> x.name == name

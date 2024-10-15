@@ -27,7 +27,7 @@ coveringShapes ctx = go []
       Data d ts
         | d `elem` recs -> Nothing
         | otherwise ->
-          concat <$> forM (getConstructors d ts ctx) \(Constructor c t) -> do
+          concat <$> forM (getConstructors d ts ctx) \(Named c t) -> do
             xs <- go (d : recs) t
             return $ Ctr c <$> xs
       Base Int -> Nothing
@@ -52,10 +52,10 @@ orderings = List.foldr (concatMap . insertAnywhere) [[]]
 coveringRelations :: [Position] -> Constraint -> [Relation]
 coveringRelations ps = \case
   Eq a ->
-    let qs = filter (\x -> x.var == a) ps
+    let qs = filter (\pos -> pos.name == a) ps
     in RelEq . Set.fromList . map Set.fromList <$> subs qs
   Ord a ->
-    let qs = filter (\x -> x.var == a) ps
+    let qs = filter (\pos -> pos.name == a) ps
     in RelOrd . map Set.fromList <$> concatMap orderings (subs qs)
 
 toShape :: Term Name -> Shape
@@ -64,7 +64,7 @@ toShape e = run $ evalState @(Map Name Nat) mempty do
     m <- get
     let n = fromMaybe 0 $ Map.lookup v m
     modify $ Map.insert v (n + 1)
-    return $ Position v n
+    return $ Named v n
 
 -- Computes all shapes and relations required for coverage (if possible)
 coveringPatterns :: Context -> [Constraint] -> [Mono] -> Maybe [Pattern]

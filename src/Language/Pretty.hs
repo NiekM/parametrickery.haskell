@@ -147,8 +147,8 @@ instance Pretty Args where
 instance Pretty Relevance where
   pretty (Relevance rel) = pretty rel
 
-instance Pretty Position where
-  pretty (Position a n) = pretty a <> pretty n
+instance Pretty (Named Nat) where
+  pretty n = pretty n.name <> pretty n.value
 
 instance Pretty (Hole Position) where
   pretty (MkHole p) = pretty p

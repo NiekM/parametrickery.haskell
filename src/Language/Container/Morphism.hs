@@ -22,7 +22,7 @@ type Origins = Multi Position Position
 
 computeOrigins :: Ord a => Map Position a -> Map Position a -> Origins
 computeOrigins p q = Multi.remapping (Multi.fromMap q) (Multi.fromMap p)
-  & Multi.filterWithKey \k v -> k.var == v.var
+  & Multi.filterWithKey \k v -> k.name == v.name
 
 data Pattern = Pattern
   { shapes    :: [Shape]

@@ -68,8 +68,7 @@ bench = Unsafe.unsafePerformIO do
     return $ parse content
 
 getBench :: Name -> Problem
-getBench name = maybe (error "unknown benchmark") (.value) $
-  bench & List.find \problem -> problem.name == name
+getBench name = fromJust (error "unknown benchmark") $ find name bench
 
 -- triple :: Problem
 -- triple = loadProblem "triple"
@@ -149,8 +148,14 @@ rel = parse
 
 -- TODO: rewrite this so that we get errors again.
 isFold :: Problem -> [[Named Spec]]
-isFold p = runSearch f <&> \(_, s) -> s.goals
-  where f = search $ goal (Named "p" p) >> anywhere (\a -> applyTactic "p0" . cata a) p
+isFold problem = runSearch f <&> \(_, s) -> s.goals
+  where
+    f = search do
+      -- applyTactic (Named "p" p) (anywhere fold)
+      goal $ Named "p" problem
+      next >>= \case
+        Nothing -> return ()
+        Just p -> applyTactic (fmap (.problem) p) (anywhere fold)
 
 runBench :: [Named Problem] -> IO ()
 runBench benchmark = do
@@ -160,14 +165,14 @@ runBench benchmark = do
     putStrLn ""
     -- TODO: report when it is not applicable (i.e. no list in scope)
     forM_ (isFold problem) \case
-      [f, e] -> do
+      [f, e, _] -> do
         print $ pretty name <+> "= fold" <+> pretty f.name <+> pretty e.name
         putStrLn "  where"
         print . indent 4 $ pretty f
         putStrLn ""
         print . indent 4 $ pretty e
         putStrLn ""
-      _ -> error "Wrong number of subproblems."
+      _ -> putStrLn "Not applicable."
 
 paperBench :: IO ()
 paperBench = runBench bench'

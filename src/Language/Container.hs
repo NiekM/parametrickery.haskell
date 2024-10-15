@@ -1,7 +1,6 @@
 module Language.Container where
 
 import Data.Map.Strict qualified as Map
-import Data.List qualified as List
 import Control.Carrier.Reader
 import Control.Carrier.State.Lazy
 
@@ -11,8 +10,7 @@ import Utils
 import Language.Type
 import Language.Expr
 
-data Position = Position { var :: Name, pos :: Nat }
-  deriving stock (Eq, Ord, Show)
+type Position = Named Nat
 
 type Shape = Term Position
 
@@ -30,10 +28,10 @@ poly = \cases
   (Product ts) (Tuple xs) -> Tuple <$> zipWithM poly ts xs
   (Data d ts) (Ctr c x) -> do
     cs <- asks $ getConstructors d ts
-    case List.find (\ct -> ct.name == c) cs of
+    case find c cs of
       Nothing -> error . show $ "Datatype" <+> pretty d
         <+> "does not have a constructor" <+> pretty c <> "."
-      Just ct -> Ctr c <$> poly ct.field x
+      Just ct -> Ctr c <$> poly ct x
   (Base _) (Lit x) -> return $ Lit x
   t x -> error $
     show (void x) <> " does not have type " <> show t <> "."
@@ -44,7 +42,7 @@ computePositions e = run $ evalState @(Map Name Nat) mempty do
     m <- get
     let n = fromMaybe 0 $ Map.lookup v m
     modify $ Map.insert v (n + 1)
-    return (Position v n, x)
+    return (Named v n, x)
 
 toContainer :: Has (Reader Context) sig m => Mono -> Value -> m Container
 toContainer t = fmap (uncurry Container . extract . computePositions) . poly t

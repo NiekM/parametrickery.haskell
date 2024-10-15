@@ -3,8 +3,8 @@
 -- | Tactics inspired by refinery.
 module Tactic
   ( Tactic
-  , TacticFailure
-  , cata
+  , TacticFailure(..)
+  , fold
   , introCtr
   , introTuple
   , assume
@@ -16,7 +16,6 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Control.Effect.Throw
 import Control.Effect.Reader
 import Control.Effect.Fresh.Named
-import Control.Carrier.Error.Either
 
 import Base
 import Language.Type
@@ -25,57 +24,77 @@ import Language.Problem
 import Language.Container.Morphism
 
 data TacticFailure
-  = UnexpectedType Mono
-  | NotApplicable
-  | TraceIncompleteness
+  = NotApplicable
+  | TraceIncomplete
   deriving stock (Eq, Ord, Show)
 
 type Tactic sig m =
   ( Has (Reader Context) sig m
+  , Has (Reader Problem) sig m
   , Has Fresh sig m
-  , Has (Error Conflict) sig m
-  , Has (Error TacticFailure) sig m
+  , Has (Throw Conflict) sig m
+  , Has (Throw TacticFailure) sig m
   )
 
-assume :: Tactic sig m => Named Arg -> Problem -> m (Program (Named Problem))
-assume arg problem
-  | arg.value == (toArgs problem).output = return $ Var arg.name
-  | otherwise = throwError NotApplicable -- argument doesn't match spec
+hide :: Name -> Problem -> Problem
+hide name = onArgs \args -> args
+  { inputs = filter (\arg -> arg.name /= name) args.inputs }
 
-introTuple :: Tactic sig m => Problem -> m (Program (Named Problem))
-introTuple problem = case problem.signature.output of
-  Product _ -> do
-    let vars = Var <$> variables problem
-    es <- forM (projections problem) (hole "_")
-    return . Tuple $ es <&> \e -> apps e vars
-  _ -> throwError NotApplicable -- not a tuple
+outputArg :: Problem -> Arg
+outputArg problem = (toArgs problem).output
+
+getArg :: Tactic sig m => Name -> m Arg
+getArg name = do
+  args <- asks toArgs
+  case find name args.inputs of
+    Nothing -> throwError NotApplicable -- unknown name
+    Just arg -> return arg
+
+assume :: Tactic sig m => Name -> m (Program (Named Problem))
+assume name = do
+  arg <- getArg name
+  out <- asks outputArg
+  when (arg /= out) $ throwError NotApplicable -- argument doesn't match spec
+  return $ Var name
+
+introTuple :: Tactic sig m => m (Program (Named Problem))
+introTuple = do
+  problem <- ask @Problem
+  case problem.signature.output of
+    Product _ -> do
+      let vars = Var <$> variables problem
+      es <- forM (projections problem) (hole "_")
+      return . Tuple $ es <&> \e -> apps e vars
+    _ -> throwError NotApplicable -- not a tuple
 
 -- TODO: test this properly
-introCtr :: Tactic sig m => Problem -> m (Program (Named Problem))
-introCtr problem = case problem.signature.output of
-  Data d ts -> do
-    cs <- asks $ getConstructors d ts
-    -- TODO: getConstructor that returns the fields of one specific ctr
-    exs <- forM problem.examples \example -> case example.output of
-      Ctr c e -> (c,) <$> forM (projections e) \x ->
-        return (example { output = x } :: Example)
-      _ -> throwError NotApplicable -- output not a constructor
-    case NonEmpty.groupAllWith fst exs of
-      [] -> throwError NotApplicable -- no examples
-      (_:_:_) -> throwError NotApplicable -- not all examples agree
-      [xs] -> do
-        let c = fst $ NonEmpty.head xs
-        let exampless = List.transpose $ snd <$> NonEmpty.toList xs
-        case List.find (\ct -> ct.name == c) cs of
-          Nothing -> error "unknown constructor"
-          Just ct -> do
-            let goals = projections ct.field
-            es <- forM (zip exampless goals) \(examples, output) -> do
-              let signature = problem.signature { output } :: Signature
-              hole "_" $ Problem { signature, examples }
-            let vars = Var <$> variables problem
-            return . Ctr c $ Tuple (es <&> \e -> apps e vars)
-  _ -> throwError NotApplicable -- not a datatype
+introCtr :: Tactic sig m => m (Program (Named Problem))
+introCtr = do
+  problem <- ask @Problem
+  case problem.signature.output of
+    Data d ts -> do
+      cs <- asks $ getConstructors d ts
+      -- TODO: getConstructor that returns the fields of one specific ctr
+      exs <- forM problem.examples \example -> case example.output of
+        Ctr c e -> (c,) <$> forM (projections e) \x ->
+          return (example { output = x } :: Example)
+        _ -> throwError NotApplicable -- output not a constructor
+      case NonEmpty.groupAllWith fst exs of
+        [] -> throwError NotApplicable -- no examples
+        (_:_:_) -> throwError NotApplicable -- not all examples agree
+        [xs] -> do
+          let c = fst $ NonEmpty.head xs
+          let exampless = List.transpose $ snd <$> NonEmpty.toList xs
+          case find c cs of
+            Nothing -> error "unknown constructor"
+            Just ct -> do
+              let goals = projections ct
+              es <- forM (zip exampless goals) \(examples, output) -> do
+                let signature = problem.signature { output } :: Signature
+                hole "_" $ Problem { signature, examples }
+              let vars = Var <$> variables problem
+              return . Ctr c $ Tuple (es <&> \e -> apps e vars)
+    _ -> throwError NotApplicable -- not a datatype
 
 -- caseSplit :: Has (Reader Context) sig m =>
 --   Named Arg -> Problem -> m (Map Text (Named Arg, Problem))
@@ -125,77 +144,75 @@ hole t problem = do
   name <- freshName t
   return . Hole . MkHole $ Named name problem
 
-cata :: Tactic sig m => Named Arg -> Problem -> m (Program (Named Problem))
-cata (Named name (Arg ty terms)) problem = do
+fold :: Tactic sig m => Name -> m (Program (Named Problem))
+fold name = do
+  Arg mono terms <- getArg name
+  local (hide name) do
+    problem <- ask @Problem
+    let
+      paired = zip terms problem.examples
+      restructured = Problem
+        { signature = problem.signature
+          { inputs = Named name mono : problem.signature.inputs }
+        , examples = paired <&> \(i, Example is o) -> Example (i:is) o
+        }
+      vars = Var <$> variables problem
 
-  let
-    paired = zip terms problem.examples
-    restructured = Problem
-      { signature = problem.signature
-        { inputs = Named name ty : problem.signature.inputs }
-      , examples = paired <&> \(i, Example is o) -> Example (i:is) o
-      }
+    rules <- check restructured
 
-  rules <- check restructured
+    let recurse = applyRules rules
 
-  let recurse = applyRules rules
+    case mono of
+      Data "List" [t] -> do 
+        constrs <- forM paired \case
+          (Nil, ex) -> return $ Left ex
+          (Cons y ys, Example ins out) ->
+            case recurse (ys:ins) of
+              Nothing -> throwError TraceIncomplete
+              Just r -> return . Right $ Example (ins ++ [y, r]) out
+          _ -> error "Expected a list!"
 
-  case ty of
-    Data "List" [t] -> do 
-      constrs <- forM paired \case
-        (Nil, ex) -> return $ Left ex
-        (Cons y ys, Example ins out) ->
-          case recurse (ys:ins) of
-            -- TODO: perhaps we want more explicit results\errors from
-            -- tactics, such as an error of trace completeness, which can then
-            -- be caught by the synthesis loop.
-            Nothing -> throwError TraceIncompleteness
-            Just r -> return . Right $ Example (ins ++ [y, r]) out
-        _ -> error "Expected a list!"
+        let (nil, cons) = partitionEithers constrs
 
-      let (nil, cons) = partitionEithers constrs
+        e <- hole "e" $ problem { examples = nil }
 
-      e <- hole "e" $ problem { examples = nil }
+        x <- freshName "x"
+        r <- freshName "r"
+        f <- hole "f" $ Problem problem.signature
+          { inputs = problem.signature.inputs ++
+            [ Named x t
+            , Named r problem.signature.output
+            ]
+          } cons
+        return $ apps (Var "fold") [apps f vars, apps e vars, Var name]
 
-      x <- freshName "x"
-      r <- freshName "r"
-      f <- hole "f" $ Problem problem.signature
-        { inputs = problem.signature.inputs ++
-          [ Named x t
-          , Named r problem.signature.output
-          ]
-        } cons
-      let vars = Var <$> variables problem
-      return $ apps (Var "fold") [apps f vars, apps e vars, Var name]
+      Data "Tree" [t, u] -> do
+        constrs <- forM paired \case
+          (Ctr "Leaf" x, Example ins out) -> return . Left $
+            Example (ins ++ [x]) out
+          (Ctr "Node" (Tuple [l, x, r]), Example ins out) ->
+            case (recurse (l:ins), recurse (r:ins)) of
+              (Just left, Just right) -> return . Right $
+                Example (ins ++ [left, x, right]) out
+              _ -> throwError TraceIncomplete
+          _ -> error "Expected a tree!"
 
-    Data "Tree" [t, u] -> do
-      constrs <- forM paired \case
-        (Ctr "Leaf" x, Example ins out) -> return . Left $
-          Example (ins ++ [x]) out
-        (Ctr "Node" (Tuple [l, x, r]), Example ins out) ->
-          case (recurse (l:ins), recurse (r:ins)) of
-            (Just left, Just right) -> return . Right $
-              Example (ins ++ [left, x, right]) out
-            _ -> throwError TraceIncompleteness
-        _ -> error "Expected a tree!"
+        let (leaf, node) = partitionEithers constrs
 
-      let (leaf, node) = partitionEithers constrs
+        y <- freshName "y"
+        e <- hole "e" $ Problem problem.signature
+          { inputs = problem.signature.inputs ++ [ Named y u ] } leaf
 
-      y <- freshName "y"
-      e <- hole "e" $ Problem problem.signature
-        { inputs = problem.signature.inputs ++ [ Named y u ] } leaf
+        l <- freshName "l"
+        x <- freshName "x"
+        r <- freshName "r"
+        f <- hole "f" $ Problem problem.signature
+          { inputs = problem.signature.inputs ++
+            [ Named l problem.signature.output
+            , Named x t
+            , Named r problem.signature.output
+            ]
+          } node
+        return $ apps (Var "fold") [apps f vars, apps e vars, Var name]
 
-      l <- freshName "l"
-      x <- freshName "x"
-      r <- freshName "r"
-      f <- hole "f" $ Problem problem.signature
-        { inputs = problem.signature.inputs ++
-          [ Named l problem.signature.output
-          , Named x t
-          , Named r problem.signature.output
-          ]
-        } node
-      let vars = Var <$> variables problem
-      return $ apps (Var "fold") [apps f vars, apps e vars, Var name]
-
-    _ -> throwError $ UnexpectedType ty
+      _ -> throwError NotApplicable -- not implemented for all types
