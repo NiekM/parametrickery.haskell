@@ -59,6 +59,16 @@ disable ss args = args { inputs = map enable args.inputs }
 variables :: Problem -> [Name]
 variables problem = problem.signature.inputs <&> (.name)
 
+hide :: Name -> Problem -> Problem
+hide name = onArgs \args -> args
+  { inputs = filter (\arg -> arg.name /= name) args.inputs }
+
+inputArgs :: Problem -> [Named Arg]
+inputArgs problem = (toArgs problem).inputs
+
+outputArg :: Problem -> Arg
+outputArg problem = (toArgs problem).output
+
 class Project a where
   projections :: a -> [a]
 

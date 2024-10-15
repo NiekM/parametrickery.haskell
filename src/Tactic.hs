@@ -36,19 +36,17 @@ type Tactic sig m =
   , Has (Throw TacticFailure) sig m
   )
 
-hide :: Name -> Problem -> Problem
-hide name = onArgs \args -> args
-  { inputs = filter (\arg -> arg.name /= name) args.inputs }
-
-outputArg :: Problem -> Arg
-outputArg problem = (toArgs problem).output
-
 getArg :: Tactic sig m => Name -> m Arg
 getArg name = do
-  args <- asks toArgs
-  case find name args.inputs of
+  inputs <- asks inputArgs
+  case find name inputs of
     Nothing -> throwError NotApplicable -- unknown name
     Just arg -> return arg
+
+hole :: Tactic sig m => Name -> Problem -> m (Program (Named Problem))
+hole t problem = do
+  name <- freshName t
+  return . Hole . MkHole $ Named name problem
 
 assume :: Tactic sig m => Name -> m (Program (Named Problem))
 assume name = do
@@ -138,11 +136,6 @@ introCtr = do
 --       _ <- subgoal "f" $ Problem signature (concat examples)
 --       return ()
 --     _ -> mzero
-
-hole :: Tactic sig m => Name -> Problem -> m (Program (Named Problem))
-hole t problem = do
-  name <- freshName t
-  return . Hole . MkHole $ Named name problem
 
 fold :: Tactic sig m => Name -> m (Program (Named Problem))
 fold name = do

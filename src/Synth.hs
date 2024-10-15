@@ -116,14 +116,16 @@ goal problem = do
   modify \s -> s { toplevel = problem.name : s.toplevel}
   subgoal problem
 
+type TacticC m = ReaderC Problem (ErrorC Conflict (ErrorC TacticFailure m))
+
 applyTactic :: Synth sig m => Named Problem ->
-  ReaderC Problem (ErrorC Conflict (ErrorC TacticFailure m)) (Program (Named Problem)) -> m ()
-applyTactic problem m = runError (runError (runReader problem.value m))
-  >>= \case
-  Left NotApplicable -> mzero
-  Left TraceIncomplete -> mzero -- TODO: can we deal with trace incompleteness?
-  Right (Left _conflict) -> mzero
-  Right (Right program) -> Synth.fill problem.name program
+  TacticC m (Program (Named Problem)) -> m ()
+applyTactic (Named name problem) m =
+  runError (runError (runReader problem m)) >>= \case
+    Left NotApplicable -> mzero
+    Left TraceIncomplete -> mzero
+    Right (Left _conflict) -> mzero
+    Right (Right program) -> Synth.fill name program
 
 names :: Traversable f => f (Named v) -> (Map Name v, f Name)
 names = traverse \(Named name x) -> (Map.singleton name x, name)
@@ -135,7 +137,7 @@ fill name filling = do
     Nothing -> error "Unknown hole"
     Just spec -> do
       let (new, p') = names filling
-      let vars = (.name) <$> spec.problem.signature.inputs
+      let vars = variables spec.problem
       modify \s -> s { extract =
         s.extract ++ [Named name . Fun $ lams vars p'] }
       forM_ (Map.assocs new) $ subgoal . uncurry Named
@@ -211,8 +213,7 @@ auto n = next >>= \case
 
 anywhere :: (Tactic sig m, MonadPlus m) => (Name -> m a) -> m a
 anywhere tactic = do
-  xs <- asks @Problem (.signature.inputs)
-  name <- oneOf $ map (.name) xs
+  name <- oneOf =<< asks variables
   tactic name
 
 fillHole :: Expr l Name -> Named (Expr l Name) -> Expr l Name
