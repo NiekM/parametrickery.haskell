@@ -96,35 +96,33 @@ introCtr = do
               return . Ctr c $ tuple (es <&> \e -> apps e vars)
     _ -> throwError NotApplicable -- not a datatype
 
-caseSplit :: Tactic sig m => Arg -> Problem -> m (Map Name (Arg, Problem))
-caseSplit (Arg (Data d ts) terms) prob = do
-  cs <- asks $ getConstructors d ts
-  let
-    e = Map.fromList $ cs <&> \c ->
-      ( c.name
-      , ( Arg c.value []
-        , Problem prob.signature []
-        )
-      )
-    f m (Ctr c x, ex) = Map.adjust (bimap
-      (\(Arg ty ys) -> Arg ty (x:ys))
-      (\(Problem sig exs) -> Problem sig (ex:exs))) c m
-    f _ _ = error "Not a constructor"
-  return $ List.foldl' f e (zip terms prob.examples)
-caseSplit _ _ = throwError NotApplicable
-
 elim :: Tactic sig m => Name -> m (Program (Named Problem))
-elim name = do
-  arg <- getArg name
-  local (hide name) do
-    problem <- ask
-    m <- caseSplit arg problem
+elim name = getArg name >>= \case
+  Arg (Data d ts) terms -> local (hide name) do
+    problem <- ask @Problem
+    cs <- asks $ getConstructors d ts
+    let
+      e = Map.fromList $ cs <&> \c ->
+        ( c.name
+        , ( Arg c.value []
+          , Problem problem.signature []
+          )
+        )
+      f m (Ctr c x, ex) = Map.adjust (bimap
+        (\(Arg ty ys) -> Arg ty (x:ys))
+        (\(Problem sig exs) -> Problem sig (ex:exs))) c m
+      f _ _ = error "Not a constructor"
+
+      m = List.foldl' f e (zip terms problem.examples)
+
     let vars = Var <$> variables problem
     arms <- forM (Map.elems m) \(a, p) -> do
-      xs <- forM (projections a) (nominate "x")
+      let letters = fromString . pure <$> ['a' ..]
+      xs <- zipWithM nominate letters (projections a)
       h <- hole "_" (addInputs xs p)
       return $ apps h vars
     return $ apps (Var "elim") (arms ++ [Var name])
+  _ -> throwError NotApplicable
 
 -- introMap :: Tactic sig m => Named Arg -> Problem -> m ()
 -- introMap (Named _ (Arg ty terms)) problem =
