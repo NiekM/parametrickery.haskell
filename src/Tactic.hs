@@ -119,9 +119,11 @@ elim name = do
   local (hide name) do
     problem <- ask
     m <- caseSplit arg problem
+    let vars = Var <$> variables problem
     arms <- forM (Map.elems m) \(a, p) -> do
       xs <- forM (projections a) (nominate "x")
-      hole "_" (addInputs xs p)
+      h <- hole "_" (addInputs xs p)
+      return $ apps h vars
     return $ apps (Var "elim") (arms ++ [Var name])
 
 -- introMap :: Tactic sig m => Named Arg -> Problem -> m ()
