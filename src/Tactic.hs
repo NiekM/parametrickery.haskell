@@ -108,9 +108,9 @@ elim name = getArg name >>= \case
           , Problem problem.signature []
           )
         )
-      f m (Ctr c x, ex) = Map.adjust (bimap
+      f r (Ctr c x, ex) = Map.adjust (bimap
         (\(Arg ty ys) -> Arg ty (x:ys))
-        (\(Problem sig exs) -> Problem sig (ex:exs))) c m
+        (\(Problem sig exs) -> Problem sig (ex:exs))) c r
       f _ _ = error "Not a constructor"
 
       m = List.foldl' f e (zip terms problem.examples)

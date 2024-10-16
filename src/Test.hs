@@ -71,108 +71,26 @@ bench = Unsafe.unsafePerformIO do
 getBench :: Name -> Problem
 getBench name = fromJust $ find name bench
 
--- triple :: Problem
--- triple = loadProblem "triple"
-
--- >>> pretty <$> check triple
--- PositionConflict
-
--- constant :: Problem
--- constant = loadProblem "constant"
-
--- pairExample :: Problem
--- pairExample = loadProblem "pair"
-
--- >>> pretty $ check pairExample
--- _ : {x : a, y : b} -> (a, b)
--- _ a0 b0 = (a0, b0)
-
--- introPairExample :: DisCon Problem
--- introPairExample = introTuple pairExample
-
--- >>> pretty introPairExample
--- [ [ _ : forall a b. {x : a, y : b} -> a
---   _ 1 True = 1
---   _ False 3 = False
---   , _ : forall a b. {x : a, y : b} -> b
---   _ 1 True = True
---   _ False 3 = 3 ] ]
-
-revExample :: Problem
-revExample = getBench "reverse"
-
-zipExample :: Problem
-zipExample = getBench "zip"
-
-lenExample :: Problem
-lenExample = getBench "length"
-
-tailExample :: Problem
-tailExample = getBench "tail"
-
-nubExample :: Problem
-nubExample = getBench "nub"
-
-sortExample :: Problem
-sortExample = getBench "sort"
-
--- TODO: can we figure out that in the recursive call, the left list is only
--- relevant for the left output and the right list only relevant for the right
--- output?
-pivot :: Problem
-pivot = getBench "pivot"
-
-swapExample :: Problem
-swapExample = getBench "swap"
-
-append :: Problem
-append = getBench "append"
-
-twoRelations :: Problem
-twoRelations = parse
-  "_ : (Ord a, Eq b) => {xs : List (a, b)} -> (List a, List b)\n\
-  \_ [(1, 2), (3, 4)] = ([1, 3], [2, 4])\n\
-  \_ [(1, 2)] = ([1], [2])\n\
-  \_ [(1, 2), (1, 2), (1, 2)] = ([1], [2])"
-
-incr :: Problem
-incr = parse
-  "_ : {xs : List Int} -> List Int\n\
-  \_ [1,2,3] = [2,3,4]\n\
-  \_ [4,5] = [5,6]\n\
-  \_ [6] = [7]"
-
-rel :: Problem
-rel = parse
-  "_ : {x : a, y : a, z : a} -> List a\n\
-  \_ 1 2 1 = [1,2]"
-
 -- TODO: rewrite this so that we get errors again.
-isFold :: Problem -> [[Named Spec]]
-isFold problem = runSearch f <&> \(_, s) -> s.goals
-  where
-    f = search do
-      -- applyTactic (Named "p" p) (anywhere fold)
-      goal $ Named "p" problem
-      next >>= \case
-        Nothing -> return ()
-        Just p -> applyTactic (fmap (.problem) p) (anywhere fold)
+isFold :: Named Problem -> Maybe ProofState
+isFold = fmap snd . tryTactics [anywhere fold]
 
 runBench :: [Named Problem] -> IO ()
 runBench benchmark = do
-  forM_ benchmark \(Named name problem) -> do
+  forM_ benchmark \problem -> do
     putStrLn ""
-    print $ "Problem:" <+> pretty name
+    print $ "Problem:" <+> pretty problem.name
     putStrLn ""
-    forM_ (isFold problem) \case
-      [f, e, _] -> do
-        print $ pretty name <+> "= fold" <+> pretty f.name <+> pretty e.name
+    case isFold problem of
+      Just st | [f, e, _] <- st.goals -> do
+        print $ pretty problem.name <+>
+          "= fold" <+> pretty f.name <+> pretty e.name
         putStrLn "  where"
         print . indent 4 $ pretty f
         putStrLn ""
         print . indent 4 $ pretty e
         putStrLn ""
-      _ -> putStrLn "Not applicable."
+      _ -> putStrLn "Not a fold."
 
 paperBench :: IO ()
 paperBench = runBench bench'
@@ -214,8 +132,13 @@ synthAll = do
 synth :: Named Problem -> Maybe (Sum Nat, [Named Extract])
 synth p = runSearchBest . fmap (.extract) . search $ goal p >> auto 10
 
+tryTactics :: [TacticC SearchC (Program (Named Problem))]
+  -> Named Problem -> Maybe (Sum Nat, ProofState)
+tryTactics ts problem = runSearchBest . search $ goal problem >> tactics ts
+
 runCheck :: Problem -> Either Conflict [Rule]
 runCheck = runReader datatypes . check
+
 
 -- TODO:
 -- - Are paramorphisms + relevance superior to catamorphisms?

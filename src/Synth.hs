@@ -2,12 +2,15 @@
 
 module Synth
   ( Synth
+  , TacticC
+  , SearchC
   , Extract(..)
   , Spec(..)
   , ProofState(..)
   , search
   , auto
   , goal
+  , tactics
   , next
   , extrs
   , applyTactic
@@ -89,7 +92,10 @@ emptyProofState :: ProofState
 emptyProofState = ProofState mempty mempty mempty mempty
 
 instance Pretty ProofState where
-  pretty p = statements $ pretty <$> p.goals
+  pretty p = statements
+    [ statements $ pretty <$> p.goals
+    , pretty . extrs $ p.extract
+    ]
 
 type Synth sig m =
   ( Has (Reader Context) sig m
@@ -198,19 +204,22 @@ flatten = onArgs \args ->
 
 -- TODO: use relevancy
 auto :: Synth sig m => Nat -> m ProofState
-auto 0 = mzero
-auto n = next >>= \case
+auto n = tactics . replicate (fromIntegral n) $ msum
+  [ weigh 4 >> anywhere fold
+  , weigh 2 >> anywhere elim
+  , weigh 1 >> introCtr
+  , weigh 0 >> introTuple
+  , weigh 0 >> anywhere assume
+  ]
+
+tactics :: Synth sig m => [TacticC m (Program (Named Problem))] -> m ProofState
+tactics [] = get
+tactics (t:ts) = next >>= \case
   Nothing -> get
   Just spec -> do
     let subproblem = flatten . (.problem) <$> spec
-    applyTactic subproblem $ msum
-      [ weigh 4 >> anywhere fold
-      , weigh 2 >> anywhere elim
-      , weigh 1 >> introCtr
-      , weigh 0 >> introTuple
-      , weigh 0 >> anywhere assume
-      ]
-    auto (n - 1)
+    applyTactic subproblem t
+    tactics ts
 
 anywhere :: (Tactic sig m, MonadPlus m) => (Name -> m a) -> m a
 anywhere tactic = do
