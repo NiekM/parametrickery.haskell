@@ -124,9 +124,9 @@ goal problem = do
 
 type TacticC m = ReaderC Problem (ErrorC Conflict (ErrorC TacticFailure m))
 
-applyTactic :: Synth sig m => Named Problem ->
+applyTactic :: Synth sig m => Name -> Problem ->
   TacticC m (Program (Named Problem)) -> m ()
-applyTactic (Named name problem) m =
+applyTactic name problem m =
   runError (runError (runReader problem m)) >>= \case
     Left NotApplicable -> mzero
     Left TraceIncomplete -> mzero
@@ -187,20 +187,21 @@ next = do
         modify \s -> s { unsolved = xs }
         return . Just $ Named hole g
 
-flatten :: Problem -> Problem
-flatten = onArgs \args ->
-  let
-    scope = args.inputs >>= \(Named name arg) -> split (Var name, arg)
+preprocess :: Problem -> Problem
+preprocess = onArgs flatten
 
-    split :: (Program Void, Arg) -> [(Program Void, Arg)]
-    split (expr, arg) = case arg.mono of
-      Product _ -> concat $ zipWith (\i e -> split (Prj i expr, e))
+flatten :: Args -> Args
+flatten args = Args inputs args.output
+  where
+    scope = args.inputs >>= \(Named name arg) -> prjs (Var name, arg)
+
+    prjs :: (Program Void, Arg) -> [(Program Void, Arg)]
+    prjs (expr, arg) = case arg.mono of
+      Product _ -> concat $ zipWith (\i e -> prjs (Prj i expr, e))
         [0..] (projections arg)
       _ -> [(expr, arg)]
 
     inputs = scope <&> \(x, a) -> Named (fromString . show $ pretty x) a
-
-  in Args inputs args.output
 
 -- TODO: use relevancy
 auto :: Synth sig m => Nat -> m ProofState
@@ -216,9 +217,9 @@ tactics :: Synth sig m => [TacticC m (Program (Named Problem))] -> m ProofState
 tactics [] = get
 tactics (t:ts) = next >>= \case
   Nothing -> get
-  Just spec -> do
-    let subproblem = flatten . (.problem) <$> spec
-    applyTactic subproblem t
+  Just (Named name spec) -> do
+    let subproblem = preprocess spec.problem
+    applyTactic name subproblem t
     tactics ts
 
 anywhere :: (Tactic sig m, MonadPlus m) => (Name -> m a) -> m a

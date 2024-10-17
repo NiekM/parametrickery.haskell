@@ -3,9 +3,11 @@ module Utils
   , mapEither
   , extract, inject
   , ordered
+  , gather
   ) where
 
 import Data.Map.Strict qualified as Map
+import Data.List.NonEmpty qualified as NonEmpty
 import Control.Applicative
 import Data.Monoid (Alt(..))
 
@@ -26,3 +28,7 @@ inject m = traverse (`Map.lookup` m)
 ordered :: Ord a => [a] -> Bool
 ordered [] = True
 ordered (x:xs) = and $ zipWith (<=) (x:xs) xs
+
+gather :: Ord k => [(k, v)] -> Map k (NonEmpty v)
+gather xs = Map.fromList $ NonEmpty.groupAllWith fst xs <&> \ys ->
+  (fst (NonEmpty.head ys), snd <$> ys)

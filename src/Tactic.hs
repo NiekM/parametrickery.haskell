@@ -97,32 +97,21 @@ introCtr = do
     _ -> throwError NotApplicable -- not a datatype
 
 elim :: Tactic sig m => Name -> m (Program (Named Problem))
-elim name = getArg name >>= \case
-  Arg (Data d ts) terms -> local (hide name) do
+elim name = do
+  arg <- getArg name
+  local (hide name) do
+    ctx <- ask @Context
     problem <- ask @Problem
-    cs <- asks $ getConstructors d ts
-    let
-      e = Map.fromList $ cs <&> \c ->
-        ( c.name
-        , ( Arg c.value []
-          , Problem problem.signature []
-          )
-        )
-      f r (Ctr c x, ex) = Map.adjust (bimap
-        (\(Arg ty ys) -> Arg ty (x:ys))
-        (\(Problem sig exs) -> Problem sig (ex:exs))) c r
-      f _ _ = error "Not a constructor"
-
-      m = List.foldl' f e (zip terms problem.examples)
-
-    let vars = Var <$> variables problem
-    arms <- forM (Map.elems m) \(a, p) -> do
-      let letters = fromString . pure <$> ['a' ..]
-      xs <- zipWithM nominate letters (projections a)
-      h <- hole "_" (addInputs xs p)
-      return $ apps h vars
-    return $ apps (Var "elim") (arms ++ [Var name])
-  _ -> throwError NotApplicable
+    case split ctx arg problem of
+      Nothing -> throwError NotApplicable
+      Just m -> do
+        let vars = Var <$> variables problem
+        arms <- forM (Map.elems m) \(a, p) -> do
+          let letters = fromString . pure <$> ['a' ..]
+          xs <- zipWithM nominate letters (projections a)
+          h <- hole "_" (addInputs xs p)
+          return $ apps h vars
+        return $ apps (Var "elim") (arms ++ [Var name])
 
 -- introMap :: Tactic sig m => Named Arg -> Problem -> m ()
 -- introMap (Named _ (Arg ty terms)) problem =

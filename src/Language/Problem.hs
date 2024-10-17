@@ -3,11 +3,15 @@
 module Language.Problem where
 
 import Data.List qualified as List
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
+import Data.Map qualified as Map
+import Data.Functor qualified as Functor
 
 import Base
 import Language.Expr
 import Language.Type
+import Utils
 
 -- | A declaration consists of a signature with some bindings.
 data Problem = Problem
@@ -71,6 +75,24 @@ inputArgs problem = (toArgs problem).inputs
 
 outputArg :: Problem -> Arg
 outputArg problem = (toArgs problem).output
+
+named :: [Named a] -> Map Name a
+named = Map.fromList . map \x -> (x.name, x.value)
+
+split :: Context -> Arg -> Problem -> Maybe (Map Name (Arg, Problem))
+split ctx (Arg (Data d ts) terms) (Problem signature examples) = do
+  fields <- forM terms \case
+    Ctr c x -> Just (c, x)
+    _ -> Nothing
+  let
+    cs = named $ getConstructors d ts ctx
+    paired = zipWith (fmap . (,)) examples fields
+    m = NonEmpty.toList <$> gather paired
+    (exs, vals) = Functor.unzip $ unzip <$> Map.union m ([] <$ cs)
+    args = Map.intersectionWith Arg cs vals
+    prbs = Problem signature <$> exs
+  return $ Map.intersectionWith (,) args prbs
+split _ _ _ = Nothing
 
 class Project a where
   projections :: a -> [a]

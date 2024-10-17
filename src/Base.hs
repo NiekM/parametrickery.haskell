@@ -49,7 +49,7 @@ import Control.Effect.Reader
 import Control.Effect.State
 import Control.Effect.Throw
 
-import Prettyprinter
+import Prettyprinter (Pretty(..), (<+>), parens)
 
 import Data.Name
 
