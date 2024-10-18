@@ -7,6 +7,7 @@ module Tactic
   , assume
   , introCtr
   , introTuple
+  , introMap
   , elim
   , fold
   ) where
@@ -18,6 +19,7 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Control.Effect.Throw
 import Control.Effect.Reader
 import Control.Effect.Fresh.Named
+import Control.Carrier.Error.Either
 
 import Base
 import Language.Type
@@ -28,15 +30,20 @@ import Language.Container.Morphism
 data TacticFailure
   = NotApplicable
   | TraceIncomplete
+  | Unrealizable Conflict
   deriving stock (Eq, Ord, Show)
 
 type Tactic sig m =
   ( Has (Reader Context) sig m
   , Has (Reader Problem) sig m
   , Has Fresh sig m
-  , Has (Throw Conflict) sig m
   , Has (Throw TacticFailure) sig m
   )
+
+liftThrow :: Has (Throw e) sig m => (d -> e) -> ErrorC d m a -> m a
+liftThrow f m = runError m >>= \case
+  Left e -> throwError $ f e
+  Right x -> return x
 
 getArg :: Tactic sig m => Name -> m Arg
 getArg name = do
@@ -113,21 +120,28 @@ elim name = do
           return $ apps h vars
         return $ apps (Var "elim") (arms ++ [Var name])
 
--- introMap :: Tactic sig m => Named Arg -> Problem -> m ()
--- introMap (Named _ (Arg ty terms)) problem =
---   case (ty, problem.signature.output) of
---     (Data "List" [t], Data "List" [u]) -> do
---       examples <- forM (zip terms problem.examples) \case
---         (List inputs, Example scope (List outputs)) -> do
---           guard $ length inputs == length outputs
---           return $ zipWith (\x y -> Example (scope ++ [x]) y) inputs outputs
---         _ -> error "Not actually lists."
---       x <- freshName "x"
---       let Signature constraints context _ = problem.signature
---       let signature = Signature constraints (context ++ [Named x t]) u
---       _ <- subgoal "f" $ Problem signature (concat examples)
---       return ()
---     _ -> mzero
+introMap :: Tactic sig m => Name -> m (Program (Named Problem))
+introMap name = do
+  Arg mono terms <- getArg name
+  local (hide name) do
+    problem <- ask @Problem
+    case (mono, problem.signature.output) of
+      (Data "List" [t], Data "List" [u]) -> do
+        examples <- forM (zip terms problem.examples) \case
+          (List inputs, Example scope (List outputs)) -> do
+            unless (length inputs == length outputs) $ throwError NotApplicable
+            return $ zipWith (\x y -> Example (scope ++ [x]) y) inputs outputs
+          _ -> error "Not actually lists."
+        x <- freshName "x"
+        let Signature constraints context _ = problem.signature
+        let signature = Signature constraints (context ++ [Named x t]) u
+        let vars = Var <$> variables problem
+        let subproblem = Problem signature $ concat examples
+        _ <- liftThrow Unrealizable $ check subproblem
+        f <- hole "f" subproblem
+        let result = apps (Var "map") [apps f vars, Var name]
+        return result
+      _ -> throwError NotApplicable
 
 fold :: Tactic sig m => Name -> m (Program (Named Problem))
 fold name = do
@@ -143,7 +157,7 @@ fold name = do
         }
       vars = Var <$> variables problem
 
-    rules <- check restructured
+    rules <- liftThrow Unrealizable $ check restructured
 
     let recurse = applyRules rules
 
@@ -169,7 +183,11 @@ fold name = do
             , Named r problem.signature.output
             ]
           } cons
-        return $ apps (Var "fold") [apps f vars, apps e vars, Var name]
+
+        let result = apps (Var "fold") [apps f vars, apps e vars, Var name]
+        forM_ result \subproblem ->
+          liftThrow Unrealizable $ check subproblem.value
+        return result
 
       Data "Tree" [t, u] -> do
         constrs <- forM paired \case
@@ -198,6 +216,10 @@ fold name = do
             , Named r problem.signature.output
             ]
           } node
-        return $ apps (Var "fold") [apps f vars, apps e vars, Var name]
+
+        let result = apps (Var "fold") [apps f vars, apps e vars, Var name]
+        forM_ result \subproblem ->
+          liftThrow Unrealizable $ check subproblem.value
+        return result
 
       _ -> throwError NotApplicable -- not implemented for all types

@@ -68,8 +68,8 @@ bench = Unsafe.unsafePerformIO do
     content <- Text.readFile $ "data/bench/" <> name
     return $ parse content
 
-getBench :: Name -> Problem
-getBench name = fromJust $ find name bench
+getBench :: Name -> Named Problem
+getBench name = Named name . fromJust $ find name bench
 
 -- TODO: rewrite this so that we get errors again.
 isFold :: Named Problem -> Maybe ProofState
@@ -129,8 +129,12 @@ synthAll = do
         print . indent 2 $ pretty f
         forM_ gs $ print . indent 4 . pretty
 
+-- TODO: check that the result has no unsolved holes.
+synth' :: Named Problem -> Maybe (Sum Nat, ProofState)
+synth' p = runSearchBest . search $ goal p >> tactics auto
+
 synth :: Named Problem -> Maybe (Sum Nat, [Named Extract])
-synth p = runSearchBest . fmap (.extract) . search $ goal p >> auto 10
+synth = fmap (fmap (.extract)) . synth'
 
 tryTactics :: [TacticC SearchC (Program (Named Problem))]
   -> Named Problem -> Maybe (Sum Nat, ProofState)

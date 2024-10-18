@@ -15,6 +15,8 @@ module Synth
   , extrs
   , applyTactic
   , anywhere
+  , orElse
+  , mapOrFold
   ) where
 
 import Data.Map qualified as Map
@@ -122,16 +124,16 @@ goal problem = do
   modify \s -> s { toplevel = problem.name : s.toplevel}
   subgoal problem
 
-type TacticC m = ReaderC Problem (ErrorC Conflict (ErrorC TacticFailure m))
+type TacticC m = ReaderC Problem (ErrorC TacticFailure m)
 
 applyTactic :: Synth sig m => Name -> Problem ->
   TacticC m (Program (Named Problem)) -> m ()
 applyTactic name problem m =
-  runError (runError (runReader problem m)) >>= \case
+  runError (runReader problem m) >>= \case
     Left NotApplicable -> mzero
     Left TraceIncomplete -> mzero
-    Right (Left _conflict) -> mzero
-    Right (Right program) -> Synth.fill name program
+    Left (Unrealizable _conflict) -> mzero
+    Right program -> Synth.fill name program
 
 names :: Traversable f => f (Named v) -> (Map Name v, f Name)
 names = traverse \(Named name x) -> (Map.singleton name x, name)
@@ -204,8 +206,8 @@ flatten args = Args inputs args.output
     inputs = scope <&> \(x, a) -> Named (fromString . show $ pretty x) a
 
 -- TODO: use relevancy
-auto :: Synth sig m => Nat -> m ProofState
-auto n = tactics . replicate (fromIntegral n) $ msum
+auto :: Synth sig m => [TacticC m (Program (Named Problem))]
+auto = repeat $ msum
   [ weigh 4 >> anywhere fold
   , weigh 2 >> anywhere elim
   , weigh 1 >> introCtr
@@ -223,9 +225,14 @@ tactics (t:ts) = next >>= \case
     tactics ts
 
 anywhere :: (Tactic sig m, MonadPlus m) => (Name -> m a) -> m a
-anywhere tactic = do
-  name <- oneOf =<< asks variables
-  tactic name
+anywhere tactic = tactic =<< oneOf =<< asks variables
+
+orElse :: (Tactic sig m, Has (Catch TacticFailure) sig m) => m a -> m a -> m a
+orElse t u = catchError @TacticFailure t $ const u
+
+mapOrFold :: (Tactic sig m, Has (Catch TacticFailure) sig m) =>
+  Name -> m (Program (Named Problem))
+mapOrFold v = introMap v `orElse` fold v
 
 fillHole :: Expr l Name -> Named (Expr l Name) -> Expr l Name
 fillHole expr (Named name filling) = expr >>= \h ->

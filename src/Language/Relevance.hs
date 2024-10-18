@@ -30,8 +30,7 @@ newtype Relevance = Relevance
   { relevance :: NonEmpty (Signature, [Rule], Coverage)
   } deriving stock (Eq, Ord, Show)
 
-relevance :: Has (Reader Context) sig m =>
-  Problem -> m Relevance
+relevance :: Has (Reader Context) sig m => Problem -> m Relevance
 relevance problem = do
   let sets = subs . Set.fromList $ variables problem
   xs <- catMaybes <$> forM sets \set -> do
