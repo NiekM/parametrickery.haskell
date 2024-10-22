@@ -166,7 +166,7 @@ subgoal (Named name p) = do
   -- that the input gives total coverage, we avoid this overfitting.
   -- We always make some assumptions about missing examples
   let
-    allowIgnoringInputs = True
+    allowIgnoringInputs = False
 
     foo = msum $ r.relevance <&> \case
       (_, rs, Total) -> Just rs
@@ -209,12 +209,16 @@ flatten args = Args inputs args.output
 auto :: Synth sig m => [TacticC m (Program (Named Problem))]
 auto = repeat $ msum
   [ weigh 4 >> anywhere fold
-  , weigh 2 >> anywhere elim
+  , weigh 3 >> anywhere elim
   , weigh 1 >> introCtr
   , weigh 0 >> introTuple
   , weigh 0 >> anywhere assume
   ]
 
+-- TODO: add synthesis options for stuff like this:
+-- - whether to abort when out of tactics
+-- - whether to allow totality checking on subspecifications
+-- - whether to call a bottom-up synthesizer when e.g. only ints remain
 tactics :: Synth sig m => [TacticC m (Program (Named Problem))] -> m ProofState
 tactics [] = get
 tactics (t:ts) = next >>= \case

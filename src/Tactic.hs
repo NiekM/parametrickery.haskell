@@ -112,6 +112,8 @@ elim name = do
     case split ctx arg problem of
       Nothing -> throwError NotApplicable
       Just m -> do
+        -- require all cases to have at least some examples
+        when (any (null . (.examples) . snd) m) $ throwError NotApplicable
         let vars = Var <$> variables problem
         arms <- forM (Map.elems m) \(a, p) -> do
           let letters = fromString . pure <$> ['a' ..]
@@ -120,6 +122,7 @@ elim name = do
           return $ apps h vars
         return $ apps (Var "elim") (arms ++ [Var name])
 
+-- TODO: we do not have to hide the input list here!
 introMap :: Tactic sig m => Name -> m (Program (Named Problem))
 introMap name = do
   Arg mono terms <- getArg name
