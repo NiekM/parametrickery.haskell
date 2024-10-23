@@ -8,6 +8,7 @@ module Synth
   , Spec(..)
   , ProofState(..)
   , search
+  , limit
   , auto
   , goal
   , tactics
@@ -236,6 +237,9 @@ tactics (t:ts) = next >>= \case
     let subproblem = preprocess spec.problem
     applyTactic name subproblem t
     tactics ts
+
+limit :: Synth sig m => Nat -> m a -> m (Maybe a)
+limit n m = fmap Just m <|> (weigh (n + 1) >> return Nothing)
 
 anywhere :: (Tactic sig m, MonadPlus m) => (Name -> m a) -> m a
 anywhere tactic = tactic =<< oneOf =<< asks variables

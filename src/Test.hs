@@ -135,6 +135,9 @@ synthAll = do
         print . indent 2 $ pretty f
         forM_ gs $ print . indent 4 . pretty
 
+synthLimited :: Nat -> Named Problem -> Maybe (Sum Nat, ProofState)
+synthLimited n p = runSearchBest . search . limit n $ goal p >> tactics auto
+
 -- TODO: check that the result has no unsolved holes.
 synth' :: Named Problem -> Maybe (Sum Nat, ProofState)
 synth' p = runSearchBest . search $ goal p >> tactics auto
@@ -148,7 +151,6 @@ tryTactics ts problem = runSearchBest . search $ goal problem >> tactics ts
 
 runCheck :: Problem -> Either Conflict [Rule]
 runCheck = runReader datatypes . check
-
 
 -- TODO:
 -- - Are paramorphisms + relevance superior to catamorphisms?
