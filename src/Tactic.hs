@@ -8,6 +8,7 @@ module Tactic
   , introCtr
   , introTuple
   , introMap
+  , introFilter
   , elim
   , fold
   ) where
@@ -124,6 +125,7 @@ elim name = do
         return $ apps (Var "elim") (arms ++ [Var name])
 
 -- TODO: we do not have to hide the input list here!
+-- we can even pass a non-empty list to f
 introMap :: Tactic sig m => Name -> m (Program (Named Problem))
 introMap name = do
   Arg mono terms <- getArg name
@@ -144,6 +146,38 @@ introMap name = do
         _ <- liftThrow Unrealizable $ check subproblem
         f <- hole "f" subproblem
         let result = apps (Var "map") [apps f vars, Var name]
+        return result
+      _ -> throwError NotApplicable
+
+isFilter :: Eq a => [a] -> [a] -> Bool
+isFilter xs ys = filter (`elem` ys) xs == ys
+
+-- TODO: we do not have to hide the input list here!
+-- we can even pass a non-empty list to f
+introFilter :: Tactic sig m => Name -> m (Program (Named Problem))
+introFilter name = do
+  Arg mono terms <- getArg name
+  local (hide name) do
+    problem <- ask @Problem
+    case (mono, problem.signature.output) of
+      (Data "List" [t], Data "List" [u]) -> do
+        when (t /= u) $ throwError NotApplicable
+        examples <- forM (zip terms problem.examples) \case
+          (List inputs, Example scope (List outputs)) -> do
+            unless (isFilter inputs outputs) $ throwError NotApplicable
+            return $ List.nub inputs <&> \x -> Example (scope ++ [x])
+              if x `elem` outputs then Ctr "True" Unit else Ctr "False" Unit
+          _ -> error "Not actually lists."
+        x <- freshName "x"
+        let
+          Signature constraints context _ = problem.signature
+          signature =
+            Signature constraints (context ++ [Named x t]) (Data "Bool" [])
+          vars = Var <$> variables problem
+          subproblem = Problem signature $ concat examples
+        _ <- liftThrow Unrealizable $ check subproblem
+        f <- hole "f" subproblem
+        let result = apps (Var "filter") [apps f vars, Var name]
         return result
       _ -> throwError NotApplicable
 

@@ -208,7 +208,7 @@ flatten args = Args inputs args.output
 -- TODO: use relevancy
 auto :: Synth sig m => [TacticC m (Program (Named Problem))]
 auto = repeat $ msum
-  [ weigh 4 >> anywhere fold
+  [ weigh 4 >> anywhere \v -> (introMap v <|> introFilter v) `orElse` fold v
   , weigh 3 >> anywhere elim
   , weigh 1 >> introCtr
   , weigh 0 >> introTuple
