@@ -4,6 +4,8 @@
 module Tactic
   ( Tactic
   , TacticFailure(..)
+  , Filling
+  , TacticC
   , assume
   , introCtr
   , introTuple
@@ -23,6 +25,7 @@ import Control.Effect.Throw
 import Control.Effect.Reader
 import Control.Effect.Fresh.Named
 import Control.Carrier.Error.Either
+import Control.Carrier.Reader
 
 import Base
 import Language.Type
@@ -43,6 +46,10 @@ type Tactic sig m =
   , Has (Throw TacticFailure) sig m
   )
 
+type TacticC m = ReaderC Problem (ErrorC TacticFailure m)
+
+type Filling = Program (Named Problem)
+
 liftThrow :: Has (Throw e) sig m => (d -> e) -> ErrorC d m a -> m a
 liftThrow f m = runError m >>= \case
   Left e -> throwError $ f e
@@ -55,19 +62,19 @@ getArg name = do
     Nothing -> throwError NotApplicable -- unknown name
     Just arg -> return arg
 
-hole :: Tactic sig m => Name -> Problem -> m (Program (Named Problem))
+hole :: Tactic sig m => Name -> Problem -> m Filling
 hole t problem = do
   name <- freshName t
   return . Hole . MkHole $ Named name problem
 
-assume :: Tactic sig m => Name -> m (Program (Named Problem))
+assume :: Tactic sig m => Name -> m Filling
 assume name = do
   arg <- getArg name
   out <- asks outputArg
   when (arg /= out) $ throwError NotApplicable -- argument doesn't match spec
   return $ Var name
 
-introTuple :: Tactic sig m => m (Program (Named Problem))
+introTuple :: Tactic sig m => m Filling
 introTuple = do
   problem <- ask @Problem
   case problem.signature.output of
@@ -78,7 +85,7 @@ introTuple = do
     _ -> throwError NotApplicable -- not a tuple
 
 -- TODO: test this properly
-introCtr :: Tactic sig m => m (Program (Named Problem))
+introCtr :: Tactic sig m => m Filling
 introCtr = do
   problem <- ask @Problem
   case problem.signature.output of
@@ -106,7 +113,7 @@ introCtr = do
               return . Ctr c $ tuple (es <&> \e -> apps e vars)
     _ -> throwError NotApplicable -- not a datatype
 
-elimArg :: Tactic sig m => Program Void -> Arg -> m (Program (Named Problem))
+elimArg :: Tactic sig m => Program Void -> Arg -> m Filling
 elimArg expr arg = do
   ctx <- ask @Context
   problem <- ask @Problem
@@ -123,14 +130,14 @@ elimArg expr arg = do
         return $ apps h vars
       return $ apps (Var "elim") (arms ++ [vacuous expr])
 
-elim :: Tactic sig m => Name -> m (Program (Named Problem))
+elim :: Tactic sig m => Name -> m Filling
 elim name = do
   arg <- getArg name
   local (hide name) $ elimArg (Var name) arg
 
 -- TODO: we do not have to hide the input list here!
 -- we can even pass a non-empty list to f
-introMap :: Tactic sig m => Name -> m (Program (Named Problem))
+introMap :: Tactic sig m => Name -> m Filling
 introMap name = do
   Arg mono terms <- getArg name
   local (hide name) do
@@ -167,7 +174,7 @@ isFilter xs ys = filter (`elem` ys) xs == ys
 
 -- TODO: we do not have to hide the input list here!
 -- we can even pass a non-empty list to f
-introFilter :: Tactic sig m => Name -> m (Program (Named Problem))
+introFilter :: Tactic sig m => Name -> m Filling
 introFilter name = do
   Arg mono terms <- getArg name
   local (hide name) do
@@ -196,7 +203,7 @@ introFilter name = do
 
 -- TODO: this should add some value in scope that tells the totality checker
 -- that some cases are not possible anymore.
-elimEq :: Tactic sig m => Name -> Name -> m (Program (Named Problem))
+elimEq :: Tactic sig m => Name -> Name -> m Filling
 elimEq name1 name2 = do
   x <- getArg name1
   y <- getArg name2
@@ -210,7 +217,7 @@ elimEq name1 name2 = do
       elimArg (apps (Var "eq") [Var name1, Var name2]) bools
     _ -> throwError NotApplicable
 
-elimOrd :: Tactic sig m => Name -> Name -> m (Program (Named Problem))
+elimOrd :: Tactic sig m => Name -> Name -> m Filling
 elimOrd name1 name2 = do
   x <- getArg name1
   y <- getArg name2
@@ -224,7 +231,7 @@ elimOrd name1 name2 = do
       elimArg (apps (Var "cmp") [Var name1, Var name2]) ords
     _ -> throwError NotApplicable
 
-fold :: Tactic sig m => Name -> m (Program (Named Problem))
+fold :: Tactic sig m => Name -> m Filling
 fold name = do
   Arg mono terms <- getArg name
   local (hide name) do

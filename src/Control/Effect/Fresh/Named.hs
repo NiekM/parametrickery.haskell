@@ -24,11 +24,6 @@ freshName t = do
   n <- fresh t
   return $ t <> fromString (show n)
 
-nominate :: Has Fresh sig m => Name -> a -> m (Named a)
-nominate t x = do
-  name <- freshName t
-  return $ Named name x
-
 newtype FreshC m a = FreshC { runFreshC :: StateC (Map Name Nat) m a }
   deriving newtype (Alternative, Applicative, Functor, Monad, Fail.MonadFail, MonadFix, MonadIO, MonadPlus)
 
@@ -43,3 +38,8 @@ instance Algebra sig m => Algebra (Fresh :+: sig) (FreshC m) where
       modify $ Map.insert t (n + 1)
       return (n <$ ctx)
     R other -> alg ((.runFreshC) . hdl) (R other) ctx
+
+nominate :: Has Fresh sig m => Name -> a -> m (Named a)
+nominate t x = do
+  name <- freshName t
+  return $ Named name x

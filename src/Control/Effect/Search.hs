@@ -3,18 +3,12 @@
 
 module Control.Effect.Search where
 
--- import Data.Monoid
--- import Control.Monad.Fail as Fail
--- import Control.Monad.Fix
--- import Control.Monad.IO.Class
--- import Data.Kind
 import Control.Monad.Search
 
 import Control.Algebra
 import Control.Effect.NonDet
 import Control.Effect.Weight
-
--- import Data.PQueue.Prio.Min
+import Control.Effect.Choose as Choose
 
 import Base
 
@@ -27,4 +21,5 @@ instance Algebra WeightedSearch (Search (Sum Nat)) where
       let l = False <$ ctx; r = True <$ ctx in junction (pure l) (pure r)
     R (Weigh w) -> ctx <$ cost' (Sum w)
 
--- TODO: interpret into some weighted search monad
+limit :: Has WeightedSearch sig m => Nat -> m a -> m (Maybe a)
+limit n m = fmap Just m Choose.<|> (weigh (n + 1) >> return Nothing)

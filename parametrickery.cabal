@@ -91,6 +91,7 @@ library
     , Language.Relevance
     , Synth
     , Tactic
+    , Tactic.Combinators
 
   -- Modules included in this library but not exported.
   other-modules:

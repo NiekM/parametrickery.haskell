@@ -12,6 +12,7 @@ module Base
   , module Data.List.NonEmpty
   , module Data.Tuple
   , module Data.Either
+  , module Control.Applicative
   , module Control.Monad
   , module Control.Effect.Error
   , module Control.Effect.NonDet
@@ -41,6 +42,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Tuple (swap)
 import Data.Either (partitionEithers)
 
+import Control.Applicative
 import Control.Monad
 
 import Control.Effect.Error
@@ -49,7 +51,7 @@ import Control.Effect.Reader
 import Control.Effect.State
 import Control.Effect.Throw
 
-import Prettyprinter (Pretty(..), (<+>), parens)
+import Prettyprinter (Pretty(..), (<+>), parens, indent)
 
 import Data.Name
 

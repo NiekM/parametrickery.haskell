@@ -29,8 +29,6 @@ data Args = Args
   , output :: Arg
   } deriving stock (Eq, Ord, Show)
 
--- TODO: define this as an Iso from lens, or remove `constraints` and have it be
--- a Lens
 toArgs :: Problem -> Args
 toArgs (Problem signature examples) = Args
   { inputs = zipWith (fmap . flip Arg) inputs signature.inputs

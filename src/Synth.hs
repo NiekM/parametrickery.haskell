@@ -2,35 +2,28 @@
 
 module Synth
   ( Synth
-  , TacticC
-  , SearchC
+  , SynthC
   , Extract(..)
   , Spec(..)
   , ProofState(..)
   , search
-  , limit
+  , tactics
+  , applyTactic
   , auto
   , goal
-  , tactics
-  , next
   , extrs
-  , applyTactic
-  , anywhere, anywhere2
-  , orElse
-  , mapOrFold
   ) where
 
 import Data.Map qualified as Map
 import Data.List qualified as List
+import Data.Set qualified as Set
+import Data.Maybe (fromJust)
 
-import Control.Effect.Throw
-import Control.Effect.Reader
 import Control.Effect.Fresh.Named
 import Control.Effect.Weight
 import Control.Carrier.Error.Either
 import Control.Carrier.Reader
 import Control.Carrier.State.Strict
-import Control.Carrier.NonDet.Church
 
 import Data.PQueue.Max (MaxQueue)
 import Data.PQueue.Max qualified as Queue
@@ -49,10 +42,9 @@ import Language.Pretty
 
 import Language.Container.Relation
 import Utils
-import Data.Maybe (fromJust)
-import Data.Set qualified as Set
 import Data.Map.Multi qualified as Multi
 import Tactic
+import Tactic.Combinators
 
 data Extract = Fun (Program Name) | Rules [Rule]
   deriving stock (Eq, Ord, Show)
@@ -106,7 +98,7 @@ type Synth sig m =
   , Has (State ProofState) sig m
   , Has Weight sig m
   , Has NonDet sig m
-  , MonadPlus m
+  , Alternative m
   )
 
 -- TODO: can we generate some interactive search thing? Perhaps just an IO monad
@@ -115,31 +107,44 @@ type Synth sig m =
 -- refinement. Clicking on refinements explores them (if realizable) and perhaps
 -- outputs the current state to the console? Or perhaps a next button that
 -- explores the next node (based on its weight).
-type SearchC = ReaderC Context (StateC ProofState (FreshC (Search (Sum Nat))))
+type SynthC = ReaderC Context (StateC ProofState (FreshC (Search (Sum Nat))))
 
-search :: SearchC a -> Search (Sum Nat) ProofState
+search :: SynthC a -> Search (Sum Nat) ProofState
 search t = evalFresh . execState emptyProofState $ runReader datatypes t
 
-goal :: Synth sig m => Named Problem -> m ()
-goal problem = do
-  modify \s -> s { toplevel = problem.name : s.toplevel}
-  subgoal problem
+-- TODO: add synthesis options for stuff like this:
+-- - whether to abort when out of tactics
+-- - whether to allow totality checking on subspecifications
+-- - whether to call a bottom-up synthesizer when e.g. only ints remain
+tactics :: Synth sig m => [TacticC m Filling] -> m ProofState
+tactics [] = get
+tactics (t:ts) = next >>= \case
+  Nothing -> get
+  Just (Named name spec) -> do
+    subproblem <- preprocess spec.problem
+    applyTactic name subproblem t
+    tactics ts
 
-type TacticC m = ReaderC Problem (ErrorC TacticFailure m)
+next :: Synth sig m => m (Maybe (Named Spec))
+next = do
+  ProofState { unsolved, goals } <- get
+  case Queue.maxView unsolved of
+    Nothing -> return Nothing
+    Just (hole, xs) -> case find hole goals of
+      Nothing -> error "unknown goal"
+      Just g -> do
+        modify \s -> s { unsolved = xs }
+        return . Just $ Named hole g
 
-applyTactic :: Synth sig m => Name -> Problem ->
-  TacticC m (Program (Named Problem)) -> m ()
+applyTactic :: Synth sig m => Name -> Problem -> TacticC m Filling -> m ()
 applyTactic name problem m =
   runError (runReader problem m) >>= \case
-    Left NotApplicable -> mzero
-    Left TraceIncomplete -> mzero
-    Left (Unrealizable _conflict) -> mzero
-    Right program -> Synth.fill name program
+    Left NotApplicable -> empty
+    Left TraceIncomplete -> empty
+    Left (Unrealizable _conflict) -> empty
+    Right program -> fill name program
 
-names :: Traversable f => f (Named v) -> (Map Name v, f Name)
-names = traverse \(Named name x) -> (Map.singleton name x, name)
-
-fill :: Synth sig m => Name -> Program (Named Problem) -> m ()
+fill :: Synth sig m => Name -> Filling -> m ()
 fill name filling = do
   ProofState { goals } <- get
   case find name goals of
@@ -151,12 +156,17 @@ fill name filling = do
         s.extract ++ [Named name . Fun $ lams vars p'] }
       forM_ (Map.assocs new) $ subgoal . uncurry Named
 
+goal :: Synth sig m => Named Problem -> m ()
+goal problem = do
+  modify \s -> s { toplevel = problem.name : s.toplevel}
+  subgoal problem
+
 subgoal :: Synth sig m => Named Problem -> m ()
 subgoal (Named name p) = do
-  rules <- runError @Conflict (check p) >>= \case
+  rules <- runError @Conflict (check =<< preprocess p) >>= \case
     Right r -> return r
     -- TODO: somehow report conflicts
-    Left _ -> mzero
+    Left _ -> empty
   c <- coverage p.signature rules
   r <- relevance p
   let sub = Named name $ Spec p rules c r
@@ -174,29 +184,26 @@ subgoal (Named name p) = do
     -- cases.
     allowIgnoringInputs = False
 
-    foo = msum $ r.relevance <&> \case
+    foo = asum $ r.relevance <&> \case
       (_, rs, Total) -> Just rs
       _ -> Nothing
     bar = case c of
       Total -> Just rules
       _ -> Nothing
   case (if allowIgnoringInputs then foo else bar) of
-    Just rs -> modify \s -> s { extract = s.extract ++ [Named name $ Rules rs] }
+    Just _ ->
+      let rs' = Named name $ fromJust foo
+      in case fromRules rs' of
+        Nothing ->
+          modify \s -> s { extract = s.extract ++ [Rules <$> rs'] }
+        Just f -> do
+          modify \s -> s { extract = s.extract ++ [Fun <$> f] }
     _ -> modify \s -> s { unsolved = Queue.insert name s.unsolved }
 
-next :: Synth sig m => m (Maybe (Named Spec))
-next = do
-  ProofState { unsolved, goals } <- get
-  case Queue.maxView unsolved of
-    Nothing -> return Nothing
-    Just (hole, xs) -> case find hole goals of
-      Nothing -> error "unknown goal"
-      Just g -> do
-        modify \s -> s { unsolved = xs }
-        return . Just $ Named hole g
-
-preprocess :: Problem -> Problem
-preprocess = onArgs flatten
+preprocess :: Synth sig m => Problem -> m Problem
+preprocess problem = do
+  -- removeUseless $ onArgs flatten problem
+  return $ onArgs flatten problem
 
 flatten :: Args -> Args
 flatten args = Args inputs args.output
@@ -209,14 +216,14 @@ flatten args = Args inputs args.output
         [0..] (projections arg)
       _ -> [(expr, arg)]
 
+    -- TODO: this is a hack, pretty printing the projections as variables...
     inputs = scope <&> \(x, a) -> Named (fromString . show $ pretty x) a
 
 -- TODO: use relevancy
-auto :: Synth sig m => [TacticC m (Program (Named Problem))]
-auto = repeat $ msum
+auto :: Synth sig m => [TacticC m Filling]
+auto = repeat $ asum
   [ weigh 2 >> anywhere \v ->
-    (introMap v <|> introFilter v) `orElse` (weigh 2 >>fold v)
-  -- [ weigh 4 >> anywhere fold
+    (introMap v <|> introFilter v) `orElse` (weigh 2 >> fold v)
   , weigh 3 >> anywhere elim
   , weigh 3 >> anywhere2 elimEq
   , weigh 3 >> anywhere2 elimOrd
@@ -225,39 +232,7 @@ auto = repeat $ msum
   , weigh 0 >> anywhere assume
   ]
 
--- TODO: add synthesis options for stuff like this:
--- - whether to abort when out of tactics
--- - whether to allow totality checking on subspecifications
--- - whether to call a bottom-up synthesizer when e.g. only ints remain
-tactics :: Synth sig m => [TacticC m (Program (Named Problem))] -> m ProofState
-tactics [] = get
-tactics (t:ts) = next >>= \case
-  Nothing -> get
-  Just (Named name spec) -> do
-    let subproblem = preprocess spec.problem
-    applyTactic name subproblem t
-    tactics ts
-
-limit :: Synth sig m => Nat -> m a -> m (Maybe a)
-limit n m = fmap Just m <|> (weigh (n + 1) >> return Nothing)
-
-anywhere :: (Tactic sig m, MonadPlus m) => (Name -> m a) -> m a
-anywhere tactic = tactic =<< oneOf =<< asks variables
-
-anywhere2 :: (Tactic sig m, MonadPlus m) => (Name -> Name -> m a) -> m a
-anywhere2 tactic = do
-  vars <- asks variables
-  x <- oneOf vars
-  y <- oneOf vars
-  guard $ x < y
-  tactic x y
-
-orElse :: (Tactic sig m, Has (Catch TacticFailure) sig m) => m a -> m a -> m a
-orElse t u = catchError @TacticFailure t $ const u
-
-mapOrFold :: (Tactic sig m, Has (Catch TacticFailure) sig m) =>
-  Name -> m (Program (Named Problem))
-mapOrFold v = introMap v `orElse` fold v
+-- TODO: this is all just for handling extracts
 
 fillHole :: Expr l Name -> Named (Expr l Name) -> Expr l Name
 fillHole expr (Named name filling) = expr >>= \h ->

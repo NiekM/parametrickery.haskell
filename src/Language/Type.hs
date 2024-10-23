@@ -2,6 +2,7 @@ module Language.Type where
 
 import Data.List qualified as List
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 
 import Base
 
@@ -32,6 +33,13 @@ instantiate m = \case
 data Base = Int
   deriving stock (Eq, Ord, Show)
 
+getFree :: Mono -> Set Name
+getFree = \case
+  Free a -> Set.singleton a
+  Product ts -> foldMap getFree ts
+  Data _ ts -> foldMap getFree ts
+  Base _ -> Set.empty
+
 type Constructor = Named Mono
 
 data Datatype = Datatype
@@ -54,6 +62,7 @@ getConstructors name ts ctx =
         Named c (instantiate mapping t)
 
 -- TODO: have some sort of Prelude file
+-- TODO: define recursive types using fixpoints
 datatypes :: Context
 datatypes = Context
   [ Datatype
@@ -111,7 +120,6 @@ datatypes = Context
     , constructors =
       [ Named "Leaf" (Free "b")
       , Named "Node" $ Product
-        -- TODO: perhaps we can do recursion by using e.g. `Free "rec"`
         [ Data "Tree" [Free "a", Free "b"]
         , Free "a"
         , Data "Tree" [Free "a", Free "b"]

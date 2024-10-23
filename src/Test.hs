@@ -3,31 +3,22 @@
 
 module Test where
 
-import Control.Monad.State
-import Data.Coerce (coerce)
-import Data.Either (isRight, fromRight)
-import Data.Bifunctor (bimap)
-import Data.Foldable (asum)
 import Data.Set qualified as Set
 import Data.Map qualified as Map
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Monoid (Alt(..), Sum(..))
 import Data.Maybe (fromJust)
-import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
-import Prettyprinter
 import System.IO.Unsafe qualified as Unsafe
 import System.Directory
 import System.Timeout
 
 import Control.Monad.Search
-import Data.PQueue.Max (MaxQueue)
-import Data.PQueue.Max qualified as Queue
 
 import Control.Carrier.Reader
 
 import Base
+import Control.Effect.Search
 import Data.Map.Multi qualified as Multi
 import Language.Type
 import Language.Expr
@@ -42,6 +33,7 @@ import Language.Relevance
 import Utils
 
 import Tactic
+import Tactic.Combinators
 import Synth
 
 ------ Utilities ------
@@ -145,7 +137,7 @@ synth' p = runSearchBest . search $ goal p >> tactics auto
 synth :: Named Problem -> Maybe (Sum Nat, [Named Extract])
 synth = fmap (fmap (.extract)) . synth'
 
-tryTactics :: [TacticC SearchC (Program (Named Problem))]
+tryTactics :: [TacticC SynthC Filling]
   -> Named Problem -> Maybe (Sum Nat, ProofState)
 tryTactics ts problem = runSearchBest . search $ goal problem >> tactics ts
 

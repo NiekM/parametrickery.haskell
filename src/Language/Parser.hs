@@ -42,7 +42,7 @@ sc :: Lexer ()
 sc = L.space hspace1 (L.skipLineComment "--") empty
 
 sc' :: Lexer ()
-sc' = L.space mzero (L.skipLineComment "--") empty
+sc' = L.space empty (L.skipLineComment "--") empty
 
 comment :: Lexer ()
 comment = L.skipLineComment "--"
@@ -198,7 +198,7 @@ instance Parse Lit where
   parser = MkInt <$> int
 
 instance Parse (Hole Void) where
-  parser = mzero
+  parser = empty
 
 instance Parse (Hole ()) where
   parser = MkHole <$> do
@@ -235,7 +235,7 @@ spacedExprUntil l = many $ choice
   , mkList <$> parseList Square parser
   , do
     x <- anySingleBut l
-    maybe mzero return $ parseMaybe parser [x]
+    maybe empty return $ parseMaybe parser [x]
   ]
 
 instance Parse Example where
@@ -245,7 +245,7 @@ instance Parse Example where
     case (inputs, output) of
       ([out], Nothing ) -> return $ Example [] out
       (_:_  , Just out) -> return $ Example inputs out
-      _ -> mzero
+      _ -> empty
 
 instance Parse (Named Example) where
   parser = Named <$> identifier <*> do
@@ -264,4 +264,4 @@ instance Parse (Named Problem) where
     return $ Named name Problem { signature, examples }
 
 instance Parse Void where
-  parser = mzero
+  parser = empty
