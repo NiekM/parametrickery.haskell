@@ -122,8 +122,14 @@ synthAll = do
     putStrLn ""
     print $ "Problem:" <+> pretty problem.name
     putStrLn ""
-    timeout 1_000_000 case synth problem of
-      Nothing -> putStrLn "Synthesis failed"
+    res <- timeout 1_000_000 $ synthesize problem
+    case res of
+      Nothing -> putStrLn "Synthesis failed: timeout"
+      _ -> return ()
+  where
+    synthesize :: Named Problem -> IO ()
+    synthesize problem = case synth problem of
+      Nothing -> putStrLn "Synthesis failed: exhaustive"
       Just (_n, r) -> do
         let (f, gs) = extrs r
         print . indent 2 $ pretty f
