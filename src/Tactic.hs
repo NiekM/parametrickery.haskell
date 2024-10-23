@@ -9,6 +9,7 @@ module Tactic
   , introTuple
   , introMap
   , introFilter
+  , elimEq, elimOrd
   , elim
   , fold
   ) where
@@ -105,24 +106,27 @@ introCtr = do
               return . Ctr c $ tuple (es <&> \e -> apps e vars)
     _ -> throwError NotApplicable -- not a datatype
 
+elimArg :: Tactic sig m => Program Void -> Arg -> m (Program (Named Problem))
+elimArg expr arg = do
+  ctx <- ask @Context
+  problem <- ask @Problem
+  case split ctx arg problem of
+    Nothing -> throwError NotApplicable
+    Just m -> do
+      -- require all cases to have at least some examples
+      when (any (null . (.examples) . snd) m) $ throwError NotApplicable
+      let vars = Var <$> variables problem
+      arms <- forM (Map.elems m) \(a, p) -> do
+        let letters = fromString . pure <$> ['a' ..]
+        xs <- zipWithM nominate letters (projections a)
+        h <- hole "_" (addInputs xs p)
+        return $ apps h vars
+      return $ apps (Var "elim") (arms ++ [vacuous expr])
+
 elim :: Tactic sig m => Name -> m (Program (Named Problem))
 elim name = do
   arg <- getArg name
-  local (hide name) do
-    ctx <- ask @Context
-    problem <- ask @Problem
-    case split ctx arg problem of
-      Nothing -> throwError NotApplicable
-      Just m -> do
-        -- require all cases to have at least some examples
-        when (any (null . (.examples) . snd) m) $ throwError NotApplicable
-        let vars = Var <$> variables problem
-        arms <- forM (Map.elems m) \(a, p) -> do
-          let letters = fromString . pure <$> ['a' ..]
-          xs <- zipWithM nominate letters (projections a)
-          h <- hole "_" (addInputs xs p)
-          return $ apps h vars
-        return $ apps (Var "elim") (arms ++ [Var name])
+  local (hide name) $ elimArg (Var name) arg
 
 -- TODO: we do not have to hide the input list here!
 -- we can even pass a non-empty list to f
@@ -149,6 +153,15 @@ introMap name = do
         return result
       _ -> throwError NotApplicable
 
+bool :: Bool -> Expr l h
+bool False = Ctr "False" Unit
+bool True  = Ctr "True"  Unit
+
+ordering :: Ordering -> Expr l h
+ordering LT = Ctr "LT" Unit
+ordering EQ = Ctr "EQ" Unit
+ordering GT = Ctr "GT" Unit
+
 isFilter :: Eq a => [a] -> [a] -> Bool
 isFilter xs ys = filter (`elem` ys) xs == ys
 
@@ -165,8 +178,8 @@ introFilter name = do
         examples <- forM (zip terms problem.examples) \case
           (List inputs, Example scope (List outputs)) -> do
             unless (isFilter inputs outputs) $ throwError NotApplicable
-            return $ List.nub inputs <&> \x -> Example (scope ++ [x])
-              if x `elem` outputs then Ctr "True" Unit else Ctr "False" Unit
+            return $ List.nub inputs <&> \x ->
+              Example (scope ++ [x]) $ bool $ x `elem` outputs
           _ -> error "Not actually lists."
         x <- freshName "x"
         let
@@ -180,6 +193,36 @@ introFilter name = do
         let result = apps (Var "filter") [apps f vars, Var name]
         return result
       _ -> throwError NotApplicable
+
+-- TODO: this should add some value in scope that tells the totality checker
+-- that some cases are not possible anymore.
+elimEq :: Tactic sig m => Name -> Name -> m (Program (Named Problem))
+elimEq name1 name2 = do
+  x <- getArg name1
+  y <- getArg name2
+  problem <- ask @Problem
+  case (x, y) of
+    (Arg (Free a) xs, Arg (Free b) ys)
+      | a == b
+      , Eq a `elem` problem.signature.constraints
+      -> do
+      let bools = Arg (Data "Bool" []) $ bool <$> zipWith (==) xs ys
+      elimArg (apps (Var "eq") [Var name1, Var name2]) bools
+    _ -> throwError NotApplicable
+
+elimOrd :: Tactic sig m => Name -> Name -> m (Program (Named Problem))
+elimOrd name1 name2 = do
+  x <- getArg name1
+  y <- getArg name2
+  problem <- ask @Problem
+  case (x, y) of
+    (Arg (Free a) xs, Arg (Free b) ys)
+      | a == b
+      , Ord a `elem` problem.signature.constraints
+      -> do
+      let ords = Arg (Data "Ordering" []) $ ordering <$> zipWith compare xs ys
+      elimArg (apps (Var "cmp") [Var name1, Var name2]) ords
+    _ -> throwError NotApplicable
 
 fold :: Tactic sig m => Name -> m (Program (Named Problem))
 fold name = do

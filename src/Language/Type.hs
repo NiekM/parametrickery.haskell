@@ -65,6 +65,15 @@ datatypes = Context
       ]
     }
   , Datatype
+    { name = "Ordering"
+    , arguments = []
+    , constructors =
+      [ Named "LT" Top
+      , Named "EQ" Top
+      , Named "GT" Top
+      ]
+    }
+  , Datatype
     { name = "Nat"
     , arguments = []
     , constructors =

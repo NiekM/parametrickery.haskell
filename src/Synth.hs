@@ -14,7 +14,7 @@ module Synth
   , next
   , extrs
   , applyTactic
-  , anywhere
+  , anywhere, anywhere2
   , orElse
   , mapOrFold
   ) where
@@ -166,6 +166,11 @@ subgoal (Named name p) = do
   -- that the input gives total coverage, we avoid this overfitting.
   -- We always make some assumptions about missing examples
   let
+    -- NOTE: this leads to sometimes nicer solutions, but may also lead to
+    -- overfitting. for example, head will be implemented as a fold if it is set
+    -- to false, but as an elim (which is preferred) when set to true. on the
+    -- other hand, this leads to overfitting for dupli, because we have too few
+    -- cases.
     allowIgnoringInputs = False
 
     foo = msum $ r.relevance <&> \case
@@ -208,8 +213,12 @@ flatten args = Args inputs args.output
 -- TODO: use relevancy
 auto :: Synth sig m => [TacticC m (Program (Named Problem))]
 auto = repeat $ msum
-  [ weigh 4 >> anywhere \v -> (introMap v <|> introFilter v) `orElse` fold v
+  [ weigh 2 >> anywhere \v ->
+    (introMap v <|> introFilter v) `orElse` (weigh 2 >>fold v)
+  -- [ weigh 4 >> anywhere fold
   , weigh 3 >> anywhere elim
+  , weigh 3 >> anywhere2 elimEq
+  , weigh 3 >> anywhere2 elimOrd
   , weigh 1 >> introCtr
   , weigh 0 >> introTuple
   , weigh 0 >> anywhere assume
@@ -230,6 +239,14 @@ tactics (t:ts) = next >>= \case
 
 anywhere :: (Tactic sig m, MonadPlus m) => (Name -> m a) -> m a
 anywhere tactic = tactic =<< oneOf =<< asks variables
+
+anywhere2 :: (Tactic sig m, MonadPlus m) => (Name -> Name -> m a) -> m a
+anywhere2 tactic = do
+  vars <- asks variables
+  x <- oneOf vars
+  y <- oneOf vars
+  guard $ x < y
+  tactic x y
 
 orElse :: (Tactic sig m, Has (Catch TacticFailure) sig m) => m a -> m a -> m a
 orElse t u = catchError @TacticFailure t $ const u
