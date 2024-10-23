@@ -1,0 +1,5 @@
+replicate : {x : a, n : Nat} -> List a
+replicate 0 Zero = []
+replicate 1 (Succ Zero) = [1]
+replicate 2 (Succ (Succ Zero)) = [2,2]
+replicate 3 (Succ (Succ (Succ Zero))) = [3,3,3]

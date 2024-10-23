@@ -65,6 +65,14 @@ datatypes = Context
       ]
     }
   , Datatype
+    { name = "Nat"
+    , arguments = []
+    , constructors =
+      [ Named "Zero" Top
+      , Named "Succ" (Data "Nat" [])
+      ]
+    }
+  , Datatype
     { name = "Maybe"
     , arguments = ["a"]
     , constructors =

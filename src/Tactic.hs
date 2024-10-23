@@ -12,6 +12,7 @@ module Tactic
   , fold
   ) where
 
+import Prelude hiding (succ)
 import Data.Map qualified as Map
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
@@ -219,6 +220,30 @@ fold name = do
             , Named r problem.signature.output
             ]
           } node
+
+        let result = apps (Var "fold") [apps f vars, apps e vars, Var name]
+        forM_ result \subproblem ->
+          liftThrow Unrealizable $ check subproblem.value
+        return result
+
+      Data "Nat" [] -> do
+        constrs <- forM paired \case
+          (Ctr "Zero" _, ex) -> return $ Left ex
+          (Ctr "Succ" n, Example ins out) ->
+            case recurse (n:ins) of
+              Nothing -> throwError TraceIncomplete
+              Just r -> return . Right $ Example (ins ++ [r]) out
+          _ -> error "Expected a nat!"
+
+        let (zero, succ) = partitionEithers constrs
+
+        e <- hole "e" $ problem { examples = zero }
+
+        r <- freshName "r"
+        f <- hole "f" $ Problem problem.signature
+          { inputs = problem.signature.inputs ++
+            [ Named r problem.signature.output ]
+          } succ
 
         let result = apps (Var "fold") [apps f vars, apps e vars, Var name]
         forM_ result \subproblem ->
