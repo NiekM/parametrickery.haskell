@@ -15,5 +15,8 @@ anywhere2 tactic = do
   guard $ x < y
   tactic x y
 
-orElse :: Has (Catch TacticFailure) sig m => m a -> m a -> m a
+infixl 0 <|
+
+orElse, (<|) :: Has (Catch TacticFailure) sig m => m a -> m a -> m a
 orElse t u = catchError @TacticFailure t $ const u
+(<|) = orElse

@@ -217,14 +217,13 @@ flatten args = Args inputs args.output
 -- TODO: use relevancy
 auto :: Synth sig m => [TacticC m Filling]
 auto = repeat $ asum
-  [ weigh 2 >> anywhere \v ->
-    (introMap v <|> introFilter v) `orElse` (weigh 2 >> fold v)
-  , weigh 3 >> anywhere elim
-  , weigh 3 >> anywhere2 elimEq
-  , weigh 3 >> anywhere2 elimOrd
+  [ anywhere \x ->
+    assume x
+      <|  (weigh 2 >> introMap x <| introFilter x <| weigh 2 >> fold x)
+      <|> (weigh 3 >> elim x)
+  , weigh 3 >> anywhere2 \x y -> elimOrd x y <| elimEq x y
   , weigh 1 >> introCtr
   , weigh 0 >> introTuple
-  , weigh 0 >> anywhere assume
   ]
 
 -- TODO: this is all just for handling extracts
