@@ -10,7 +10,6 @@ module Synth
   , tactics
   , applyTactic
   , auto
-  , goal
   , extrs
   ) where
 
@@ -77,14 +76,13 @@ instance Pretty (Named Spec) where
     ]
 
 data ProofState = ProofState
-  { toplevel :: [Name]
-  , extract  :: [Named Extract]
+  { extract  :: [Named Extract]
   , goals    :: [Named Spec]
   , unsolved :: MaxQueue Name
   } deriving stock (Eq, Ord, Show)
 
 emptyProofState :: ProofState
-emptyProofState = ProofState mempty mempty mempty mempty
+emptyProofState = ProofState mempty mempty mempty
 
 instance Pretty ProofState where
   pretty p = statements
@@ -109,8 +107,10 @@ type Synth sig m =
 -- explores the next node (based on its weight).
 type SynthC = ReaderC Context (StateC ProofState (FreshC (Search (Sum Nat))))
 
-search :: SynthC a -> Search (Sum Nat) ProofState
-search t = evalFresh . execState emptyProofState $ runReader datatypes t
+search :: Named Problem -> SynthC a -> Search (Sum Nat) ProofState
+search p t = evalFresh . execState emptyProofState $ runReader datatypes do
+  subgoal p
+  t
 
 -- TODO: add synthesis options for stuff like this:
 -- - whether to abort when out of tactics
@@ -155,11 +155,6 @@ fill name filling = do
       modify \s -> s { extract =
         s.extract ++ [Named name . Fun $ lams vars p'] }
       forM_ (Map.assocs new) $ subgoal . uncurry Named
-
-goal :: Synth sig m => Named Problem -> m ()
-goal problem = do
-  modify \s -> s { toplevel = problem.name : s.toplevel}
-  subgoal problem
 
 subgoal :: Synth sig m => Named Problem -> m ()
 subgoal (Named name p) = do

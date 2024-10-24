@@ -128,18 +128,29 @@ synthAll = do
         forM_ gs $ print . indent 4 . pretty
 
 synthLimited :: Nat -> Named Problem -> Maybe (Sum Nat, ProofState)
-synthLimited n p = runSearchBest . search . limit n $ goal p >> tactics auto
+synthLimited fuel p = runSearchBest . search p . limit fuel $ tactics auto
+
+synthLimitedN :: Nat -> Named Problem ->
+  [(Sum Nat, (Named (Program Name), [Named [Rule]]))]
+synthLimitedN fuel p = map (fmap (extrs . (.extract)))
+  . takeWhile (not . null . (.extract) . snd)
+  . runSearch . search p . limit fuel $ tactics auto
+
+synthLmtd :: Nat -> Named Problem -> [(Sum Nat, [Named Extract])]
+synthLmtd fuel p = map (fmap (.extract))
+  . takeWhile (not . null . (.extract) . snd)
+  . runSearch . search p . limit fuel $ tactics auto
 
 -- TODO: check that the result has no unsolved holes.
 synth' :: Named Problem -> Maybe (Sum Nat, ProofState)
-synth' p = runSearchBest . search $ goal p >> tactics auto
+synth' p = runSearchBest . search p $ tactics auto
 
 synth :: Named Problem -> Maybe (Sum Nat, [Named Extract])
 synth = fmap (fmap (.extract)) . synth'
 
 tryTactics :: [TacticC SynthC Filling]
   -> Named Problem -> Maybe (Sum Nat, ProofState)
-tryTactics ts problem = runSearchBest . search $ goal problem >> tactics ts
+tryTactics ts problem = runSearchBest . search problem $ tactics ts
 
 runCheck :: Problem -> Either Conflict [Rule]
 runCheck = runReader datatypes . check
