@@ -4,6 +4,7 @@ module Utils
   , extract, inject
   , ordered
   , gather
+  , nubOn
   ) where
 
 import Data.Map.Strict qualified as Map
@@ -32,3 +33,6 @@ ordered (x:xs) = and $ zipWith (<=) (x:xs) xs
 gather :: Ord k => [(k, v)] -> Map k (NonEmpty v)
 gather xs = Map.fromList $ NonEmpty.groupAllWith fst xs <&> \ys ->
   (fst (NonEmpty.head ys), snd <$> ys)
+
+nubOn :: Ord b => (a -> b) -> [a] -> [a]
+nubOn f = map NonEmpty.head . NonEmpty.groupAllWith f

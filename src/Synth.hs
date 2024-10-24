@@ -141,7 +141,7 @@ fill name filling = do
 
 subgoal :: Synth sig m => Named Problem -> m ()
 subgoal (Named name problem) = do
-  rules <- runError @Conflict (check =<< preprocess problem) >>= \case
+  rules <- runError @Conflict (check $ onArgs flatten problem) >>= \case
     Right r -> return r
     Left _ -> empty
   -- TODO: we could combine examples that lead to the same Rule.
@@ -181,8 +181,18 @@ subgoal (Named name problem) = do
 
 preprocess :: Synth sig m => Problem -> m Problem
 preprocess problem = do
-  -- removeUseless $ onArgs flatten problem
-  return $ onArgs flatten problem
+  let simplified = onArgs (removeDuplicates . flatten) problem
+  r <- relevance simplified
+  let
+    relevantNames = foldMap (\(signature, _, _) ->
+      Set.fromList $ map (.name) . filter ((/= Free "_") . (.value)) $ signature.inputs) r.relevance
+    stripped = simplified & onArgs \(Args inputs output) ->
+      Args (filter (\arg -> arg.name `Set.member` relevantNames) inputs) output
+  return stripped
+
+removeDuplicates :: Args -> Args
+removeDuplicates args = Args inputs args.output
+  where inputs = nubOn (.value) args.inputs
 
 flatten :: Args -> Args
 flatten args = Args inputs args.output
