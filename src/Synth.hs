@@ -90,8 +90,8 @@ type Synth sig m =
 -- explores the next node (based on its weight).
 type SynthC = ReaderC Context (StateC ProofState (FreshC (Search (Sum Nat))))
 
-search :: Named Problem -> SynthC a -> Search (Sum Nat) ProofState
-search p t = evalFresh . execState emptyProofState $ runReader datatypes do
+search :: Named Problem -> SynthC a -> Search (Sum Nat) a
+search p t = evalFresh . evalState emptyProofState $ runReader datatypes do
   subgoal p
   t
 

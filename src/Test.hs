@@ -123,30 +123,17 @@ synthAll = do
     synthesize problem = case synth problem of
       Nothing -> putStrLn "Synthesis failed: exhaustive"
       Just (_n, r) -> do
-        let (f, gs) = extrs r
+        let (f, gs) = extrs r.extracts
         print . indent 2 $ pretty f
         forM_ gs $ print . indent 4 . pretty
 
-synthLimited :: Nat -> Named Problem -> Maybe (Sum Nat, ProofState)
-synthLimited fuel p = runSearchBest . search p . limit fuel $ tactics auto
-
-synthLimitedN :: Nat -> Named Problem ->
-  [(Sum Nat, (Named (Program Name), [Named [Rule]]))]
-synthLimitedN fuel p = map (fmap (extrs . (.extracts)))
-  . takeWhile (not . null . (.extracts) . snd)
-  . runSearch . search p . limit fuel $ tactics auto
-
-synthLmtd :: Nat -> Named Problem -> [(Sum Nat, [Named Extract])]
-synthLmtd fuel p = map (fmap (.extracts))
-  . takeWhile (not . null . (.extracts) . snd)
-  . runSearch . search p . limit fuel $ tactics auto
+synthUpTo :: Nat -> Named Problem -> [(Sum Nat, ProofState)]
+synthUpTo fuel problem = map (fmap fromJust) . takeWhile (isJust . snd)
+  . runSearch . search problem . limit fuel $ tactics auto
 
 -- TODO: check that the result has no unsolved holes.
-synth' :: Named Problem -> Maybe (Sum Nat, ProofState)
-synth' p = runSearchBest . search p $ tactics auto
-
-synth :: Named Problem -> Maybe (Sum Nat, [Named Extract])
-synth = fmap (fmap (.extracts)) . synth'
+synth :: Named Problem -> Maybe (Sum Nat, ProofState)
+synth problem = runSearchBest . search problem $ tactics auto
 
 tryTactics :: [TacticC SynthC Filling]
   -> Named Problem -> Maybe (Sum Nat, ProofState)
