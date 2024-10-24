@@ -1,14 +1,18 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Control.Effect.Search where
+module Control.Effect.Search
+  ( WeightedSearch
+  , module Control.Effect.Weight
+  , module Control.Effect.NonDet
+  , limit
+  ) where
 
 import Control.Monad.Search
 
 import Control.Algebra
 import Control.Effect.NonDet
 import Control.Effect.Weight
-import Control.Effect.Choose as Choose
 
 import Base
 
@@ -21,5 +25,5 @@ instance Algebra WeightedSearch (Search (Sum Nat)) where
       let l = False <$ ctx; r = True <$ ctx in junction (pure l) (pure r)
     R (Weigh w) -> ctx <$ cost' (Sum w)
 
-limit :: Has WeightedSearch sig m => Nat -> m a -> m (Maybe a)
-limit n m = fmap Just m Choose.<|> (weigh (n + 1) >> return Nothing)
+limit :: (Alternative m, Has WeightedSearch sig m) => Nat -> m a -> m (Maybe a)
+limit n m = fmap Just m <|> (weigh (n + 1) >> oneOf (repeat Nothing))
