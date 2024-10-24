@@ -4,7 +4,6 @@ module Synth
   ( Synth
   , SynthC
   , Extract(..)
-  , Spec(..)
   , ProofState(..)
   , search
   , tactics
@@ -58,26 +57,9 @@ instance Pretty (Named Extract) where
     Fun p -> prettyNamed name p
     Rules r -> statements $ prettyNamed name <$> r
 
-data Spec = Spec
-  { problem :: Problem
-  , rules :: [Rule]
-  , coverage :: Coverage
-  , relevance :: Relevance
-  } deriving stock (Eq, Ord, Show)
-
-instance Pretty Spec where
-  pretty = prettyNamed "_"
-
-instance Pretty (Named Spec) where
-  pretty (Named name spec) = statements
-    [ prettyNamed name spec.problem.signature
-    , statements $ map (prettyNamed name) spec.rules
-    , parens $ pretty spec.coverage
-    ]
-
 data ProofState = ProofState
-  { extract  :: [Named Extract]
-  , goals    :: [Named Spec]
+  { extracts :: [Named Extract]
+  , goals    :: [Named Problem]
   , unsolved :: MaxQueue Name
   } deriving stock (Eq, Ord, Show)
 
@@ -85,9 +67,10 @@ emptyProofState :: ProofState
 emptyProofState = ProofState mempty mempty mempty
 
 instance Pretty ProofState where
-  pretty p = statements
-    [ statements $ pretty <$> p.goals
-    , pretty . extrs $ p.extract
+  pretty ProofState { extracts, goals, unsolved } = statements
+    [ statements $ pretty <$>
+      filter (\g -> g.name `elem` Queue.toList unsolved) goals
+    , pretty . extrs $ extracts
     ]
 
 type Synth sig m =
@@ -120,12 +103,12 @@ tactics :: Synth sig m => [TacticC m Filling] -> m ProofState
 tactics [] = get
 tactics (t:ts) = next >>= \case
   Nothing -> get
-  Just (Named name spec) -> do
-    subproblem <- preprocess spec.problem
+  Just (Named name problem) -> do
+    subproblem <- preprocess problem
     applyTactic name subproblem t
     tactics ts
 
-next :: Synth sig m => m (Maybe (Named Spec))
+next :: Synth sig m => m (Maybe (Named Problem))
 next = do
   ProofState { unsolved, goals } <- get
   case Queue.maxView unsolved of
@@ -149,23 +132,24 @@ fill name filling = do
   ProofState { goals } <- get
   case find name goals of
     Nothing -> error "Unknown hole"
-    Just spec -> do
+    Just problem -> do
       let (new, p') = names filling
-      let vars = variables spec.problem
-      modify \s -> s { extract =
-        s.extract ++ [Named name . Fun $ lams vars p'] }
+      let vars = variables problem
+      modify \s -> s { extracts =
+        s.extracts ++ [Named name . Fun $ lams vars p'] }
       forM_ (Map.assocs new) $ subgoal . uncurry Named
 
 subgoal :: Synth sig m => Named Problem -> m ()
-subgoal (Named name p) = do
-  rules <- runError @Conflict (check =<< preprocess p) >>= \case
+subgoal (Named name problem) = do
+  rules <- runError @Conflict (check =<< preprocess problem) >>= \case
     Right r -> return r
-    -- TODO: somehow report conflicts
     Left _ -> empty
-  c <- coverage p.signature rules
-  r <- relevance p
-  let sub = Named name $ Spec p rules c r
-  modify \s -> s { goals = sub : s.goals }
+  -- TODO: we could combine examples that lead to the same Rule.
+  -- OR: similarly, we could reconstruct the problem by instantiating the rules.
+  modify \s -> s { goals = Named name problem : s.goals }
+
+  c <- coverage problem.signature rules
+  r <- relevance problem
   -- Note that here we make the decision to accept a solution that ignores
   -- some of the input. This is a valid decision, but we should be very
   -- considerate about it, since it may lead to overfitting. By first checking
@@ -190,9 +174,9 @@ subgoal (Named name p) = do
       let rs' = Named name $ fromJust foo
       in case fromRules rs' of
         Nothing ->
-          modify \s -> s { extract = s.extract ++ [Rules <$> rs'] }
+          modify \s -> s { extracts = s.extracts ++ [Rules <$> rs'] }
         Just f -> do
-          modify \s -> s { extract = s.extract ++ [Fun <$> f] }
+          modify \s -> s { extracts = s.extracts ++ [Fun <$> f] }
     _ -> modify \s -> s { unsolved = Queue.insert name s.unsolved }
 
 preprocess :: Synth sig m => Problem -> m Problem
