@@ -3,9 +3,10 @@
 -- | Tactics inspired by refinery.
 module Tactic
   ( Tactic
+  , TacticC
   , TacticFailure(..)
   , Filling
-  , TacticC
+  , runTactic
   , assume
   , introCtr
   , introTuple
@@ -46,7 +47,8 @@ type Tactic sig m =
   , Has (Throw TacticFailure) sig m
   )
 
-type TacticC m = ReaderC Problem (ErrorC TacticFailure m)
+type TacticC m =
+  ReaderC Problem (ReaderC Context (ErrorC TacticFailure (FreshC m)))
 
 type Filling = Program (Named Problem)
 
@@ -54,6 +56,10 @@ liftThrow :: Has (Throw e) sig m => (d -> e) -> ErrorC d m a -> m a
 liftThrow f m = runError m >>= \case
   Left e -> throwError $ f e
   Right x -> return x
+
+runTactic :: Functor m => Problem -> TacticC m a -> m (Either TacticFailure a)
+runTactic problem =
+  evalFresh . runError . runReader datatypes . runReader problem
 
 getArg :: Tactic sig m => Name -> m Arg
 getArg name = do

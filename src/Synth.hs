@@ -3,11 +3,14 @@
 module Synth
   ( Synth
   , SynthC
+  , Refinement
+  , runRefinement
   , Extract(..)
   , ProofState(..)
   , search
   , tactics
   , applyTactic
+  , subgoal
   , auto
   , extrs
   ) where
@@ -90,16 +93,16 @@ type Synth sig m =
 -- explores the next node (based on its weight).
 type SynthC = ReaderC Context (StateC ProofState (FreshC (Search (Sum Nat))))
 
-search :: Named Problem -> SynthC a -> Search (Sum Nat) a
-search p t = evalFresh . evalState emptyProofState $ runReader datatypes do
-  subgoal p
-  t
+search :: SynthC a -> Search (Sum Nat) a
+search = evalFresh . evalState emptyProofState . runReader datatypes
+
+type Refinement m = ReaderC Problem (ErrorC TacticFailure m) Filling
 
 -- TODO: add synthesis options for stuff like this:
 -- - whether to abort when out of tactics
 -- - whether to allow totality checking on subspecifications
 -- - whether to call a bottom-up synthesizer when e.g. only ints remain
-tactics :: Synth sig m => [TacticC m Filling] -> m ProofState
+tactics :: Synth sig m => [Refinement m] -> m ProofState
 tactics [] = get
 tactics (t:ts) = next >>= \case
   Nothing -> get
@@ -119,9 +122,12 @@ next = do
         modify \s -> s { unsolved = xs }
         return . Just $ Named hole g
 
-applyTactic :: Synth sig m => Name -> Problem -> TacticC m Filling -> m ()
-applyTactic name problem m =
-  runError (runReader problem m) >>= \case
+runRefinement :: Problem -> Refinement m -> m (Either TacticFailure Filling)
+runRefinement problem tactic = runError $ runReader problem tactic
+
+applyTactic :: Synth sig m => Name -> Problem -> Refinement m -> m ()
+applyTactic name problem tactic =
+  runRefinement problem tactic >>= \case
     Left NotApplicable -> empty
     Left TraceIncomplete -> empty
     Left (Unrealizable _conflict) -> empty
@@ -209,7 +215,7 @@ flatten args = Args inputs args.output
     inputs = scope <&> \(x, a) -> Named (fromString . show $ pretty x) a
 
 -- TODO: use relevancy
-auto :: Synth sig m => [TacticC m Filling]
+auto :: Synth sig m => [Refinement m]
 auto = repeat $ asum
   [ anywhere \x ->
     assume x

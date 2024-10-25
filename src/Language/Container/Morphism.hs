@@ -39,8 +39,6 @@ data Rule = Rule
 
 -- It seems that we only need to compute the relation for the inputs, since the
 -- output values are a subset (and if they are not, this is already a conflict).
--- TODO: currently, no type checking is performed, so some nonsensical programs
--- are considered realizable.
 checkExample :: (Has (Reader Context) sig m, Has (Throw Conflict) sig m) =>
   Signature -> Example -> m Rule
 checkExample signature example = do
@@ -82,7 +80,6 @@ combine = traverse merge . NonEmpty.groupAllWith (.input)
     intersect rules@(rule :| _) = rule
       { origins = foldl1 Multi.intersection $ fmap (.origins) rules }
 
--- TODO: do something with these conflicts.
 data Conflict
   = ArgumentMismatch [Mono] [Value]
   | ShapeConflict (NonEmpty Rule)

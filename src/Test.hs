@@ -16,6 +16,8 @@ import System.Timeout
 import Control.Monad.Search
 
 import Control.Carrier.Reader
+import Control.Carrier.NonDet.Church
+import Control.Effect.Fresh.Named
 
 import Base
 import Control.Effect.Search
@@ -63,9 +65,8 @@ bench = Unsafe.unsafePerformIO do
 getBench :: Name -> Named Problem
 getBench name = Named name . fromJust $ find name bench
 
--- TODO: rewrite this so that we get errors again.
-isFold :: Named Problem -> Maybe ProofState
-isFold = fmap snd . tryTactics [anywhere fold]
+isFold :: Named Problem -> [Either TacticFailure Filling]
+isFold problem = runTactic problem.value $ anywhere fold
 
 runBench :: [Named Problem] -> IO ()
 runBench benchmark = do
@@ -73,16 +74,20 @@ runBench benchmark = do
     putStrLn ""
     print $ "Problem:" <+> pretty problem.name
     putStrLn ""
-    case isFold problem of
-      Just st | [f, e, _] <- st.goals -> do
-        print $ pretty problem.name <+>
-          "= fold" <+> pretty f.name <+> pretty e.name
+    forM_ (isFold problem) \case
+      Left NotApplicable -> return ()
+      Left TraceIncomplete -> putStrLn "Trace incomplete"
+      Left (Unrealizable conflict) -> print $ pretty conflict
+      Right f -> do
+        print . prettyNamed problem.name $ fmap (.name) f
         putStrLn "  where"
-        print . indent 4 $ pretty f
-        putStrLn ""
-        print . indent 4 $ pretty e
-        putStrLn ""
-      _ -> putStrLn "Not a fold."
+        forM_ (holes f) \(Named name subproblem) -> case runCheck subproblem of
+          Left conflict -> print $ pretty conflict
+          Right rules -> do
+            print . indent 4 $ statements $
+              prettyNamed name subproblem.signature
+              : (prettyNamed name <$> rules)
+            putStrLn ""
 
 paperBench :: IO ()
 paperBench = runBench bench'
@@ -129,15 +134,15 @@ synthAll = do
 
 synthUpTo :: Nat -> Named Problem -> [(Sum Nat, ProofState)]
 synthUpTo fuel problem = map (fmap fromJust) . takeWhile (isJust . snd)
-  . runSearch . search problem . limit fuel $ tactics auto
+  . runSearch . search . limit fuel $ subgoal problem >> tactics auto
 
 -- TODO: check that the result has no unsolved holes.
 synth :: Named Problem -> Maybe (Sum Nat, ProofState)
-synth problem = runSearchBest . search problem $ tactics auto
+synth problem = runSearchBest . search $ subgoal problem >> tactics auto
 
-tryTactics :: [TacticC SynthC Filling]
+tryTactics :: [Refinement SynthC]
   -> Named Problem -> Maybe (Sum Nat, ProofState)
-tryTactics ts problem = runSearchBest . search problem $ tactics ts
+tryTactics ts problem = runSearchBest . search $ subgoal problem >> tactics ts
 
 runCheck :: Problem -> Either Conflict [Rule]
 runCheck = runReader datatypes . check
