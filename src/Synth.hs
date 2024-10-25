@@ -186,7 +186,7 @@ subgoal (Named name problem) = do
 
 -- TODO: use relevancy
 auto :: Synth sig m => [Refinement m]
-auto = cycle . (: [flatten, clean, strip]) $ asum
+auto = repeat $ asum
   [ anywhere \x ->
     assume x
       <|  (weigh 2 >> introMap x <| introFilter x <| weigh 2 >> fold x)

@@ -79,10 +79,11 @@ getArg name = do
     Nothing -> throwError NotApplicable -- unknown name
     Just arg -> return arg
 
-hole :: Tactic sig m => Name -> Problem -> m Filling
-hole t problem = do
-  name <- freshName t
-  return . Hole . MkHole $ Named name problem
+hole :: Tactic sig m => Name -> [Program Void] -> Problem -> m Filling
+hole v xs problem = do
+  name <- freshName v
+  let h = Hole . MkHole $ Named name problem
+  return $ apps h (vacuous <$> xs)
 
 assume :: Tactic sig m => Name -> m Filling
 assume name = do
@@ -98,8 +99,7 @@ shuffle f = do
   let (terms, args') = unzip $ f args.inputs
   renamed <- forM args' $ nominate "x"
   let new = fromArgs problem.signature.constraints $ Args renamed args.output
-  body <- hole "h" new
-  return $ apps body $ map vacuous terms
+  hole "h" terms new
 
 rename :: Tactic sig m => m Filling
 rename = shuffle $ map \(Named name arg) -> (Var name, arg)
@@ -135,8 +135,7 @@ introTuple = do
   case problem.signature.output of
     Product _ -> do
       let vars = Var <$> variables problem
-      es <- forM (projections problem) (hole "_")
-      return . tuple $ es <&> \e -> apps e vars
+      tuple <$> forM (projections problem) (hole "_" vars)
     _ -> throwError NotApplicable -- not a tuple
 
 -- TODO: test this properly
@@ -161,11 +160,11 @@ introCtr = do
             Nothing -> error "unknown constructor"
             Just ct -> do
               let goals = projections ct
+              let vars = Var <$> variables problem
               es <- forM (zip exampless goals) \(examples, output) -> do
                 let signature = problem.signature { output } :: Signature
-                hole "_" $ Problem { signature, examples }
-              let vars = Var <$> variables problem
-              return . Ctr c $ tuple (es <&> \e -> apps e vars)
+                hole "_" vars $ Problem { signature, examples }
+              return . Ctr c $ tuple es
     _ -> throwError NotApplicable -- not a datatype
 
 elimArg :: Tactic sig m => Program Void -> Arg -> m Filling
@@ -181,8 +180,7 @@ elimArg expr arg = do
       arms <- forM (Map.elems m) \(a, p) -> do
         let letters = fromString . pure <$> ['a' ..]
         xs <- zipWithM nominate letters (projections a)
-        h <- hole "_" (addInputs xs p)
-        return $ apps h vars
+        hole "_" vars (addInputs xs p)
       return $ apps (Var "elim") (arms ++ [vacuous expr])
 
 elim :: Tactic sig m => Name -> m Filling
@@ -210,8 +208,8 @@ introMap name = do
         let vars = Var <$> variables problem
         let subproblem = Problem signature $ concat examples
         _ <- liftThrow Unrealizable $ check subproblem
-        f <- hole "f" subproblem
-        let result = apps (Var "map") [apps f vars, Var name]
+        f <- hole "f" vars subproblem
+        let result = apps (Var "map") [f, Var name]
         return result
       _ -> throwError NotApplicable
 
@@ -251,8 +249,8 @@ introFilter name = do
           vars = Var <$> variables problem
           subproblem = Problem signature $ concat examples
         _ <- liftThrow Unrealizable $ check subproblem
-        f <- hole "f" subproblem
-        let result = apps (Var "filter") [apps f vars, Var name]
+        f <- hole "f" vars subproblem
+        let result = apps (Var "filter") [f, Var name]
         return result
       _ -> throwError NotApplicable
 
@@ -316,18 +314,18 @@ fold name = do
 
         let (nil, cons) = partitionEithers constrs
 
-        e <- hole "e" $ problem { examples = nil }
+        e <- hole "e" vars $ problem { examples = nil }
 
         x <- freshName "x"
         r <- freshName "r"
-        f <- hole "f" $ Problem problem.signature
+        f <- hole "f" vars $ Problem problem.signature
           { inputs = problem.signature.inputs ++
             [ Named x t
             , Named r problem.signature.output
             ]
           } cons
 
-        let result = apps (Var "fold") [apps f vars, apps e vars, Var name]
+        let result = apps (Var "fold") [f, e, Var name]
         forM_ result \subproblem ->
           liftThrow Unrealizable $ check subproblem.value
         return result
@@ -346,13 +344,13 @@ fold name = do
         let (leaf, node) = partitionEithers constrs
 
         y <- freshName "y"
-        e <- hole "e" $ Problem problem.signature
+        e <- hole "e" vars $ Problem problem.signature
           { inputs = problem.signature.inputs ++ [ Named y u ] } leaf
 
         l <- freshName "l"
         x <- freshName "x"
         r <- freshName "r"
-        f <- hole "f" $ Problem problem.signature
+        f <- hole "f" vars $ Problem problem.signature
           { inputs = problem.signature.inputs ++
             [ Named l problem.signature.output
             , Named x t
@@ -360,7 +358,7 @@ fold name = do
             ]
           } node
 
-        let result = apps (Var "fold") [apps f vars, apps e vars, Var name]
+        let result = apps (Var "fold") [f, e, Var name]
         forM_ result \subproblem ->
           liftThrow Unrealizable $ check subproblem.value
         return result
@@ -376,15 +374,15 @@ fold name = do
 
         let (zero, succ) = partitionEithers constrs
 
-        e <- hole "e" $ problem { examples = zero }
+        e <- hole "e" vars $ problem { examples = zero }
 
         r <- freshName "r"
-        f <- hole "f" $ Problem problem.signature
+        f <- hole "f" vars $ Problem problem.signature
           { inputs = problem.signature.inputs ++
             [ Named r problem.signature.output ]
           } succ
 
-        let result = apps (Var "fold") [apps f vars, apps e vars, Var name]
+        let result = apps (Var "fold") [f, e, Var name]
         forM_ result \subproblem ->
           liftThrow Unrealizable $ check subproblem.value
         return result
