@@ -134,7 +134,7 @@ lets bindings body = apps (lams vars body) args
     args = map (.value) bindings
 
 norm :: Map Name (Program h) -> Program h -> Program h
-norm ctx e = case e of
+norm ctx = \case
   Tuple xs -> Tuple $ map (norm ctx) xs
   Ctr c x -> Ctr c $ norm ctx x
   Lit i -> Lit i
@@ -151,6 +151,17 @@ norm ctx e = case e of
     Tuple xs -> xs !! fromIntegral i
     y -> Prj i y
   Hole h -> Hole h
+
+toValue :: Expr l h -> Maybe Value
+toValue = \case
+  Tuple xs -> Tuple <$> traverse toValue xs
+  Ctr c x -> Ctr c <$> toValue x
+  Lit i -> Just $ Lit i
+  Var _ -> Nothing
+  Lam _ _ -> Nothing
+  App _ _ -> Nothing
+  Prj _ _ -> Nothing
+  Hole _ -> Nothing
 
 -- A monomorphic input-output example according to some function signature. We
 -- do not have to give a specific type instantiation, because we may make the
