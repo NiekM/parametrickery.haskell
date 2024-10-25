@@ -134,15 +134,15 @@ synthAll = do
 
 synthUpTo :: Nat -> Named Problem -> [(Sum Nat, ProofState)]
 synthUpTo fuel problem = map (fmap fromJust) . takeWhile (isJust . snd)
-  . runSearch . search . limit fuel $ subgoal problem >> tactics auto
+  . runSearch . search . limit fuel $ intro problem >> tactics auto
 
 -- TODO: check that the result has no unsolved holes.
 synth :: Named Problem -> Maybe (Sum Nat, ProofState)
-synth problem = runSearchBest . search $ subgoal problem >> tactics auto
+synth problem = runSearchBest . search $ intro problem >> tactics auto
 
 tryTactics :: [Refinement SynthC]
   -> Named Problem -> Maybe (Sum Nat, ProofState)
-tryTactics ts problem = runSearchBest . search $ subgoal problem >> tactics ts
+tryTactics ts problem = runSearchBest . search $ intro problem >> tactics ts
 
 runCheck :: Problem -> Either Conflict [Rule]
 runCheck = runReader datatypes . check

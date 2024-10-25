@@ -8,9 +8,9 @@ module Synth
   , Extract(..)
   , ProofState(..)
   , search
+  , intro
   , tactics
   , applyTactic
-  , subgoal
   , auto
   , extrs
   ) where
@@ -134,15 +134,17 @@ applyTactic name problem tactic =
 
 fill :: Synth sig m => Name -> Filling -> m ()
 fill name filling = do
-  ProofState { goals } <- get
-  case find name goals of
-    Nothing -> error "Unknown hole"
-    Just problem -> do
-      let (new, p') = names filling
-      let vars = variables problem
-      modify \s -> s { extracts =
-        s.extracts ++ [Named name . Fun $ lams vars p'] }
-      forM_ (Map.assocs new) $ subgoal . uncurry Named
+  let (new, p') = names filling
+  modify \s -> s { extracts = s.extracts ++ [Named name $ Fun p'] }
+  forM_ (Map.assocs new) $ subgoal . uncurry Named
+
+intro :: Synth sig m => Named Problem -> m ()
+intro problem = do
+  name <- freshName problem.name
+  let vars = variables problem.value
+  let extr = Named problem.name $ Fun $ lams vars $ Hole $ MkHole name
+  modify \s -> s { extracts = s.extracts ++ [extr] }
+  subgoal $ Named name problem.value
 
 subgoal :: Synth sig m => Named Problem -> m ()
 subgoal (Named name problem) = do
@@ -210,17 +212,22 @@ isHole :: Expr l h -> Maybe h
 isHole (Hole (MkHole h)) = Just h
 isHole _ = Nothing
 
+-- -- TODO: redo this translation, perhaps just one argument at a time?
+-- fromRules :: Named [Rule] -> Maybe (Named (Program Name))
+-- fromRules = mapM \case
+--   [rule]
+--     | not $ any relevant rule.input.relations
+--     , Just _ <- mapM isHole rule.input.shapes
+--     -> do
+--     let f p = fromJust . Set.lookupMin $ Multi.lookup p rule.origins
+--     let fromPos p = fromString $ show $ pretty p
+--     let y = fromTerm rule.output >>= Var . fromPos . f
+--     return y
+--   _ -> Nothing
+
+-- TODO: redo this translation, perhaps just one argument at a time?
 fromRules :: Named [Rule] -> Maybe (Named (Program Name))
-fromRules = mapM \case
-  [rule]
-    | not $ any relevant rule.input.relations
-    , Just ps <- mapM isHole rule.input.shapes
-    -> do
-    let f p = fromJust . Set.lookupMin $ Multi.lookup p rule.origins
-    let fromPos p = fromString $ show $ pretty p
-    let y = fromTerm rule.output >>= Var . fromPos . f
-    return $ lams (fromPos <$> ps) y
-  _ -> Nothing
+fromRules = const Nothing
 
 extrs :: [Named Extract] -> (Named (Program Name), [Named [Rule]])
 extrs xs = (norm mempty <$> combineFuns (as ++ cs), ds)
