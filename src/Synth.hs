@@ -107,8 +107,7 @@ tactics [] = get
 tactics (t:ts) = next >>= \case
   Nothing -> get
   Just (Named name problem) -> do
-    subproblem <- preprocess problem
-    applyTactic name subproblem t
+    applyTactic name problem t
     tactics ts
 
 next :: Synth sig m => m (Maybe (Named Problem))
@@ -147,7 +146,7 @@ fill name filling = do
 
 subgoal :: Synth sig m => Named Problem -> m ()
 subgoal (Named name problem) = do
-  rules <- runError @Conflict (check $ onArgs flatten problem) >>= \case
+  rules <- runError @Conflict (check problem) >>= \case
     Right r -> return r
     Left _ -> empty
   -- TODO: we could combine examples that lead to the same Rule.
@@ -185,38 +184,9 @@ subgoal (Named name problem) = do
           modify \s -> s { extracts = s.extracts ++ [Fun <$> f] }
     _ -> modify \s -> s { unsolved = Queue.insert name s.unsolved }
 
-preprocess :: Synth sig m => Problem -> m Problem
-preprocess problem = do
-  let simplified = onArgs (removeDuplicates . flatten) problem
-  r <- relevance simplified
-  let
-    relevantNames = foldMap (\(signature, _, _) ->
-      Set.fromList $ map (.name) . filter ((/= Free "_") . (.value)) $ signature.inputs) r.relevance
-    stripped = simplified & onArgs \(Args inputs output) ->
-      Args (filter (\arg -> arg.name `Set.member` relevantNames) inputs) output
-  return stripped
-
-removeDuplicates :: Args -> Args
-removeDuplicates args = Args inputs args.output
-  where inputs = nubOn (.value) args.inputs
-
-flatten :: Args -> Args
-flatten args = Args inputs args.output
-  where
-    scope = args.inputs >>= \(Named name arg) -> prjs (Var name, arg)
-
-    prjs :: (Program Void, Arg) -> [(Program Void, Arg)]
-    prjs (expr, arg) = case arg.mono of
-      Product _ -> concat $ zipWith (\i e -> prjs (Prj i expr, e))
-        [0..] (projections arg)
-      _ -> [(expr, arg)]
-
-    -- TODO: this is a hack, pretty printing the projections as variables...
-    inputs = scope <&> \(x, a) -> Named (fromString . show $ pretty x) a
-
 -- TODO: use relevancy
 auto :: Synth sig m => [Refinement m]
-auto = repeat $ asum
+auto = cycle . (: [flatten, clean, strip]) $ asum
   [ anywhere \x ->
     assume x
       <|  (weigh 2 >> introMap x <| introFilter x <| weigh 2 >> fold x)

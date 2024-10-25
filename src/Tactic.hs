@@ -7,6 +7,10 @@ module Tactic
   , TacticFailure(..)
   , Filling
   , runTactic
+  , rename
+  , flatten
+  , clean
+  , strip
   , assume
   , introCtr
   , introTuple
@@ -17,28 +21,35 @@ module Tactic
   , fold
   ) where
 
-import Prelude hiding (succ)
-import Data.Map qualified as Map
 import Data.List qualified as List
+import Data.Set qualified as Set
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
+import Prelude hiding (succ)
 
-import Control.Effect.Throw
-import Control.Effect.Reader
-import Control.Effect.Fresh.Named
 import Control.Carrier.Error.Either
 import Control.Carrier.Reader
+import Control.Effect.Fresh.Named
 
 import Base
-import Language.Type
-import Language.Expr
-import Language.Problem
 import Language.Container.Morphism
+import Language.Expr
+import Language.Pretty ()
+import Language.Problem
+import Language.Relevance
+import Language.Type
 
 data TacticFailure
   = NotApplicable
   | TraceIncomplete
   | Unrealizable Conflict
   deriving stock (Eq, Ord, Show)
+
+instance Pretty TacticFailure where
+  pretty = \case
+    NotApplicable -> "Not Applicable"
+    TraceIncomplete -> "Trace Incomplete"
+    Unrealizable conflict -> pretty conflict
 
 type Tactic sig m =
   ( Has (Reader Context) sig m
@@ -79,6 +90,44 @@ assume name = do
   out <- asks outputArg
   when (arg /= out) $ throwError NotApplicable -- argument doesn't match spec
   return $ Var name
+
+shuffle :: Tactic sig m => ([Named Arg] -> [(Program Void, Arg)]) -> m Filling
+shuffle f = do
+  problem <- ask @Problem
+  let args = toArgs problem
+  let (terms, args') = unzip $ f args.inputs
+  renamed <- forM args' $ nominate "x"
+  let new = fromArgs problem.signature.constraints $ Args renamed args.output
+  body <- hole "h" new
+  return $ apps body $ map vacuous terms
+
+rename :: Tactic sig m => m Filling
+rename = shuffle $ map \(Named name arg) -> (Var name, arg)
+
+-- eliminate tuples
+flatten :: Tactic sig m => m Filling
+flatten = shuffle $ concatMap \(Named name arg) -> peel (Var name) arg
+  where
+    peel :: Program h -> Arg -> [(Program h, Arg)]
+    peel expr arg = case arg.mono of
+      Product _ -> concat $ zipWith (\i e -> peel (Prj i expr) e)
+        [0..] (projections arg)
+      _ -> [(expr, arg)]
+
+-- remove duplicates
+clean :: Tactic sig m => m Filling
+clean = shuffle $ map (\(Named name value :| _) -> (Var name, value))
+  . NonEmpty.groupAllWith (.value)
+
+-- remove irrelevant
+strip :: Tactic sig m => m Filling
+strip = do
+  r <- ask >>= relevance
+  let
+    relevantNames = foldMap (\(signature, _, _) ->
+      Set.fromList $ map (.name) . filter ((/= Free "_") . (.value)) $ signature.inputs) r.relevance
+  shuffle $ mapMaybe \(Named name arg) ->
+    if name `Set.member` relevantNames then Just (Var name, arg) else Nothing
 
 introTuple :: Tactic sig m => m Filling
 introTuple = do

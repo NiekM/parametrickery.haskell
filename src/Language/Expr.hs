@@ -127,6 +127,12 @@ tuple :: [Expr l h] -> Expr l h
 tuple [x] = x
 tuple xs = Tuple xs
 
+lets :: [Named (Program h)] -> Program h -> Program h
+lets bindings body = apps (lams vars body) args
+  where
+    vars = map (.name)  bindings
+    args = map (.value) bindings
+
 norm :: Map Name (Program h) -> Program h -> Program h
 norm ctx e = case e of
   Tuple xs -> Tuple $ map (norm ctx) xs
