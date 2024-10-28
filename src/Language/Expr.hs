@@ -1,6 +1,8 @@
 module Language.Expr where
 
 import Data.Map qualified as Map
+import Data.List qualified as List
+import Data.Maybe qualified as Maybe
 import Data.Foldable
 
 import Base
@@ -24,6 +26,7 @@ data Expr (l :: Bool) h where
   App :: Program h -> Program h -> Program h
   -- Deconstructions
   Prj :: Nat -> Program h -> Program h
+  Elim :: [(Name, Program h)] -> Program h
   -- Holes
   Hole :: Hole h -> Expr l h
 
@@ -74,6 +77,7 @@ accept = \case
   Lam v x -> Lam v (accept x)
   App f x -> App (accept f) (accept x)
   Prj i x -> Prj i (accept x)
+  Elim xs -> Elim (map (fmap accept) xs)
   Hole e -> e.hole
 
 holes :: Expr l h -> [h]
@@ -144,12 +148,14 @@ norm ctx = \case
   Lam v x -> case norm ctx x of
     App f (Var w) | v == w -> f
     y -> Lam v y
-  App f x -> case norm ctx f of
-    Lam v y -> norm (Map.insert v (norm ctx x) ctx) y
-    g -> App g $ norm ctx x
+  App f x -> case (norm ctx f, norm ctx x) of
+    (Lam v e, y) -> norm (Map.insert v y ctx) e
+    (Elim xs, Ctr c e) -> App (Maybe.fromJust $ List.lookup c xs) e
+    (g, y) -> App g y
   Prj i x -> case norm ctx x of
     Tuple xs -> xs !! fromIntegral i
     y -> Prj i y
+  Elim xs -> Elim $ map (norm ctx <$>) xs
   Hole h -> Hole h
 
 toValue :: Expr l h -> Maybe Value
@@ -161,6 +167,7 @@ toValue = \case
   Lam _ _ -> Nothing
   App _ _ -> Nothing
   Prj _ _ -> Nothing
+  Elim _ -> Nothing
   Hole _ -> Nothing
 
 -- A monomorphic input-output example according to some function signature. We

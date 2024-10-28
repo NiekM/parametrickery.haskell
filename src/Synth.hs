@@ -17,7 +17,6 @@ module Synth
 
 import Data.Map qualified as Map
 import Data.List qualified as List
-import Data.Set qualified as Set
 import Data.Maybe (fromJust)
 
 import Control.Effect.Fresh.Named
@@ -41,9 +40,7 @@ import Language.Coverage
 import Language.Relevance
 import Language.Pretty
 
-import Language.Container.Relation
 import Utils
-import Data.Map.Multi qualified as Multi
 import Tactic
 import Tactic.Combinators
 
@@ -187,6 +184,7 @@ subgoal (Named name problem) = do
     _ -> modify \s -> s { unsolved = Queue.insert name s.unsolved }
 
 -- TODO: use relevancy
+-- TODO: totality check as a tactic
 auto :: Synth sig m => [Refinement m]
 auto = repeat $ asum
   [ anywhere \x ->

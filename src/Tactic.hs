@@ -166,11 +166,11 @@ elimArg expr arg = do
     Just m -> do
       -- require all cases to have at least some examples
       when (any (null . (.examples) . snd) m) $ throwError NotApplicable
-      arms <- forM (Map.elems m) \(a, p) -> do
+      arms <- forM m \(a, p) -> do
         let letters = fromString . pure <$> ['a' ..]
         let xs = zipWith Named letters (projections a)
         local (const p) $ binds xs $ hole "_"
-      return $ apps (Var "elim") (arms ++ [vacuous expr])
+      return $ App (Elim $ Map.assocs arms) (vacuous expr)
 
 elim :: Tactic sig m => Name -> m Filling
 elim name = do
