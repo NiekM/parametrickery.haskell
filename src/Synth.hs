@@ -5,19 +5,18 @@ module Synth
   , SynthC
   , Refinement
   , runRefinement
-  , Extract(..)
   , ProofState(..)
   , search
   , intro
   , tactics
   , applyTactic
-  , auto
-  , extrs
+  , auto, greedy
+  , staged
+  , combineFuns
   ) where
 
 import Data.Map qualified as Map
 import Data.List qualified as List
-import Data.Maybe (fromJust)
 
 import Control.Effect.Fresh.Named
 import Control.Effect.Weight
@@ -40,37 +39,24 @@ import Language.Coverage
 import Language.Relevance
 import Language.Pretty
 
-import Utils
 import Tactic
 import Tactic.Combinators
 
-data Extract = Fun (Program Name) | Rules [Rule]
-  deriving stock (Eq, Ord, Show)
-
-instance Pretty Extract where
-  pretty = \case
-    Fun p -> pretty p
-    Rules r -> statements $ map pretty r
-
-instance Pretty (Named Extract) where
-  pretty (Named name extr) = case extr of
-    Fun p -> prettyNamed name p
-    Rules r -> statements $ prettyNamed name <$> r
-
 data ProofState = ProofState
-  { extracts :: [Named Extract]
+  { extracts :: [Named (Program Name)]
   , goals    :: [Named Problem]
   , unsolved :: MaxQueue Name
+  , force    :: Bool
   } deriving stock (Eq, Ord, Show)
 
 emptyProofState :: ProofState
-emptyProofState = ProofState mempty mempty mempty
+emptyProofState = ProofState mempty mempty mempty False
 
 instance Pretty ProofState where
   pretty ProofState { extracts, goals, unsolved } = statements
     [ statements $ pretty <$>
       filter (\g -> g.name `elem` Queue.toList unsolved) goals
-    , pretty . extrs $ extracts
+    , pretty . fmap (norm mempty) . combineFuns $ extracts
     ]
 
 type Synth sig m =
@@ -94,6 +80,13 @@ search :: SynthC a -> Search (Sum Nat) a
 search = evalFresh . evalState emptyProofState . runReader datatypes
 
 type Refinement m = ReaderC Problem (ErrorC TacticFailure m) Filling
+
+staged :: Synth sig m => m ProofState
+staged = do
+  st <- tactics auto
+  let hs = holes (combineFuns st.extracts).value
+  modify \s -> s { unsolved = Queue.fromList hs, force = True }
+  tactics greedy
 
 -- TODO: add synthesis options for stuff like this:
 -- - whether to abort when out of tactics
@@ -132,14 +125,14 @@ applyTactic name problem tactic =
 fill :: Synth sig m => Name -> Filling -> m ()
 fill name filling = do
   let (new, p') = names filling
-  modify \s -> s { extracts = s.extracts ++ [Named name $ Fun p'] }
+  modify \s -> s { extracts = s.extracts ++ [Named name p'] }
   forM_ (Map.assocs new) $ subgoal . uncurry Named
 
 intro :: Synth sig m => Named Problem -> m ()
 intro problem = do
   name <- freshName problem.name
   let vars = variables problem.value
-  let extr = Named problem.name $ Fun $ lams vars $ Hole $ MkHole name
+  let extr = Named problem.name $ lams vars $ Hole $ MkHole name
   modify \s -> s { extracts = s.extracts ++ [extr] }
   subgoal $ Named name problem.value
 
@@ -173,14 +166,9 @@ subgoal (Named name problem) = do
     bar = case c of
       Total -> Just rules
       _ -> Nothing
+  force <- gets @ProofState (.force)
   case (if allowIgnoringInputs then foo else bar) of
-    Just _ ->
-      let rs' = Named name $ fromJust foo
-      in case fromRules rs' of
-        Nothing ->
-          modify \s -> s { extracts = s.extracts ++ [Rules <$> rs'] }
-        Just f -> do
-          modify \s -> s { extracts = s.extracts ++ [Fun <$> f] }
+    Just _ | not force -> return ()
     _ -> modify \s -> s { unsolved = Queue.insert name s.unsolved }
 
 -- TODO: use relevancy
@@ -196,6 +184,10 @@ auto = repeat $ asum
   , weigh 0 >> introTuple
   ]
 
+greedy :: Synth sig m => [Refinement m]
+greedy = repeat $
+  firstOf [anyOne assume, introCtr, anyOne elim, anyTwo elimOrd, anyTwo elimEq]
+
 -- TODO: this is all just for handling extracts
 
 fillHole :: Expr l Name -> Named (Expr l Name) -> Expr l Name
@@ -205,32 +197,3 @@ fillHole expr (Named name filling) = expr >>= \h ->
 combineFuns :: [Named (Program Name)] -> Named (Program Name)
 combineFuns [] = Named "" (Var "")
 combineFuns xs = xs & List.foldl1' \x y -> fmap (`fillHole` y) x
-
-isHole :: Expr l h -> Maybe h
-isHole (Hole (MkHole h)) = Just h
-isHole _ = Nothing
-
--- -- TODO: redo this translation, perhaps just one argument at a time?
--- fromRules :: Named [Rule] -> Maybe (Named (Program Name))
--- fromRules = mapM \case
---   [rule]
---     | not $ any relevant rule.input.relations
---     , Just _ <- mapM isHole rule.input.shapes
---     -> do
---     let f p = fromJust . Set.lookupMin $ Multi.lookup p rule.origins
---     let fromPos p = fromString $ show $ pretty p
---     let y = fromTerm rule.output >>= Var . fromPos . f
---     return y
---   _ -> Nothing
-
--- TODO: redo this translation, perhaps just one argument at a time?
-fromRules :: Named [Rule] -> Maybe (Named (Program Name))
-fromRules = const Nothing
-
-extrs :: [Named Extract] -> (Named (Program Name), [Named [Rule]])
-extrs xs = (norm mempty <$> combineFuns (as ++ cs), ds)
-  where
-    (as, bs) = xs & mapEither \case
-      Named name (Fun p) -> Left $ Named name p
-      Named name (Rules r) -> Right $ Named name r
-    (cs, ds) = bs & mapEither \r -> maybe (Right r) Left $ fromRules r

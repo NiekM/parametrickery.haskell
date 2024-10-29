@@ -15,8 +15,24 @@ anywhere2 tactic = do
   guard $ x < y
   tactic x y
 
+anyOne :: (Tactic sig m, Has (Catch TacticFailure) sig m) =>
+  (Name -> m a) -> m a
+anyOne tactic = do
+  vars <- asks variables
+  firstOf $ tactic <$> vars
+
+anyTwo :: (Tactic sig m, Has (Catch TacticFailure) sig m) =>
+  (Name -> Name -> m a) -> m a
+anyTwo tactic = do
+  vars <- asks variables
+  let pairs = [(x, y) | x <- vars, y <- vars, x < y]
+  firstOf $ uncurry tactic <$> pairs
+
 infixl 0 <|
 
 orElse, (<|) :: Has (Catch TacticFailure) sig m => m a -> m a -> m a
 orElse t u = catchError @TacticFailure t $ const u
 (<|) = orElse
+
+firstOf :: Has (Error TacticFailure) sig m => [m a] -> m a
+firstOf = foldr orElse $ throwError NotApplicable

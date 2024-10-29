@@ -19,6 +19,8 @@ import Control.Carrier.Reader
 import Control.Carrier.NonDet.Church
 import Control.Effect.Fresh.Named
 
+import Data.String
+
 import Base
 import Control.Effect.Search
 import Data.Map.Multi qualified as Multi
@@ -64,6 +66,9 @@ bench = Unsafe.unsafePerformIO do
 
 getBench :: Name -> Named Problem
 getBench name = Named name . fromJust $ find name bench
+
+instance IsString (Named Problem) where
+  fromString = getBench . fromString
 
 isFold :: Named Problem -> [Either TacticFailure Filling]
 isFold problem = runTactic problem.value $ anywhere fold
@@ -128,9 +133,8 @@ synthAll = do
     synthesize problem = case synth problem of
       Nothing -> putStrLn "Synthesis failed: exhaustive"
       Just (_n, r) -> do
-        let (f, gs) = extrs r.extracts
+        let f = norm mempty <$> combineFuns r.extracts
         print . indent 2 $ pretty f
-        forM_ gs $ print . indent 4 . pretty
 
 synthUpTo :: Nat -> Named Problem -> [(Sum Nat, ProofState)]
 synthUpTo fuel problem = map (fmap fromJust) . takeWhile (isJust . snd)
@@ -138,7 +142,16 @@ synthUpTo fuel problem = map (fmap fromJust) . takeWhile (isJust . snd)
 
 -- TODO: check that the result has no unsolved holes.
 synth :: Named Problem -> Maybe (Sum Nat, ProofState)
-synth problem = runSearchBest . search $ intro problem >> tactics auto
+synth problem = runSearchBest . search $ intro problem >> staged
+
+tacticsUpTo :: [Refinement SynthC] -> Nat -> Named Problem ->
+  [(Sum Nat, ProofState)]
+tacticsUpTo ts fuel problem = map (fmap fromJust) . takeWhile (isJust . snd)
+  . runSearch . search . limit fuel $ intro problem >> tactics ts
+
+upTo :: Nat -> Named Problem -> [(Sum Nat, ProofState)]
+upTo fuel problem = map (fmap fromJust) . takeWhile (isJust . snd)
+  . runSearch . search . limit fuel $ intro problem >> staged
 
 tryTactics :: [Refinement SynthC]
   -> Named Problem -> Maybe (Sum Nat, ProofState)
