@@ -171,10 +171,9 @@ subgoal (Named name problem) = do
 -- TODO: use relevancy
 -- TODO: totality check as a tactic
 auto :: Synth sig m => [Refinement m]
-auto = repeat $ asum
+auto = repeat $ anyOne assume <| asum
   [ anywhere \x ->
-    assume x
-      <|  (weigh 2 >> introMap x <| introFilter x <| weigh 2 >> fold x)
+      (weigh 2 >> introMap x <| introFilter x <| (weigh 2 >> fold x))
       <|> (weigh 3 >> elim x)
   , weigh 3 >> anywhere2 \x y -> elimOrd x y <| elimEq x y
   , weigh 1 >> introCtr

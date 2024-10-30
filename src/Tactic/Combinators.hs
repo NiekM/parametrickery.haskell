@@ -28,7 +28,7 @@ anyTwo tactic = do
   let pairs = [(x, y) | x <- vars, y <- vars, x < y]
   firstOf $ uncurry tactic <$> pairs
 
-infixl 0 <|
+infixl 2 <|
 
 orElse, (<|) :: Has (Catch TacticFailure) sig m => m a -> m a -> m a
 orElse t u = catchError @TacticFailure t $ const u
