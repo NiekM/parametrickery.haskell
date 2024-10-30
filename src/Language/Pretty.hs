@@ -43,10 +43,7 @@ prettyMaxPrec :: Pretty (Prec a) => a -> Doc ann
 prettyMaxPrec = prettyPrec maxBound
 
 deriving newtype instance Pretty (Sum Nat)
-
-instance Pretty Lit where
-  pretty = \case
-    MkInt n -> pretty n
+deriving newtype instance Pretty Lit
 
 instance Pretty (Hole Void) where
   pretty (MkHole h) = absurd h

@@ -13,6 +13,15 @@ import Language.Expr
 import Language.Type
 import Utils
 
+-- A monomorphic input-output example according to some function signature. We
+-- do not have to give a specific type instantiation, because we may make the
+-- type more or less abstract. In other words, it is not up to the example to
+-- decide which type abstraction we pick.
+data Example = Example
+  { inputs :: [Value]
+  , output :: Value
+  } deriving stock (Eq, Ord, Show)
+
 -- | A declaration consists of a signature with some bindings.
 data Problem = Problem
   { signature :: Signature
@@ -91,6 +100,9 @@ split ctx (Arg (Data d ts) terms) (Problem signature examples) = do
     prbs = Problem signature <$> exs
   return $ Map.intersectionWith (,) args prbs
 split _ _ _ = Nothing
+
+instance Project Example where
+  projections (Example ins out) = Example ins <$> projections out
 
 instance Project Problem where
   projections prob = zipWith Problem ss bs

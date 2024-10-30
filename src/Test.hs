@@ -171,20 +171,19 @@ runCheck = runReader datatypes . check
 testExtract :: Program Void -> Problem -> IO [Bool]
 testExtract program problem = forM problem.examples \example ->
   let
-    inputs = map fromValue example.inputs
+    inputs = map Value example.inputs
     expr = Apps program inputs
-    normalized = norm mempty expr
-  in case toValue normalized of
-    Nothing -> do
-      print $ "Not a value:" <+> pretty normalized
-      return False
-    Just output
+  in case norm mempty expr of
+    Value output
       | output == example.output -> return True
       | otherwise -> do
         putStrLn "Test failed"
         print $ "Expected:" <+> pretty example.output
         print $ "Got:" <+> pretty output
         return False
+    e -> do
+      print $ "Not a value:" <+> pretty e
+      return False
 
 -- TODO:
 -- - Are paramorphisms + relevance superior to catamorphisms?

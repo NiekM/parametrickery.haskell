@@ -219,7 +219,7 @@ introFilter name = do
           (List inputs, Example scope (List outputs)) -> do
             unless (isFilter inputs outputs) $ throwError NotApplicable
             return $ List.nub inputs <&> \x ->
-              Example (scope ++ [x]) $ bool $ x `elem` outputs
+              Example (scope ++ [x]) $ Bool $ x `elem` outputs
           _ -> error "Not actually lists."
         x <- freshName "x"
         let
@@ -246,7 +246,7 @@ elimEq name1 name2 = do
       | a == b
       , Eq a `elem` problem.signature.constraints
       -> do
-      let bools = Arg (Data "Bool" []) $ bool <$> zipWith (==) xs ys
+      let bools = Arg (Data "Bool" []) $ Bool <$> zipWith (==) xs ys
       elimArg (Apps (Var "eq") [Var name1, Var name2]) bools
     _ -> throwError NotApplicable
 
@@ -260,7 +260,7 @@ elimOrd name1 name2 = do
       | a == b
       , Ord a `elem` problem.signature.constraints
       -> do
-      let ords = Arg (Data "Ordering" []) $ ordering <$> zipWith compare xs ys
+      let ords = Arg (Data "Ordering" []) $ Ordering <$> zipWith compare xs ys
       elimArg (Apps (Var "cmp") [Var name1, Var name2]) ords
     _ -> throwError NotApplicable
 
