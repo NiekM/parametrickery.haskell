@@ -79,7 +79,7 @@ binds args body = do
   renamed <- forM args \(Named name arg) -> nominate name arg
   local (addInputs renamed) do
     let vars = map (.name) renamed
-    lams vars <$> body
+    Lams vars <$> body
 
 hole :: Tactic sig m => Name -> m Filling
 hole v = do
@@ -199,7 +199,7 @@ introMap name = do
         _ <- liftThrow Unrealizable $ check subproblem
         local (const subproblem) do
           f <- hole "f"
-          let result = Apps (Var "map") [lams [x] f, Var name]
+          let result = Apps (Var "map") [Lams [x] f, Var name]
           return result
       _ -> throwError NotApplicable
 
@@ -231,7 +231,7 @@ introFilter name = do
         _ <- liftThrow Unrealizable $ check subproblem
         local (const subproblem) do
           f <- hole "f"
-          let result = Apps (Var "filter") [lams [x] f, Var name]
+          let result = Apps (Var "filter") [Lams [x] f, Var name]
           return result
       _ -> throwError NotApplicable
 
@@ -305,7 +305,7 @@ fold name = do
             ]
           } cons) $ hole "f"
 
-        let result = Apps (Var "fold") [lams [x, r] f, e, Var name]
+        let result = Apps (Var "fold") [Lams [x, r] f, e, Var name]
         forM_ result \subproblem ->
           liftThrow Unrealizable $ check subproblem.value
         return result
@@ -338,7 +338,7 @@ fold name = do
             ]
           } node) $ hole "f"
 
-        let result = Apps (Var "fold") [lams [l, x, r] f, e, Var name]
+        let result = Apps (Var "fold") [Lams [l, x, r] f, e, Var name]
         forM_ result \subproblem ->
           liftThrow Unrealizable $ check subproblem.value
         return result
@@ -362,7 +362,7 @@ fold name = do
             [ Named r problem.signature.output ]
           } succ) $ hole "f"
 
-        let result = Apps (Var "fold") [lams [r] f, e, Var name]
+        let result = Apps (Var "fold") [Lams [r] f, e, Var name]
         forM_ result \subproblem ->
           liftThrow Unrealizable $ check subproblem.value
         return result

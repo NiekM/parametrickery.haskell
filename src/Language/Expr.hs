@@ -5,7 +5,7 @@ module Language.Expr
     , Unit
     , Apps
     , Lams
-    , Case, IfThenElse
+    , Case, If
     , Bool
     , Ordering
     , Nil, Cons, List
@@ -19,8 +19,8 @@ module Language.Expr
   , holes
   , accept
   , norm
+  , asProgram
   , tuple
-  , lams
   , lets
   ) where
 
@@ -30,6 +30,8 @@ import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Foldable
+
+import Unsafe.Coerce qualified as Unsafe
 
 import Base
 
@@ -142,6 +144,9 @@ norm ctx = \case
 
 -- Smart constructors
 
+asProgram :: Expr l h -> Program h
+asProgram = Unsafe.unsafeCoerce
+
 -- * Values
 
 -- NOTE: these form a prism
@@ -193,25 +198,23 @@ unLams = \case
   e -> ([], e)
 
 {-# COMPLETE Lams #-}
-pattern Lams :: [Name] -> Expr l h -> Expr l h
+pattern Lams :: [Name] -> Program h -> Program h
 pattern Lams xs e <- (unLams -> (xs, e))
-
-lams :: [Name] -> Program h -> Program h
-lams xs e = foldr Lam e xs
+  where Lams xs e = foldr Lam e xs
 
 lets :: [Named (Program h)] -> Program h -> Program h
-lets bindings body = Apps (lams vars body) args
+lets bindings body = Apps (Lams vars body) args
   where
     vars = map (.name)  bindings
     args = map (.value) bindings
 
 -- * Pattern matching
 
-pattern Case :: Program h -> [(Name, Program h)] -> Program h
+pattern Case :: () => (l ~ True) => Expr l h -> [(Name, Expr l h)] -> Expr l h
 pattern Case e xs = App (Elim xs) e
 
-pattern IfThenElse :: Program h -> Program h -> Program h -> Program h
-pattern IfThenElse b t f = Case b [("True", t), ("False", f)]
+pattern If :: () => (l ~ True) => Expr l h -> Expr l h -> Expr l h -> Expr l h
+pattern If b t f = Case b [("True", t), ("False", f)]
 
 -- * Lists
 
