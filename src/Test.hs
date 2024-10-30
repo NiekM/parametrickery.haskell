@@ -14,12 +14,11 @@ import System.Directory
 import System.Timeout
 
 import Control.Monad.Search
-
 import Control.Carrier.Reader
 import Control.Carrier.NonDet.Church
 import Control.Effect.Fresh.Named
-
 import Data.String
+import Prettyprinter
 
 import Base
 import Control.Effect.Search
@@ -135,6 +134,15 @@ synthAll = do
       Just (_n, r) -> do
         let f = norm mempty <$> combineFuns r.extracts
         print . indent 2 $ pretty f
+        case vacant f.value of
+          Nothing -> putStrLn "Some holes left!"
+          Just p -> do
+            putStrLn ""
+            xs <- testExtract p problem.value
+            let passed = length $ filter id xs
+            let total = length xs
+            print $ sep
+              [pretty passed, "out of", pretty total, "tests passed"]
 
 synthUpTo :: Nat -> Named Problem -> [(Sum Nat, ProofState)]
 synthUpTo fuel problem = map (fmap fromJust) . takeWhile (isJust . snd)
@@ -159,6 +167,24 @@ tryTactics ts problem = runSearchBest . search $ intro problem >> tactics ts
 
 runCheck :: Problem -> Either Conflict [Rule]
 runCheck = runReader datatypes . check
+
+testExtract :: Program Void -> Problem -> IO [Bool]
+testExtract program problem = forM problem.examples \example ->
+  let
+    inputs = map fromValue example.inputs
+    expr = Apps program inputs
+    normalized = norm mempty expr
+  in case toValue normalized of
+    Nothing -> do
+      print $ "Not a value:" <+> pretty normalized
+      return False
+    Just output
+      | output == example.output -> return True
+      | otherwise -> do
+        putStrLn "Test failed"
+        print $ "Expected:" <+> pretty example.output
+        print $ "Got:" <+> pretty output
+        return False
 
 -- TODO:
 -- - Are paramorphisms + relevance superior to catamorphisms?

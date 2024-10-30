@@ -1,7 +1,9 @@
 module Language.Expr where
 
-import Data.Map qualified as Map
+import Prelude hiding (Enum(..))
+
 import Data.List qualified as List
+import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Foldable
 
@@ -50,12 +52,6 @@ type Value   = Term Void
 pattern Unit :: Expr l h
 pattern Unit = Tuple []
 
-pattern Nil :: Expr l h
-pattern Nil = Ctr "Nil" Unit
-
-pattern Cons :: Expr l h -> Expr l h -> Expr l h
-pattern Cons x xs = Ctr "Cons" (Tuple [x, xs])
-
 instance Applicative (Expr l) where
   pure :: a -> Expr l a
   pure = Hole . MkHole
@@ -83,8 +79,13 @@ accept = \case
 holes :: Expr l h -> [h]
 holes = toList
 
-mkList :: [Expr l h] -> Expr l h
-mkList = foldr Cons Nil
+-- * Lists
+
+pattern Nil :: Expr l h
+pattern Nil = Ctr "Nil" Unit
+
+pattern Cons :: Expr l h -> Expr l h -> Expr l h
+pattern Cons x xs = Ctr "Cons" (Tuple [x, xs])
 
 unList :: Expr l h -> Maybe [Expr l h]
 unList = \case
@@ -94,7 +95,28 @@ unList = \case
 
 pattern List :: [Expr l h] -> Expr l h
 pattern List xs <- (unList -> Just xs)
-  where List xs = mkList xs
+  where List xs = foldr Cons Nil xs
+
+-- * Nats
+
+pattern Zero :: Expr l h
+pattern Zero = Ctr "Zero" Unit
+
+pattern Succ :: Expr l h -> Expr l h
+pattern Succ n = Ctr "Succ" n
+
+unNat :: Expr l h -> Maybe Nat
+unNat = \case
+  Zero -> Just 0
+  Succ n -> (1+) <$> unNat n
+  _ -> Nothing
+
+applyN :: Nat -> (a -> a) -> a -> a
+applyN n f = foldr (.) id $ replicate (fromIntegral n) f
+
+pattern Nat :: Nat -> Expr l h
+pattern Nat n <- (unNat -> Just n)
+  where Nat n = applyN n Succ Zero
 
 fromTerm :: Term h -> Program h
 fromTerm = \case
@@ -113,7 +135,7 @@ pattern Lams :: [Name] -> Expr l h -> Expr l h
 pattern Lams xs e <- (unLams -> (xs, e))
 
 lams :: [Name] -> Program h -> Program h
-lams = flip $ foldr Lam
+lams xs e = foldr Lam e xs
 
 unApps :: Expr l h -> (Expr l h, [Expr l h])
 unApps = \case
@@ -121,21 +143,44 @@ unApps = \case
   e -> (e, [])
 
 {-# COMPLETE Apps #-}
-pattern Apps :: Expr l h -> [Expr l h] -> Expr l h
+pattern Apps :: Program h -> [Program h] -> Program h
 pattern Apps f xs <- (unApps -> (f, xs))
-
-apps :: Program h -> [Program h] -> Program h
-apps = foldl' App
+  where Apps f xs = foldl' App f xs
 
 tuple :: [Expr l h] -> Expr l h
 tuple [x] = x
 tuple xs = Tuple xs
 
+pattern Case :: Program h -> [(Name, Program h)] -> Program h
+pattern Case e xs = App (Elim xs) e
+
 lets :: [Named (Program h)] -> Program h -> Program h
-lets bindings body = apps (lams vars body) args
+lets bindings body = Apps (lams vars body) args
   where
     vars = map (.name)  bindings
     args = map (.value) bindings
+
+pattern IfThenElse :: Program h -> Program h -> Program h -> Program h
+pattern IfThenElse b t f = Case b [("True", t), ("False", f)]
+
+instance Project (Expr l h) where
+  projections = \case
+    Tuple xs -> xs
+    x -> [x]
+
+bool :: Bool -> Expr l h
+bool False = Ctr "False" Unit
+bool True  = Ctr "True"  Unit
+
+ordering :: Ordering -> Expr l h
+ordering LT = Ctr "LT" Unit
+ordering EQ = Ctr "EQ" Unit
+ordering GT = Ctr "GT" Unit
+
+toBool :: Expr l h -> Maybe Bool
+toBool (Ctr "True"  Unit) = Just True
+toBool (Ctr "False" Unit) = Just False
+toBool _ = Nothing
 
 norm :: Map Name (Program h) -> Program h -> Program h
 norm ctx = \case
@@ -148,16 +193,31 @@ norm ctx = \case
   Lam v x -> case norm ctx x of
     App f (Var w) | v == w -> f
     y -> Lam v y
-  App f x -> case (norm ctx f, norm ctx x) of
-    (Lam v e, y) -> norm (Map.insert v y ctx) e
-    (Elim xs, Ctr c e) -> App (Maybe.fromJust $ List.lookup c xs) e
-    (g, y) -> App g y
+  App f x -> case App (norm ctx f) (norm ctx x) of
+    App (Lam v e) y -> norm (Map.insert v y ctx) e
+    Case (Ctr c e) xs -> norm ctx $
+      Apps (Maybe.fromJust $ List.lookup c xs) (projections e)
+    Apps (Var "fold") [cons, nil, List xs] -> norm ctx $
+      foldr (\y r -> Apps cons [y, r]) nil xs
+    Apps (Var "fold") [succ, zero, Nat n] -> norm ctx $
+      applyN n (App succ) zero
+    Apps (Var "map") [g, List xs] -> List $ map (norm ctx . App g) xs
+    Apps (Var "filter") [p, List xs] -> List $
+      filter (fromMaybe False . toBool . norm ctx . App p) xs
+    Apps (Var "eq") [a, b]
+      | Just aa <- toValue a
+      , Just bb <- toValue b -> bool (aa == bb)
+    Apps (Var "cmp") [a, b]
+      | Just aa <- toValue a
+      , Just bb <- toValue b -> ordering (compare aa bb)
+    e -> e
   Prj i x -> case norm ctx x of
-    Tuple xs -> xs !! fromIntegral i
+    Tuple xs -> norm ctx $ xs !! fromIntegral i
     y -> Prj i y
   Elim xs -> Elim $ map (norm ctx <$>) xs
   Hole h -> Hole h
 
+-- NOTE: these form a prism
 toValue :: Expr l h -> Maybe Value
 toValue = \case
   Tuple xs -> Tuple <$> traverse toValue xs
@@ -170,6 +230,13 @@ toValue = \case
   Elim _ -> Nothing
   Hole _ -> Nothing
 
+fromValue :: Value -> Expr l h
+fromValue = \case
+  Tuple xs -> Tuple $ map fromValue xs
+  Ctr c x -> Ctr c $ fromValue x
+  Lit i -> Lit i
+  Hole (MkHole v) -> absurd v
+
 -- A monomorphic input-output example according to some function signature. We
 -- do not have to give a specific type instantiation, because we may make the
 -- type more or less abstract. In other words, it is not up to the example to
@@ -178,3 +245,6 @@ data Example = Example
   { inputs :: [Value]
   , output :: Value
   } deriving stock (Eq, Ord, Show)
+
+instance Project Example where
+  projections (Example ins out) = Example ins <$> projections out

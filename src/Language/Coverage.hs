@@ -11,7 +11,6 @@ import Language.Type
 import Language.Container
 import Language.Container.Morphism
 import Language.Container.Relation
-import Language.Problem
 
 coveringShapes :: Context -> Mono -> Maybe [Term Name]
 coveringShapes ctx = go []

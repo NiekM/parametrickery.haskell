@@ -21,6 +21,11 @@ data Mono where
 pattern Top :: Mono
 pattern Top = Product []
 
+instance Project Mono where
+  projections = \case
+    Product ts -> ts
+    t -> [t]
+
 instantiate :: Map Name Mono -> Mono -> Mono
 instantiate m = \case
   Free a | Just t <- Map.lookup a m -> t
@@ -136,3 +141,8 @@ data Signature = Signature
   , inputs      :: [Named Mono]
   , output      :: Mono
   } deriving stock (Eq, Ord, Show)
+
+instance Project Signature where
+  projections sig = do
+    output <- projections sig.output
+    return (sig { output } :: Signature)

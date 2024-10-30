@@ -22,6 +22,7 @@ module Base
   , module Prettyprinter
   , module Data.Name
   , Nat
+  , Project(..)
   ) where
 
 import Data.Function ((&), on)
@@ -56,3 +57,6 @@ import Prettyprinter (Pretty(..), (<+>), parens, indent)
 import Data.Name
 
 type Nat = Natural
+
+class Project a where
+  projections :: a -> [a]

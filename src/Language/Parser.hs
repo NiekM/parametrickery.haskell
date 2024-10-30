@@ -224,7 +224,7 @@ instance Parse (Hole h) => Parse (Expr l h) where
   parser = choice
     [ parenExpr
     , Ctr <$> constructor <*> option Unit parser
-    , mkList <$> parseList Square parser
+    , List <$> parseList Square parser
     , Lit <$> parser
     , Hole <$> parser
     ]
@@ -232,7 +232,7 @@ instance Parse (Hole h) => Parse (Expr l h) where
 spacedExprUntil :: Parse (Hole h) => Lexeme -> Parser [Expr l h]
 spacedExprUntil l = many $ choice
   [ parenExpr
-  , mkList <$> parseList Square parser
+  , List <$> parseList Square parser
   , do
     x <- anySingleBut l
     maybe empty return $ parseMaybe parser [x]

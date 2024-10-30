@@ -92,27 +92,6 @@ split ctx (Arg (Data d ts) terms) (Problem signature examples) = do
   return $ Map.intersectionWith (,) args prbs
 split _ _ _ = Nothing
 
-class Project a where
-  projections :: a -> [a]
-
-instance Project (Expr l h) where
-  projections = \case
-    Tuple xs -> xs
-    x -> [x]
-
-instance Project Mono where
-  projections = \case
-    Product ts -> ts
-    t -> [t]
-
-instance Project Example where
-  projections (Example ins out) = Example ins <$> projections out
-
-instance Project Signature where
-  projections sig = do
-    output <- projections sig.output
-    return (sig { output } :: Signature)
-
 instance Project Problem where
   projections prob = zipWith Problem ss bs
     where

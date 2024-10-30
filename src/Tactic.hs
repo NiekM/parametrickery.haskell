@@ -198,18 +198,9 @@ introMap name = do
         _ <- liftThrow Unrealizable $ check subproblem
         local (const subproblem) do
           f <- hole "f"
-          let result = apps (Var "map") [lams [x] f, Var name]
+          let result = Apps (Var "map") [lams [x] f, Var name]
           return result
       _ -> throwError NotApplicable
-
-bool :: Bool -> Expr l h
-bool False = Ctr "False" Unit
-bool True  = Ctr "True"  Unit
-
-ordering :: Ordering -> Expr l h
-ordering LT = Ctr "LT" Unit
-ordering EQ = Ctr "EQ" Unit
-ordering GT = Ctr "GT" Unit
 
 isFilter :: Eq a => [a] -> [a] -> Bool
 isFilter xs ys = filter (`elem` ys) xs == ys
@@ -239,7 +230,7 @@ introFilter name = do
         _ <- liftThrow Unrealizable $ check subproblem
         local (const subproblem) do
           f <- hole "f"
-          let result = apps (Var "filter") [lams [x] f, Var name]
+          let result = Apps (Var "filter") [lams [x] f, Var name]
           return result
       _ -> throwError NotApplicable
 
@@ -256,7 +247,7 @@ elimEq name1 name2 = do
       , Eq a `elem` problem.signature.constraints
       -> do
       let bools = Arg (Data "Bool" []) $ bool <$> zipWith (==) xs ys
-      elimArg (apps (Var "eq") [Var name1, Var name2]) bools
+      elimArg (Apps (Var "eq") [Var name1, Var name2]) bools
     _ -> throwError NotApplicable
 
 elimOrd :: Tactic sig m => Name -> Name -> m Filling
@@ -270,7 +261,7 @@ elimOrd name1 name2 = do
       , Ord a `elem` problem.signature.constraints
       -> do
       let ords = Arg (Data "Ordering" []) $ ordering <$> zipWith compare xs ys
-      elimArg (apps (Var "cmp") [Var name1, Var name2]) ords
+      elimArg (Apps (Var "cmp") [Var name1, Var name2]) ords
     _ -> throwError NotApplicable
 
 fold :: Tactic sig m => Name -> m Filling
@@ -313,7 +304,7 @@ fold name = do
             ]
           } cons) $ hole "f"
 
-        let result = apps (Var "fold") [lams [x, r] f, e, Var name]
+        let result = Apps (Var "fold") [lams [x, r] f, e, Var name]
         forM_ result \subproblem ->
           liftThrow Unrealizable $ check subproblem.value
         return result
@@ -346,7 +337,7 @@ fold name = do
             ]
           } node) $ hole "f"
 
-        let result = apps (Var "fold") [lams [l, x, r] f, e, Var name]
+        let result = Apps (Var "fold") [lams [l, x, r] f, e, Var name]
         forM_ result \subproblem ->
           liftThrow Unrealizable $ check subproblem.value
         return result
@@ -370,7 +361,7 @@ fold name = do
             [ Named r problem.signature.output ]
           } succ) $ hole "f"
 
-        let result = apps (Var "fold") [lams [r] f, e, Var name]
+        let result = Apps (Var "fold") [lams [r] f, e, Var name]
         forM_ result \subproblem ->
           liftThrow Unrealizable $ check subproblem.value
         return result

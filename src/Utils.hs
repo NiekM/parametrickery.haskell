@@ -5,6 +5,7 @@ module Utils
   , ordered
   , gather
   , nubOn
+  , vacant
   ) where
 
 import Data.Map.Strict qualified as Map
@@ -36,3 +37,6 @@ gather xs = Map.fromList $ NonEmpty.groupAllWith fst xs <&> \ys ->
 
 nubOn :: Ord b => (a -> b) -> [a] -> [a]
 nubOn f = map NonEmpty.head . NonEmpty.groupAllWith f
+
+vacant :: Traversable f => f a -> Maybe (f b)
+vacant = traverse $ const Nothing
