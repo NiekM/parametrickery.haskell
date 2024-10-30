@@ -19,6 +19,7 @@ module Base
   , module Control.Effect.Reader
   , module Control.Effect.State
   , module Control.Effect.Throw
+  , module Debug.Trace
   , module Prettyprinter
   , module Data.Name
   , Nat
@@ -51,6 +52,8 @@ import Control.Effect.NonDet
 import Control.Effect.Reader
 import Control.Effect.State
 import Control.Effect.Throw
+
+import Debug.Trace
 
 import Prettyprinter (Pretty(..), (<+>), parens, indent)
 

@@ -7,6 +7,7 @@ module Tactic
   , TacticFailure(..)
   , Filling
   , runTactic
+  , hole
   , assume
   , introCtr
   , introTuple

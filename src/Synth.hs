@@ -105,11 +105,11 @@ next = do
   ProofState { unsolved, goals } <- get
   case Queue.maxView unsolved of
     Nothing -> return Nothing
-    Just (hole, xs) -> case find hole goals of
+    Just (h, xs) -> case find h goals of
       Nothing -> error "unknown goal"
       Just g -> do
         modify \s -> s { unsolved = xs }
-        return . Just $ Named hole g
+        return . Just $ Named h g
 
 runRefinement :: Problem -> Refinement m -> m (Either TacticFailure Filling)
 runRefinement problem tactic = runError $ runReader problem tactic
@@ -130,11 +130,8 @@ fill name filling = do
 
 intro :: Synth sig m => Named Problem -> m ()
 intro problem = do
-  name <- freshName problem.name
   let vars = variables problem.value
-  let extr = Named problem.name $ lams vars $ Hole $ MkHole name
-  modify \s -> s { extracts = s.extracts ++ [extr] }
-  subgoal $ Named name problem.value
+  applyTactic problem.name problem.value $ lams vars <$> hole problem.name
 
 subgoal :: Synth sig m => Named Problem -> m ()
 subgoal (Named name problem) = do
@@ -185,8 +182,12 @@ auto = repeat $ asum
   ]
 
 greedy :: Synth sig m => [Refinement m]
-greedy = repeat $
-  firstOf [anyOne assume, introCtr, anyOne elim, anyTwo elimOrd, anyTwo elimEq]
+greedy = repeat $ firstOf
+  [ anyOne assume
+  , introTuple, introCtr
+  , anyOne elim
+  , anyTwo elimOrd, anyTwo elimEq
+  ]
 
 -- TODO: this is all just for handling extracts
 
