@@ -9,6 +9,7 @@ module Language.Expr
     , Bool
     , Ordering
     , Nil, Cons, List
+    , Leaf, Node, Tree
     , Zero, Succ, Nat
     )
   , Hole(..)
@@ -128,6 +129,8 @@ norm ctx = \case
       Apps (Maybe.fromJust $ List.lookup c xs) (projections e)
     Apps (Var "fold") [cons, nil, List xs] -> norm ctx $
       foldr (\y r -> Apps cons [y, r]) nil xs
+    Apps (Var "fold") [node, leaf, Tree t] -> norm ctx $
+      foldBinary (\l y r -> Apps node [l, y, r]) (Apps leaf . projections) t
     Apps (Var "fold") [succ, zero, Nat n] -> norm ctx $
       applyN n (App succ) zero
     Apps (Var "map") [g, List xs] -> List $ map (norm ctx . App g) xs
@@ -233,6 +236,31 @@ unList = \case
 pattern List :: [Expr l h] -> Expr l h
 pattern List xs <- (unList -> Just xs)
   where List xs = foldr Cons Nil xs
+
+-- * Trees
+
+data Binary a b = Lf b | Nd (Binary a b) a (Binary a b)
+
+foldBinary :: (c -> a -> c -> c) -> (b -> c) -> Binary a b -> c
+foldBinary node leaf = \case
+  Lf x -> leaf x
+  Nd l x r -> node (foldBinary node leaf l) x (foldBinary node leaf r)
+
+pattern Leaf :: Expr l h -> Expr l h
+pattern Leaf a = Ctr "Leaf" a
+
+pattern Node :: Expr l h -> Expr l h -> Expr l h -> Expr l h
+pattern Node l x r = Ctr "Node" (Tuple [l, x, r])
+
+unTree :: Expr l h -> Maybe (Binary (Expr l h) (Expr l h))
+unTree = \case
+  Leaf x -> Just $ Lf x
+  Node l x r -> Nd <$> unTree l <*> pure x <*> unTree r
+  _ -> Nothing
+
+pattern Tree :: Binary (Expr l h) (Expr l h) -> Expr l h
+pattern Tree t <- (unTree -> Just t)
+  where Tree t = foldBinary Node Leaf t
 
 -- * Nats
 
