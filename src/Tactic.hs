@@ -85,7 +85,7 @@ hole :: Tactic sig m => Name -> m Filling
 hole v = do
   name <- freshName v
   elimTuples $ local removeDuplicates do
-    Hole . MkHole . Named name <$> ask
+    Hole . Named name <$> ask
 
 removeDuplicates :: Problem -> Problem
 removeDuplicates = onArgs \args ->

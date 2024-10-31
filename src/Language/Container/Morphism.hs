@@ -100,7 +100,7 @@ matchShape :: Shape -> Value -> Maybe (Map Position Value)
 matchShape (Tuple xs) (Tuple ys) = Map.unions <$> zipWithM matchShape xs ys
 matchShape (Ctr c x) (Ctr d y) | c == d = matchShape x y
 matchShape (Lit i) (Lit j) | i == j = Just Map.empty
-matchShape (Hole (MkHole p)) x = Just $ Map.singleton p x
+matchShape (Hole p) x = Just $ Map.singleton p x
 matchShape _ _ = Nothing
 
 matchPattern :: Pattern -> [Value] -> Maybe (Map Position Value)

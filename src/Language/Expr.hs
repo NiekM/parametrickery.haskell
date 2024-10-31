@@ -12,7 +12,6 @@ module Language.Expr
     , Leaf, Node, Tree
     , Zero, Succ, Nat
     )
-  , Hole(..)
   , Lit(..)
   , Program
   , Term
@@ -39,11 +38,6 @@ import Base
 newtype Lit = MkInt Int
   deriving stock (Eq, Ord, Show)
 
--- Used for pretty printing
-newtype Hole h = MkHole { hole :: h }
-  deriving stock (Eq, Ord, Show)
-  deriving stock (Functor, Foldable, Traversable)
-
 data Expr (l :: Bool) h where
   -- Constructions
   Tuple :: [Expr l h] -> Expr l h
@@ -57,7 +51,7 @@ data Expr (l :: Bool) h where
   Prj :: Nat -> Program h -> Program h
   Elim :: [(Name, Program h)] -> Program h
   -- Holes
-  Hole :: Hole h -> Expr l h
+  Hole :: h -> Expr l h
 
 -- TODO: The derived Ord instance uses comparison of Text to compare
 -- constructors, but this messes with the ordering of examples. Perhaps a
@@ -78,7 +72,7 @@ type Value   = Term Void
 
 instance Applicative (Expr l) where
   pure :: a -> Expr l a
-  pure = Hole . MkHole
+  pure = Hole
 
   liftA2 :: (a -> b -> c) -> Expr l a -> Expr l b -> Expr l c
   liftA2 f x y = x >>= \a -> y >>= \b -> pure $ f a b
@@ -98,7 +92,7 @@ accept = \case
   App f x -> App (accept f) (accept x)
   Prj i x -> Prj i (accept x)
   Elim xs -> Elim (map (fmap accept) xs)
-  Hole e -> e.hole
+  Hole e -> e
 
 instance Project (Expr l h) where
   projections = \case
@@ -174,7 +168,7 @@ fromValue = \case
   Tuple xs -> Tuple $ map fromValue xs
   Ctr c x -> Ctr c $ fromValue x
   Lit i -> Lit i
-  Hole (MkHole v) -> absurd v
+  Hole v -> absurd v
 
 -- * Units
 

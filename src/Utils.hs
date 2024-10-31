@@ -38,5 +38,5 @@ gather xs = Map.fromList $ NonEmpty.groupAllWith fst xs <&> \ys ->
 nubOn :: Ord b => (a -> b) -> [a] -> [a]
 nubOn f = map NonEmpty.head . NonEmpty.groupAllWith f
 
-vacant :: Traversable f => f a -> Maybe (f b)
+vacant :: Traversable f => f a -> Maybe (f Void)
 vacant = traverse $ const Nothing

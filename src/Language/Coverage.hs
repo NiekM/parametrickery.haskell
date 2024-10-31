@@ -19,7 +19,7 @@ coveringShapes ctx = go []
     go :: [Name] -> Mono -> Maybe [Term Name]
     go recs = \case
       -- Holes remember their type, so that we can fill in the positions later.
-      Free a -> return [Hole $ MkHole a]
+      Free a -> return [Hole a]
       Product ts -> do
         xss <- traverse (go recs) ts
         return $ Tuple <$> sequence xss

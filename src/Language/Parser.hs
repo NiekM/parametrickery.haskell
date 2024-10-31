@@ -197,18 +197,7 @@ instance Parse (Named Signature) where
 instance Parse Lit where
   parser = MkInt <$> int
 
-instance Parse (Hole Void) where
-  parser = empty
-
-instance Parse (Hole ()) where
-  parser = MkHole <$> do
-    "_" <- identifier
-    return ()
-
-instance Parse (Hole h) => Parse (Hole (Expr l h)) where
-  parser = MkHole <$> brackets Curly parser
-
-parenExpr :: Parse (Hole h) => Parser (Expr l h)
+parenExpr :: Parse h => Parser (Expr l h)
 parenExpr = brackets Round do
   choice
     [ do
@@ -220,7 +209,7 @@ parenExpr = brackets Round do
     , return Unit
     ]
 
-instance Parse (Hole h) => Parse (Expr l h) where
+instance Parse h => Parse (Expr l h) where
   parser = choice
     [ parenExpr
     , Ctr <$> constructor <*> option Unit parser
@@ -229,7 +218,7 @@ instance Parse (Hole h) => Parse (Expr l h) where
     , Hole <$> parser
     ]
 
-spacedExprUntil :: Parse (Hole h) => Lexeme -> Parser [Expr l h]
+spacedExprUntil :: Parse h => Lexeme -> Parser [Expr l h]
 spacedExprUntil l = many $ choice
   [ parenExpr
   , List <$> parseList Square parser

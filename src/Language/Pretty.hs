@@ -45,19 +45,10 @@ prettyMaxPrec = prettyPrec maxBound
 deriving newtype instance Pretty (Sum Nat)
 deriving newtype instance Pretty Lit
 
-instance Pretty (Hole Void) where
-  pretty (MkHole h) = absurd h
-
-instance Pretty (Hole ()) where
-  pretty = const "_"
-
-instance Pretty (Hole Name) where
-  pretty (MkHole h) = braces $ pretty h
-
-instance Pretty (Hole h) => Pretty (Expr l h) where
+instance Pretty h => Pretty (Expr l h) where
   pretty = prettyMinPrec
 
-instance Pretty (Hole h) => Pretty (Prec (Expr l h)) where
+instance Pretty h => Pretty (Prec (Expr l h)) where
   pretty (Prec p e) = case e of
     Tuple xs -> tupled $ map pretty xs
     List xs -> pretty xs
@@ -68,16 +59,22 @@ instance Pretty (Hole h) => Pretty (Prec (Expr l h)) where
     Lam v (Lams vs x) -> parensIf (p > 1) $
       "\\" <> sep (map pretty (v:vs)) <> "." <+> pretty x
     Case x xs -> parensIf (p > 1) $
-      "case" <+> pretty x <+> pretty (Elim xs)
-    App f x -> parensIf (p > 2) $ prettyPrec 2 f <+> prettyPrec 3 x
+      nest 2 $ vsep ["case" <+> pretty x <+> "of", pretty (Elim xs)]
+    App (Apps f xs) x ->
+      group . parensIf (p > 2) . nest 2 . vsep $
+        prettyPrec 2 f : map (prettyPrec 3) (xs ++ [x])
     Prj i x -> prettyMaxPrec x <> "." <> pretty i
-    Elim xs -> encloseSep "{ " " }" "; " $ xs <&> \case
-      (c, Lams vs x) -> sep (pretty c : map pretty vs) <+> "->" <+> pretty x
+    Elim xs ->
+      let
+        arms = xs <&> \case
+          (c, Lams vs x) -> sep (pretty c : map pretty vs) <+> "->" <+> pretty x
+      in flatAlt (statements arms) $ encloseSep "{ " " }" "; " arms
     Hole h -> pretty h
 
-instance Pretty (Hole h) => Pretty (Named (Expr l h)) where
+instance Pretty h => Pretty (Named (Expr l h)) where
   pretty (Named name (asProgram -> Lams args expr)) =
-    sep (pretty name : map pretty args) <+> "=" <+> pretty expr
+    nest 2 $ sep (pretty name : map pretty args) <+>
+      "=" <> softline <> pretty expr
 
 instance Pretty Example where
   pretty (Example [] out) = pretty out
@@ -151,16 +148,13 @@ instance Pretty Relevance where
 instance Pretty (Named Nat) where
   pretty n = pretty n.name <> pretty n.value
 
-instance Pretty (Hole Position) where
-  pretty (MkHole p) = pretty p
-
 instance Pretty Container where
   pretty (Container s p) = pretty s <+> braced xs
     where
       xs = Map.assocs p <&> \(i, x) -> pretty i <+> "=" <+> pretty x
 
-instance Pretty (Hole (Set Position)) where
-  pretty (MkHole ps) = case Set.toList ps of
+instance Pretty (Set Position) where
+  pretty ps = case Set.toList ps of
     [x] -> pretty x
     xs  -> braced $ map pretty xs
 
