@@ -70,9 +70,9 @@ disable ss args = args { inputs = map enable args.inputs }
 variables :: Problem -> [Name]
 variables problem = problem.signature.inputs <&> (.name)
 
-hide :: Name -> Problem -> Problem
-hide name = onArgs \args -> args
-  { inputs = filter (\arg -> arg.name /= name) args.inputs }
+hide :: [Name] -> Problem -> Problem
+hide names = onArgs \args -> args
+  { inputs = filter (\arg -> arg.name `notElem` names) args.inputs }
 
 addInputs :: [Named Arg] -> Problem -> Problem
 addInputs new = onArgs \args -> args { inputs = args.inputs ++ new }

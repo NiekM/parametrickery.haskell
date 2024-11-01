@@ -4,13 +4,10 @@ module Data.Name
   , fromString
   , prettyNamed
   , find
-  , names
   ) where
 
 import Data.String
 import Data.List qualified as List
-import Data.Map (Map)
-import Data.Map qualified as Map
 
 import Data.Text (Text)
 import Prettyprinter
@@ -30,6 +27,3 @@ prettyNamed name = pretty . Named name
 
 find :: Name -> [Named a] -> Maybe a
 find name = fmap (.value) . List.find \x -> x.name == name
-
-names :: Traversable f => f (Named v) -> (Map Name v, f Name)
-names = traverse \(Named name x) -> (Map.singleton name x, name)

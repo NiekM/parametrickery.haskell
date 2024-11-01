@@ -21,6 +21,7 @@ module Tactic
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Prelude hiding (succ)
 
 import Control.Carrier.Error.Either
@@ -32,6 +33,7 @@ import Language.Container.Morphism
 import Language.Expr
 import Language.Pretty ()
 import Language.Problem
+import Language.Relevance
 import Language.Type
 
 data TacticFailure
@@ -81,11 +83,26 @@ binds args body = do
     let vars = map (.name) renamed
     Lams vars <$> body
 
+checkRealizable :: Tactic sig m => m [Rule]
+checkRealizable = do
+  problem <- ask @Problem
+  liftThrow Unrealizable $ check problem
+
 hole :: Tactic sig m => Name -> m Filling
 hole v = do
+  _ <- checkRealizable
   name <- freshName v
-  elimTuples $ local removeDuplicates do
+  elimTuples $ local removeDuplicates $ removeIrrelevant do
     Hole . Named name <$> ask
+
+-- NOTE: computing irrelevance is currently super slow
+removeIrrelevant :: Tactic sig m => m Filling -> m Filling
+removeIrrelevant cnt = do
+  r <- ask >>= relevance
+  let
+    irrelevantNames = Set.toList $ foldMap (\(signature, _, _) ->
+      Set.fromList $ map (.name) . filter ((== Free "_") . (.value)) $ signature.inputs) r.relevance
+  local (hide irrelevantNames) cnt
 
 removeDuplicates :: Problem -> Problem
 removeDuplicates = onArgs \args ->
@@ -104,9 +121,10 @@ elimTuples cnt = do
     components = tuples >>= \(Named name arg) -> peel (Var name) arg
   xs <- zipWithM nominate (repeat "x") components
   let terms = map (vacuous . fst <$>) xs
-  let inputs' = map (snd <$>) xs
-  local (foldr (\x -> (hide x.name .)) id tuples) do
-    local (addInputs inputs') do
+  let old = map (.name) tuples
+  let new = map (snd <$>) xs
+  local (hide old) do
+    local (addInputs new) do
       lets terms <$> cnt
   where
     peel :: Program Void -> Arg -> [(Program Void, Arg)]
@@ -176,14 +194,14 @@ elimArg expr arg = do
 elim :: Tactic sig m => Name -> m Filling
 elim name = do
   arg <- getArg name
-  local (hide name) $ elimArg (Var name) arg
+  local (hide [name]) $ elimArg (Var name) arg
 
 -- TODO: we do not have to hide the input list here!
 -- we can even pass a non-empty list to f
 introMap :: Tactic sig m => Name -> m Filling
 introMap name = do
   Arg mono terms <- getArg name
-  local (hide name) do
+  local (hide [name]) do
     problem <- ask @Problem
     case (mono, problem.signature.output) of
       (Data "List" [t], Data "List" [u]) -> do
@@ -196,7 +214,6 @@ introMap name = do
         let Signature constraints context _ = problem.signature
         let signature = Signature constraints (context ++ [Named x t]) u
         let subproblem = Problem signature $ concat examples
-        _ <- liftThrow Unrealizable $ check subproblem
         local (const subproblem) do
           f <- hole "f"
           let result = Apps (Var "map") [Lams [x] f, Var name]
@@ -211,7 +228,7 @@ isFilter xs ys = filter (`elem` ys) xs == ys
 introFilter :: Tactic sig m => Name -> m Filling
 introFilter name = do
   Arg mono terms <- getArg name
-  local (hide name) do
+  local (hide [name]) do
     problem <- ask @Problem
     case (mono, problem.signature.output) of
       (Data "List" [t], Data "List" [u]) -> do
@@ -228,7 +245,6 @@ introFilter name = do
           signature =
             Signature constraints (context ++ [Named x t]) (Data "Bool" [])
           subproblem = Problem signature $ concat examples
-        _ <- liftThrow Unrealizable $ check subproblem
         local (const subproblem) do
           f <- hole "f"
           let result = Apps (Var "filter") [Lams [x] f, Var name]
@@ -268,7 +284,7 @@ elimOrd name1 name2 = do
 fold :: Tactic sig m => Name -> m Filling
 fold name = do
   Arg mono terms <- getArg name
-  local (hide name) do
+  local (hide [name]) do
     problem <- ask @Problem
     let
       paired = zip terms problem.examples
@@ -306,8 +322,6 @@ fold name = do
           } cons) $ hole "f"
 
         let result = Apps (Var "fold") [Lams [x, r] f, e, Var name]
-        forM_ result \subproblem ->
-          liftThrow Unrealizable $ check subproblem.value
         return result
 
       Data "Tree" [t, u] -> do
@@ -339,8 +353,6 @@ fold name = do
           } node) $ hole "f"
 
         let result = Apps (Var "fold") [Lams [l, x, r] f, e, Var name]
-        forM_ result \subproblem ->
-          liftThrow Unrealizable $ check subproblem.value
         return result
 
       Data "Nat" [] -> do
@@ -363,8 +375,6 @@ fold name = do
           } succ) $ hole "f"
 
         let result = Apps (Var "fold") [Lams [r] f, e, Var name]
-        forM_ result \subproblem ->
-          liftThrow Unrealizable $ check subproblem.value
         return result
 
       _ -> throwError NotApplicable -- not implemented for all types
