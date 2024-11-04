@@ -47,14 +47,14 @@ getFree = \case
 
 type Constructor = Named Mono
 
-data Datatype = Datatype
+data DataDef = DataDef
   { name :: Name
   , arguments :: [Name]
   , constructors :: [Constructor]
   } deriving stock (Eq, Ord, Show)
 
 newtype Context = Context
-  { datatypes :: [Datatype]
+  { datatypes :: [DataDef]
   } deriving stock (Eq, Ord, Show)
 
 getConstructors :: Name -> [Mono] -> Context -> [Constructor]
@@ -65,73 +65,6 @@ getConstructors name ts ctx =
       let mapping = Map.fromList $ zip datatype.arguments ts
       in datatype.constructors <&> \(Named c t) ->
         Named c (instantiate mapping t)
-
--- TODO: have some sort of Prelude file
--- TODO: define recursive types using fixpoints
-datatypes :: Context
-datatypes = Context
-  [ Datatype
-    { name = "Bool"
-    , arguments = []
-    , constructors =
-      [ Named "False" Top
-      , Named "True"  Top
-      ]
-    }
-  , Datatype
-    { name = "Ordering"
-    , arguments = []
-    , constructors =
-      [ Named "LT" Top
-      , Named "EQ" Top
-      , Named "GT" Top
-      ]
-    }
-  , Datatype
-    { name = "Nat"
-    , arguments = []
-    , constructors =
-      [ Named "Zero" Top
-      , Named "Succ" (Data "Nat" [])
-      ]
-    }
-  , Datatype
-    { name = "Maybe"
-    , arguments = ["a"]
-    , constructors =
-      [ Named "Nothing" Top
-      , Named "Just"    (Free "a")
-      ]
-    }
-  , Datatype
-    { name = "Either"
-    , arguments = ["a", "b"]
-    , constructors =
-      [ Named "Left"  (Free "a")
-      , Named "Right" (Free "b")
-      ]
-    }
-  , Datatype
-    { name = "List"
-    , arguments = ["a"]
-    , constructors =
-      [ Named "Nil"  Top
-      , Named "Cons" (Product [Free "a", Data "List" [Free "a"]])
-      ]
-    }
-  , Datatype
-    { name = "Tree"
-    , arguments = ["a", "b"]
-    , constructors =
-      [ Named "Leaf" (Free "b")
-      , Named "Node" $ Product
-        [ Data "Tree" [Free "a", Free "b"]
-        , Free "a"
-        , Data "Tree" [Free "a", Free "b"]
-        ]
-      ]
-    }
-  ]
 
 data Constraint = Eq Name | Ord Name
   deriving stock (Eq, Ord, Show)

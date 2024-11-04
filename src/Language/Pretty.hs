@@ -45,6 +45,12 @@ prettyMaxPrec = prettyPrec maxBound
 deriving newtype instance Pretty (Sum Nat)
 deriving newtype instance Pretty Lit
 
+prettyCtr :: Name -> Doc ann
+prettyCtr = \case
+  ":" -> "Cons"
+  "[]" -> "Nil"
+  c -> pretty c
+
 instance Pretty h => Pretty (Expr l h) where
   pretty = prettyMinPrec
 
@@ -52,8 +58,8 @@ instance Pretty h => Pretty (Prec (Expr l h)) where
   pretty (Prec p e) = case e of
     Tuple xs -> tupled $ map pretty xs
     List xs -> pretty xs
-    Ctr c Unit -> pretty c
-    Ctr c x -> parensIf (p > 2) $ pretty c <+> prettyPrec 3 x
+    Ctr c Unit -> prettyCtr c
+    Ctr c x -> parensIf (p > 2) $ prettyCtr c <+> prettyPrec 3 x
     Lit l -> pretty l
     Var v -> pretty v
     Lam v (Lams vs x) -> parensIf (p > 1) $
@@ -67,7 +73,8 @@ instance Pretty h => Pretty (Prec (Expr l h)) where
     Elim xs ->
       let
         arms = xs <&> \case
-          (c, Lams vs x) -> sep (pretty c : map pretty vs) <+> "->" <+> pretty x
+          (c, Lams vs x) ->
+            sep (prettyCtr c : map pretty vs) <+> "->" <+> pretty x
       in flatAlt (statements arms) $ encloseSep "{ " " }" "; " arms
     Hole h -> pretty h
 

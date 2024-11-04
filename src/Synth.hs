@@ -49,8 +49,8 @@ type Ref sig m =
 -- explores the next node (based on its weight).
 type SynthC = ReaderC Context (FreshC (Search (Sum Nat)))
 
-search :: SynthC a -> Search (Sum Nat) a
-search = evalFresh . runReader datatypes
+search :: Context -> SynthC a -> Search (Sum Nat) a
+search ctx = evalFresh . runReader ctx
 
 type Refinement m = ReaderC Problem (ErrorC TacticFailure m) Filling
 

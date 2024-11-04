@@ -3,6 +3,8 @@
 
 module Test where
 
+import GHC.Generics
+
 import Data.Set qualified as Set
 import Data.Map qualified as Map
 import Data.List qualified as List
@@ -29,9 +31,11 @@ import Language.Container
 import Language.Container.Morphism
 import Language.Container.Relation
 import Language.Coverage
+import Language.Generics
 import Language.Problem
 import Language.Parser
 import Language.Pretty
+import Language.Prelude
 import Language.Relevance
 import Utils
 
@@ -73,7 +77,7 @@ instance IsString Problem where
   fromString = (.value) . fromString @(Named Problem)
 
 isFold :: Named Problem -> [Either TacticFailure Filling]
-isFold problem = runTactic problem.value $ anywhere fold
+isFold problem = runTactic datatypes problem.value $ anywhere fold
 
 runBench :: [Named Problem] -> IO ()
 runBench benchmark = do
@@ -129,7 +133,8 @@ synthAll = do
     res <- timeout 1_000_000 $ synthesize problem
     case res of
       Nothing -> False <$ putStrLn "Synthesis failed: timeout"
-      Just b -> return b
+      Just Nothing -> False <$ putStrLn "Synthesis failed: exhaustive"
+      Just (Just p) -> testAndPrint problem p
   putStrLn ""
   let passed = length $ filter id bs
   let total = length bs
@@ -139,22 +144,25 @@ synthAll = do
   putStrLn ""
   print $ "Failed:" <+> sep (punctuate ", " $ map pretty failed)
   where
-    synthesize :: Named Problem -> IO Bool
+    synthesize :: Named Problem -> IO (Maybe (Program Void))
     synthesize problem = case synth problem.value of
-      Nothing -> False <$ putStrLn "Synthesis failed: exhaustive"
-      Just r -> do
-        let f = norm mempty r
-        print . indent 2 $ prettyNamed problem.name f
-        case vacant f of
-          Nothing -> False <$ putStrLn "Some holes left!"
-          Just p -> do
-            putStrLn ""
-            xs <- testExtract p problem.value
-            let passed = length $ filter id xs
-            let total = length xs
-            print $ sep
-              [pretty passed, "out of", pretty total, "tests passed"]
-            return $ and xs
+      Nothing -> return Nothing
+      Just r -> return (Just r)
+
+    testAndPrint :: Named Problem -> Program Void -> IO Bool
+    testAndPrint problem result = do
+      let f = norm mempty result
+      print . indent 2 $ prettyNamed problem.name f
+      case vacant f of
+        Nothing -> False <$ putStrLn "Some holes left!"
+        Just p -> do
+          putStrLn ""
+          xs <- testExtract p problem.value
+          let passed = length $ filter id xs
+          let total = length xs
+          print $ sep
+            [pretty passed, "out of", pretty total, "tests passed"]
+          return $ and xs
 
 -- TODO: check that the result has no unsolved holes.
 synth :: Problem -> Maybe (Program Void)
@@ -164,12 +172,12 @@ upTo :: Nat -> Problem -> [Program Void]
 upTo fuel problem = mapMaybe vacant $ allUpTo fuel auto problem
 
 best :: Refinement SynthC -> Problem -> Maybe Filling
-best tactic problem = fmap (norm mempty . snd) . runSearchBest . search $
-  runTac problem tactic
+best tactic problem = fmap (norm mempty . snd) . runSearchBest
+  . search datatypes $ runTac problem tactic
 
 allUpTo :: Nat -> Refinement SynthC -> Problem -> [Filling]
 allUpTo fuel tactic problem = catMaybes . takeWhile isJust . map snd .
-  runSearch . search . limit fuel $ runTac problem tactic
+  runSearch . search datatypes . limit fuel $ runTac problem tactic
 
 runCheck :: Problem -> Either Conflict [Rule]
 runCheck = runReader datatypes . check
@@ -211,3 +219,6 @@ prettySplit e
       : List.intersperse "" helpers
     ]
   where helpers = map pretty $ holes e
+
+tryOut :: FromExpr a => Problem -> a
+tryOut problem = fromExpr . fromJust $ synth problem

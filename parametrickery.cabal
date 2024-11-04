@@ -79,15 +79,18 @@ library
   -- Modules exported by the library.
   exposed-modules:
       Data.Name
+    , Data.Tree
     , Language.Type
     , Language.Expr
     , Language.Container
     , Language.Container.Morphism
     , Language.Container.Relation
     , Language.Coverage
-    , Language.Problem
-    , Language.Pretty
+    , Language.Generics
     , Language.Parser
+    , Language.Prelude
+    , Language.Pretty
+    , Language.Problem
     , Language.Relevance
     , Synth
     , Tactic

@@ -9,7 +9,6 @@ module Language.Expr
     , Bool
     , Ordering
     , Nil, Cons, List
-    , Leaf, Node, Tree
     , Zero, Succ, Nat
     )
   , Lit(..)
@@ -30,6 +29,8 @@ import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Foldable
+
+import Data.Tree
 
 import Unsafe.Coerce qualified as Unsafe
 
@@ -124,7 +125,7 @@ norm ctx = \case
     Apps (Var "fold") [cons, nil, List xs] -> norm ctx $
       foldr (\y r -> Apps cons [y, r]) nil xs
     Apps (Var "fold") [node, leaf, Tree t] -> norm ctx $
-      foldBinary (\l y r -> Apps node [l, y, r]) (Apps leaf . projections) t
+      foldTree (\l y r -> Apps node [l, y, r]) (Apps leaf . projections) t
     Apps (Var "fold") [succ, zero, Nat n] -> norm ctx $
       applyN n (App succ) zero
     Apps (Var "map") [g, List xs] -> List $ map (norm ctx . App g) xs
@@ -216,10 +217,10 @@ pattern If b t f = Case b [("True", t), ("False", f)]
 -- * Lists
 
 pattern Nil :: Expr l h
-pattern Nil = Ctr "Nil" Unit
+pattern Nil = Ctr "[]" Unit
 
 pattern Cons :: Expr l h -> Expr l h -> Expr l h
-pattern Cons x xs = Ctr "Cons" (Tuple [x, xs])
+pattern Cons x xs = Ctr ":" (Tuple [x, xs])
 
 unList :: Expr l h -> Maybe [Expr l h]
 unList = \case
@@ -233,28 +234,14 @@ pattern List xs <- (unList -> Just xs)
 
 -- * Trees
 
-data Binary a b = Lf b | Nd (Binary a b) a (Binary a b)
-
-foldBinary :: (c -> a -> c -> c) -> (b -> c) -> Binary a b -> c
-foldBinary node leaf = \case
-  Lf x -> leaf x
-  Nd l x r -> node (foldBinary node leaf l) x (foldBinary node leaf r)
-
-pattern Leaf :: Expr l h -> Expr l h
-pattern Leaf a = Ctr "Leaf" a
-
-pattern Node :: Expr l h -> Expr l h -> Expr l h -> Expr l h
-pattern Node l x r = Ctr "Node" (Tuple [l, x, r])
-
-unTree :: Expr l h -> Maybe (Binary (Expr l h) (Expr l h))
+unTree :: Expr l h -> Maybe (Tree (Expr l h) (Expr l h))
 unTree = \case
-  Leaf x -> Just $ Lf x
-  Node l x r -> Nd <$> unTree l <*> pure x <*> unTree r
+  Ctr "Leaf" x -> Just $ Leaf x
+  Ctr "Node" (Tuple [l, x, r]) -> Node <$> unTree l <*> pure x <*> unTree r
   _ -> Nothing
 
-pattern Tree :: Binary (Expr l h) (Expr l h) -> Expr l h
+pattern Tree :: Tree (Expr l h) (Expr l h) -> Expr l h
 pattern Tree t <- (unTree -> Just t)
-  where Tree t = foldBinary Node Leaf t
 
 -- * Nats
 

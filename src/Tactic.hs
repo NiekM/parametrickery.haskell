@@ -65,9 +65,10 @@ liftThrow f m = runError m >>= \case
   Left e -> throwError $ f e
   Right x -> return x
 
-runTactic :: Functor m => Problem -> TacticC m a -> m (Either TacticFailure a)
-runTactic problem =
-  evalFresh . runError . runReader datatypes . runReader problem
+runTactic :: Functor m => Context -> Problem -> TacticC m a ->
+  m (Either TacticFailure a)
+runTactic ctx problem =
+  evalFresh . runError . runReader ctx . runReader problem
 
 getArg :: Tactic sig m => Name -> m Arg
 getArg name = do
