@@ -166,10 +166,8 @@ pattern Value v <- (toValue -> Just v)
 
 fromValue :: Value -> Expr l h
 fromValue = \case
-  Tuple xs -> Tuple $ map fromValue xs
-  Ctr c x -> Ctr c $ fromValue x
-  Lit i -> Lit i
   Hole v -> absurd v
+  e -> Unsafe.unsafeCoerce e
 
 -- * Units
 
