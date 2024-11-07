@@ -123,7 +123,7 @@ instance GFromExpr U1 where
     _ -> Nothing
 
 instance FromExpr c => GFromExpr (K1 i c) where
-  gFromExpr = fmap K1 . fromExpr
+  gFromExpr = fmap K1 . Just . fromExpr
 
 instance GFromExpr f => GFromExpr (D1 c f) where
   gFromExpr = fmap M1 . gFromExpr
