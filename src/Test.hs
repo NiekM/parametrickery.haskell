@@ -220,5 +220,5 @@ prettySplit e
     ]
   where helpers = map pretty $ holes e
 
-tryOut :: FromExpr a => Problem -> a
-tryOut problem = fromExpr . fromJust $ synth problem
+tryOut :: Interpret a => Problem -> a
+tryOut problem = interpret . fromJust $ synth problem

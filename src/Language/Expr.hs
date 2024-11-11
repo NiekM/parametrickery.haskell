@@ -19,6 +19,7 @@ module Language.Expr
   , accept
   , norm
   , asProgram
+  , toValue
   , tuple
   , lets
   ) where

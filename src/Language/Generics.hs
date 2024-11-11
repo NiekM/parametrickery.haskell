@@ -4,12 +4,12 @@ module Language.Generics
   ( toData
   , FromExpr(..)
   , ToExpr(..)
+  , Interpret(..)
   ) where
 
 import GHC.Generics hiding (Constructor)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 
-import Data.Maybe (fromJust)
 import Data.Void
 import Data.Kind
 import Data.Proxy
@@ -18,10 +18,24 @@ import Base
 
 import Language.Expr
 import Language.Type
+import Language.Pretty ()
+
+-- | Interpret a program as a Haskell function.
+class Interpret a where
+  interpret :: Program Void -> a
+
+instance {-# OVERLAPPING #-} FromExpr a => Interpret a where
+  interpret e = case toValue e >>= fromExpr of
+    Nothing -> error . show $ "Cannot interpret" <+> pretty e
+    Just v -> v
+
+instance {-# OVERLAPPING #-} (ToExpr a, Interpret b) => Interpret (a -> b) where
+  interpret p = interpret . norm mempty . App p . Value . toExpr
 
 symbolName :: KnownSymbol s => proxy s -> Name
 symbolName = fromString . symbolVal
 
+-- | Turn a Haskell value of type `a` into a `Value` (embedding).
 class ToExpr a where
   toExpr :: a -> Value
 
@@ -72,40 +86,38 @@ instance (GToExpr a, GToExpr b) => GToExpr (a :+: b) where
   gToExpr (R1 p) = gToExpr p
 
 instance (GToExpr a, GToExpr b) => GToExpr (a :*: b) where
-  gToExpr (a :*: b) = Tuple $ gToExpr a : projections (gToExpr b)
+  gToExpr (a :*: b) = tuple $ gToExpr a : projections (gToExpr b)
 
+-- | Turn a `Value` into a Haskell value of type `a` (extraction).
 class FromExpr a where
-  fromExpr :: Program Void -> a
+  fromExpr :: Value -> Maybe a
 
-  default fromExpr :: (Generic a, GFromExpr (Rep a)) => Program Void -> a
-  fromExpr = to . fromJust . gFromExpr
-
-instance (ToExpr a, FromExpr b) => FromExpr (a -> b) where
-  fromExpr e = fromExpr . norm mempty . App e . Value . toExpr
+  default fromExpr :: (Generic a, GFromExpr (Rep a)) => Value -> Maybe a
+  fromExpr = fmap to . gFromExpr
 
 instance FromExpr Int where
   fromExpr = \case
-    Lit (MkInt i) -> i
-    _ -> undefined
+    Lit (MkInt i) -> Just i
+    _ -> Nothing
 
 instance FromExpr Nat where
   fromExpr = \case
-    Nat n -> n
-    _ -> undefined
+    Nat n -> Just n
+    _ -> Nothing
 
 instance FromExpr () where
   fromExpr = \case
-    Tuple [] -> ()
-    _ -> undefined
+    Tuple [] -> Just ()
+    _ -> Nothing
 
 instance (FromExpr a, FromExpr b) => FromExpr (a, b) where
   fromExpr = \case
-    Tuple [x, y] -> (fromExpr x, fromExpr y)
-    _ -> undefined
+    Tuple [x, y] -> liftA2 (,) (fromExpr x) (fromExpr y)
+    _ -> Nothing
 
 instance (FromExpr a, FromExpr b, FromExpr c) => FromExpr (a, b, c) where
   fromExpr = \case
-    Tuple [x, y, z] -> (fromExpr x, fromExpr y, fromExpr z)
+    Tuple [x, y, z] -> liftA3 (,,) (fromExpr x) (fromExpr y) (fromExpr z)
     _ -> undefined
 
 instance FromExpr Bool
@@ -115,7 +127,7 @@ instance (FromExpr a, FromExpr b) => FromExpr (Either a b)
 instance FromExpr a => FromExpr [a]
 
 class GFromExpr f where
-  gFromExpr :: Program Void -> Maybe (f a)
+  gFromExpr :: Value -> Maybe (f a)
 
 instance GFromExpr U1 where
   gFromExpr = \case
@@ -123,7 +135,7 @@ instance GFromExpr U1 where
     _ -> Nothing
 
 instance FromExpr c => GFromExpr (K1 i c) where
-  gFromExpr = fmap K1 . Just . fromExpr
+  gFromExpr = fmap K1 . fromExpr
 
 instance GFromExpr f => GFromExpr (D1 c f) where
   gFromExpr = fmap M1 . gFromExpr
@@ -146,6 +158,7 @@ instance (GFromExpr a, GFromExpr b) => GFromExpr (a :*: b) where
     Tuple (x:xs) -> liftA2 (:*:) (gFromExpr x) (gFromExpr $ tuple xs)
     _ -> Nothing
 
+-- | Types that can be represented as `Mono`.
 class ToType a where
   toType :: proxy a -> Mono
 
@@ -202,30 +215,20 @@ instance GToType f => GToType (S1 m f) where
 instance (GToType f, GToType g) => GToType (f :*: g) where
   gToType _ = Product $ gToType @f Proxy : projections (gToType @g Proxy)
 
-mkData :: forall a proxy. GToData (Rep a) => proxy a -> DataDef
-mkData _ = gdatatype @(Rep a) Proxy
-
-mkData1 :: forall f proxy. (GToData (Rep (f A)), Generic (f A)) =>
-  proxy f -> DataDef
-mkData1 _ = (mkData @(f A) Proxy) { arguments = ["a"] }
-
-mkData2 :: forall f proxy. (GToData (Rep (f A B)), Generic (f A B)) =>
-  proxy f -> DataDef
-mkData2 _ = (mkData @(f A B) Proxy) { arguments = ["a", "b"] }
-
+-- | Compute the `DataDef` representation of a type `k`.
 class ToData (f :: k) where
   toData :: proxy f -> DataDef
 
 instance GToData (Rep a) => ToData (a :: Type) where
-  toData _ = mkData @a Proxy
+  toData _ = gdatatype @(Rep a) Proxy
 
 instance (GToData (Rep (f A)), Generic (f A)) =>
   ToData (f :: Type -> Type) where
-  toData _ = mkData1 @f Proxy
+  toData _ = (gdatatype @(Rep (f A)) Proxy) { arguments = ["a"] }
 
 instance (GToData (Rep (f A B)), Generic (f A B)) =>
   ToData (f :: Type -> Type -> Type) where
-  toData _ = mkData2 @f Proxy
+  toData _ = (gdatatype @(Rep (f A B)) Proxy) { arguments = ["a", "b"] }
 
 class GToData f where
   gdatatype :: proxy f -> DataDef

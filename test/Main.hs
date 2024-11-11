@@ -6,10 +6,15 @@ import Data.Ord
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
 import Numeric.Natural
+import Prettyprinter
 
 import Test.QuickCheck
 
 import Test.Compare
+
+import Data.Name
+import Language.Problem
+import Language.Generics
 import Test
 
 type Nat = Natural
@@ -17,34 +22,45 @@ type Nat = Natural
 instance Arbitrary Nat where
   arbitrary = fromInteger . abs <$> arbitrary
 
+checkSynth :: (Compare a, Interpret a) => Named Problem -> a -> IO ()
+checkSynth problem model = do
+  print $ "Testing" <+> pretty problem.name <> ":"
+  case synth problem.value of
+    Nothing -> putStrLn "Synthesis failed..."
+    Just result -> do
+      quickCheck $ comparison model (interpret result)
+  putStrLn ""
+
 main :: IO ()
 main = do
-  quickCheck $ comparison ((++) @Int) (tryOut "append")
-  quickCheck $ comparison (compress @Int) (tryOut "compress")
-  quickCheck $ comparison (reverse @Int) (tryOut "reverse")
-  quickCheck $ comparison ((:) @Int) (tryOut "cons")
-  quickCheck $ comparison (concat @[] @Int) (tryOut "concat")
-  quickCheck $ comparison (null @[] @Int) (tryOut "null")
-  quickCheck $ comparison (snoc @Int) (tryOut "snoc")
+  checkSynth "append" $ (++) @Int
+  checkSynth "compress" $ compress @Int
+  checkSynth "reverse" $ reverse @Int
+  checkSynth "cons" $ (:) @Int
+  checkSynth "concat" $ concat @[] @Int
+  checkSynth "null" $ null @[] @Int
+  checkSynth "snoc" $ snoc @Int
 
-  quickCheck $ comparison (headMaybe @Int) (tryOut "head")
-  quickCheck $ comparison (lastMaybe @Int) (tryOut "last")
-  quickCheck $ comparison (tailSafe @Int) (tryOut "tail")
-  quickCheck $ comparison (initSafe @Int) (tryOut "init")
+  checkSynth "head" $ headMaybe @Int
+  checkSynth "last" $ lastMaybe @Int
+  checkSynth "tail" $ tailSafe @Int
+  checkSynth "init" $ initSafe @Int
 
-  quickCheck $ comparison (unzip @Int @Int) (tryOut "unzip")
+  checkSynth "unzip" $ unzip @Int @Int
 
-  quickCheck $ comparison (List.elem @[] @Int) (tryOut "member")
-  quickCheck $ comparison (List.nub @Int) (tryOut "nub")
+  checkSynth "member" $ List.elem @[] @Int
+  checkSynth "nub" $ List.nub @Int
 
-  quickCheck $ comparison (List.nub @Int) (tryOut "ordNub")
-  quickCheck $ comparison (curry $ clamp @Int) (tryOut "clamp")
+  checkSynth "ordNub" $ List.nub @Int
 
-  quickCheck $ comparison (repli @Int) (tryOut "replicate")
+  -- It seems that this is non-deterministic!
+  checkSynth "clamp" $ curry $ clamp @Int
 
-  quickCheck $ comparison (copyFirst @Int) (tryOut "copyFirst")
-  quickCheck $ comparison (dupli @Int) (tryOut "dupli")
-  quickCheck $ comparison (allSame @Int) (tryOut "allSame")
+  checkSynth "replicate" $ repli @Int
+
+  checkSynth "copyFirst" $ copyFirst @Int
+  checkSynth "dupli" $ dupli @Int
+  checkSynth "allSame" $ allSame @Int
 
 -- Model solutions
 
