@@ -1,7 +1,6 @@
 module Language.Prelude (datatypes) where
 
 import GHC.Generics
-import Data.Proxy
 
 import Data.Tree
 
@@ -16,11 +15,11 @@ data Nat
 -- TODO: define recursive types using fixpoints?
 datatypes :: Context
 datatypes = Context
-  [ toData $ Proxy @Bool
-  , toData $ Proxy @Ordering
-  , toData $ Proxy @Nat
-  , toData $ Proxy @Maybe
-  , toData $ Proxy @[]
-  , toData $ Proxy @Either
-  , toData $ Proxy @Tree
+  [ toData Bool
+  , toData Ordering
+  , toData Nat
+  , toData Maybe
+  , toData (type [])
+  , toData Either
+  , toData Tree
   ]

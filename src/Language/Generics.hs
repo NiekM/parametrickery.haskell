@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE RequiredTypeArguments #-}
 
 module Language.Generics
   ( toData
@@ -32,15 +33,15 @@ instance {-# OVERLAPPING #-} FromExpr a => Interpret a where
 instance {-# OVERLAPPING #-} (ToExpr a, Interpret b) => Interpret (a -> b) where
   interpret p = interpret . norm mempty . App p . Value . toExpr
 
-symbolName :: KnownSymbol s => proxy s -> Name
-symbolName = fromString . symbolVal
+symbolName :: forall s -> KnownSymbol s => Name
+symbolName s = fromString . symbolVal $ Proxy @s
 
 -- | Turn a Haskell value of type `a` into a `Value` (embedding).
 class ToExpr a where
   toExpr :: a -> Value
 
   default toExpr :: (Generic a, GToExpr (Rep a)) => a -> Value
-  toExpr = gToExpr . from
+  toExpr = gtoExpr . from
 
 instance ToExpr Int where
   toExpr = Lit . MkInt
@@ -64,36 +65,36 @@ instance ToExpr a => ToExpr [a]
 instance (ToExpr a, ToExpr b) => ToExpr (Either a b)
 
 class GToExpr f where
-  gToExpr :: f a -> Value
+  gtoExpr :: f a -> Value
  
 instance GToExpr U1 where
-  gToExpr _ = Unit
+  gtoExpr _ = Unit
 
 instance ToExpr c => GToExpr (K1 i c) where
-  gToExpr (K1 c) = toExpr c
+  gtoExpr (K1 c) = toExpr c
 
 instance GToExpr f => GToExpr (D1 c f) where
-  gToExpr (M1 p) = gToExpr p
+  gtoExpr (M1 p) = gtoExpr p
 
 instance GToExpr f => GToExpr (S1 c f) where
-  gToExpr (M1 p) = gToExpr p
+  gtoExpr (M1 p) = gtoExpr p
 
 instance (KnownSymbol c, GToExpr f) => GToExpr (C1 (MetaCons c g s) f) where
-  gToExpr (M1 p) = Ctr (symbolName @c Proxy) $ gToExpr p
+  gtoExpr (M1 p) = Ctr (symbolName c) $ gtoExpr p
 
 instance (GToExpr a, GToExpr b) => GToExpr (a :+: b) where
-  gToExpr (L1 p) = gToExpr p
-  gToExpr (R1 p) = gToExpr p
+  gtoExpr (L1 p) = gtoExpr p
+  gtoExpr (R1 p) = gtoExpr p
 
 instance (GToExpr a, GToExpr b) => GToExpr (a :*: b) where
-  gToExpr (a :*: b) = tuple $ gToExpr a : projections (gToExpr b)
+  gtoExpr (a :*: b) = tuple $ gtoExpr a : projections (gtoExpr b)
 
 -- | Turn a `Value` into a Haskell value of type `a` (extraction).
 class FromExpr a where
   fromExpr :: Value -> Maybe a
 
   default fromExpr :: (Generic a, GFromExpr (Rep a)) => Value -> Maybe a
-  fromExpr = fmap to . gFromExpr
+  fromExpr = fmap to . gfromExpr
 
 instance FromExpr Int where
   fromExpr = \case
@@ -127,43 +128,43 @@ instance (FromExpr a, FromExpr b) => FromExpr (Either a b)
 instance FromExpr a => FromExpr [a]
 
 class GFromExpr f where
-  gFromExpr :: Value -> Maybe (f a)
+  gfromExpr :: Value -> Maybe (f a)
 
 instance GFromExpr U1 where
-  gFromExpr = \case
+  gfromExpr = \case
     Unit -> Just U1
     _ -> Nothing
 
 instance FromExpr c => GFromExpr (K1 i c) where
-  gFromExpr = fmap K1 . fromExpr
+  gfromExpr = fmap K1 . fromExpr
 
 instance GFromExpr f => GFromExpr (D1 c f) where
-  gFromExpr = fmap M1 . gFromExpr
+  gfromExpr = fmap M1 . gfromExpr
 
 instance GFromExpr f => GFromExpr (S1 c f) where
-  gFromExpr = fmap M1 . gFromExpr
+  gfromExpr = fmap M1 . gfromExpr
 
 instance (KnownSymbol c, GFromExpr f) => GFromExpr (C1 (MetaCons c g s) f) where
-  gFromExpr = \case
-    Ctr c e | c == symbolName @c Proxy -> M1 <$> gFromExpr e
+  gfromExpr = \case
+    Ctr d e | d == symbolName c -> M1 <$> gfromExpr e
     _ -> Nothing
 
 instance (GFromExpr a, GFromExpr b) => GFromExpr (a :+: b) where
-  gFromExpr e = case gFromExpr e of
+  gfromExpr e = case gfromExpr e of
     Just x -> Just $ L1 x
-    Nothing -> R1 <$> gFromExpr e
+    Nothing -> R1 <$> gfromExpr e
 
 instance (GFromExpr a, GFromExpr b) => GFromExpr (a :*: b) where
-  gFromExpr = \case
-    Tuple (x:xs) -> liftA2 (:*:) (gFromExpr x) (gFromExpr $ tuple xs)
+  gfromExpr = \case
+    Tuple (x:xs) -> liftA2 (:*:) (gfromExpr x) (gfromExpr $ tuple xs)
     _ -> Nothing
 
 -- | Types that can be represented as `Mono`.
 class ToType a where
-  toType :: proxy a -> Mono
+  toType :: forall b -> a ~ b => Mono
 
-  default toType :: (Generic a, GToType (Rep a)) => proxy a -> Mono
-  toType _ = gToType @(Rep a) Proxy
+  default toType :: (Generic a, GToType (Rep a)) => forall b -> a ~ b => Mono
+  toType _ = gtoType (Rep a)
 
 data A deriving (Eq, Ord, Show, Generic)
 data B deriving (Eq, Ord, Show, Generic)
@@ -177,73 +178,69 @@ instance ToType B where
 instance ToType Int where
   toType _ = Base Int
 
-dataName :: forall (a :: Type) proxy. DataName (Rep a) => proxy a -> Name
-dataName _ = dname $ Proxy @(Rep a)
+dataName :: forall a -> DataName (Rep a) => Name
+dataName a = dname (Rep a)
 
 class DataName f where
-  dname :: proxy f -> Name
+  dname :: forall g -> f ~ g => Name
 
 instance KnownSymbol n => DataName (D1 (MetaData n m p nt) f) where
-  dname _ = symbolName @n Proxy
+  dname _ = symbolName n
 
 instance {-# OVERLAPPABLE #-} DataName (Rep a) => ToType a where
-  toType _ = Data name []
-    where name = dataName @a Proxy
+  toType t = Data (dataName t) []
 
 instance {-# OVERLAPPABLE #-} (DataName (Rep (f a)), ToType a) =>
   ToType (f a) where
-  toType _ = Data name [toType @a Proxy]
-    where name = dataName @(f a) Proxy
+  toType t = Data (dataName t) [toType a]
 
 instance {-# OVERLAPPABLE #-} (DataName (Rep (f a b)), ToType a, ToType b) =>
   ToType (f a b) where
-  toType _ = Data name [toType @a Proxy, toType @b Proxy]
-    where name = dataName @(f a b) Proxy
+  toType t = Data (dataName t) [toType a, toType b]
 
 class GToType f where
-  gToType :: proxy f -> Mono
+  gtoType :: forall g -> f ~ g => Mono
 
 instance GToType U1 where
-  gToType _ = Top
+  gtoType _ = Top
 
 instance ToType c => GToType (K1 i c) where
-  gToType _ = toType @c Proxy
+  gtoType _ = toType c
 
 instance GToType f => GToType (S1 m f) where
-  gToType _ = gToType @f Proxy
+  gtoType _ = gtoType f
 
 instance (GToType f, GToType g) => GToType (f :*: g) where
-  gToType _ = Product $ gToType @f Proxy : projections (gToType @g Proxy)
+  gtoType _ = Product $ gtoType f : projections (gtoType g)
 
 -- | Compute the `DataDef` representation of a type `k`.
 class ToData (f :: k) where
-  toData :: proxy f -> DataDef
+  toData :: forall g -> f ~ g => DataDef
 
 instance GToData (Rep a) => ToData (a :: Type) where
-  toData _ = gdatatype @(Rep a) Proxy
+  toData _ = gdatatype (Rep a)
 
 instance (GToData (Rep (f A)), Generic (f A)) =>
   ToData (f :: Type -> Type) where
-  toData _ = (gdatatype @(Rep (f A)) Proxy) { arguments = ["a"] }
+  toData _ = (gdatatype (Rep (f A))) { arguments = ["a"] }
 
 instance (GToData (Rep (f A B)), Generic (f A B)) =>
   ToData (f :: Type -> Type -> Type) where
-  toData _ = (gdatatype @(Rep (f A B)) Proxy) { arguments = ["a", "b"] }
+  toData _ = (gdatatype (Rep (f A B))) { arguments = ["a", "b"] }
 
 class GToData f where
-  gdatatype :: proxy f -> DataDef
+  gdatatype :: forall g -> f ~ g => DataDef
 
 instance (GConstructors f, KnownSymbol n) =>
   GToData (D1 (MetaData n m p nt) f) where
-  gdatatype _ =
-    DataDef (symbolName @n Proxy) [] (gconstructors @f Proxy)
+  gdatatype _ = DataDef (symbolName n) [] (gconstructors f)
 
 class GConstructors f where
-  gconstructors :: proxy f -> [Constructor]
+  gconstructors :: forall g -> f ~ g => [Constructor]
 
 instance (KnownSymbol c, GToType f) =>
   GConstructors (C1 (MetaCons c g s) f) where
-  gconstructors _ = [Named (symbolName @c Proxy) (gToType @f Proxy)]
+  gconstructors _ = [Named (symbolName c) (gtoType f)]
 
 instance (GConstructors f, GConstructors g) => GConstructors (f :+: g) where
-  gconstructors _ = gconstructors @f Proxy ++ gconstructors @g Proxy
+  gconstructors _ = gconstructors f ++ gconstructors g
