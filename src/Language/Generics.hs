@@ -215,25 +215,25 @@ instance (GToType f, GToType g) => GToType (f :*: g) where
 
 -- | Compute the `DataDef` representation of a type `k`.
 class ToData (f :: k) where
-  toData :: forall g -> f ~ g => DataDef
+  toData :: forall g -> f ~ g => Named DataDef
 
 instance GToData (Rep a) => ToData (a :: Type) where
-  toData _ = gdatatype (Rep a)
+  toData _ = gdatatype (Rep a) <&> DataDef []
 
 instance (GToData (Rep (f A)), Generic (f A)) =>
   ToData (f :: Type -> Type) where
-  toData _ = (gdatatype (Rep (f A))) { arguments = ["a"] }
+  toData _ = gdatatype (Rep (f A)) <&> DataDef ["a"]
 
 instance (GToData (Rep (f A B)), Generic (f A B)) =>
   ToData (f :: Type -> Type -> Type) where
-  toData _ = (gdatatype (Rep (f A B))) { arguments = ["a", "b"] }
+  toData _ = gdatatype (Rep (f A B)) <&> DataDef ["a", "b"]
 
 class GToData f where
-  gdatatype :: forall g -> f ~ g => DataDef
+  gdatatype :: forall g -> f ~ g => Named [Constructor]
 
 instance (GConstructors f, KnownSymbol n) =>
   GToData (D1 (MetaData n m p nt) f) where
-  gdatatype _ = DataDef (symbolName n) [] (gconstructors f)
+  gdatatype _ = Named (symbolName n) (gconstructors f)
 
 class GConstructors f where
   gconstructors :: forall g -> f ~ g => [Constructor]

@@ -16,6 +16,7 @@ module Tactic
   , elimEq, elimOrd
   , elim
   , fold
+  , cata
   ) where
 
 import Data.List qualified as List
@@ -35,6 +36,8 @@ import Language.Pretty ()
 import Language.Problem
 import Language.Relevance
 import Language.Type
+
+import Language.Container
 
 data TacticFailure
   = NotApplicable
@@ -187,9 +190,7 @@ elimArg expr arg = do
       -- require all cases to have at least some examples
       when (any (null . (.examples) . snd) m) $ throwError NotApplicable
       arms <- forM m \(a, p) -> do
-        let letters = fromString . pure <$> ['a' ..]
-        let xs = zipWith Named letters (projections a)
-        local (const p) $ binds xs $ hole "_"
+        local (const p) $ binds [Named "a" a] $ hole "_"
       return $ App (Elim $ Map.assocs arms) (vacuous expr)
 
 elim :: Tactic sig m => Name -> m Filling
@@ -282,8 +283,18 @@ elimOrd name1 name2 = do
       elimArg (Apps (Var "cmp") [Var name1, Var name2]) ords
     _ -> throwError NotApplicable
 
+andThen :: Tactic sig m => m Filling -> m Filling -> m Filling
+andThen f g = do
+  filling <- f
+  join <$> forM filling \(Named _ p) ->
+    local (const p) g
+
 fold :: Tactic sig m => Name -> m Filling
-fold name = do
+fold name = cata name `andThen` do
+  elim =<< asks (last . variables)
+
+cata :: Tactic sig m => Name -> m Filling
+cata name = do
   Arg mono terms <- getArg name
   local (hide [name]) do
     problem <- ask @Problem
@@ -300,82 +311,28 @@ fold name = do
     let recurse = applyRules rules
 
     case mono of
-      Data "List" [t] -> do 
-        constrs <- forM paired \case
-          (Nil, ex) -> return $ Left ex
-          (Cons y ys, Example ins out) ->
-            case recurse (ys:ins) of
+      Data d ts -> do
+        let baseFunctor = d <> "F"
+        ds <- ask @Context
+        case find baseFunctor ds.datatypes of
+          Nothing -> throwError NotApplicable
+          _ -> return ()
+        examples <- forM paired \(x, Example ins out) -> do
+          e <- poly (Data baseFunctor (ts ++ [Free "r"])) x
+          z <- join <$> forM e \case
+            ("r", r) -> case recurse (r:ins) of
               Nothing -> throwError TraceIncomplete
-              Just r -> return . Right $ Example (ins ++ [y, r]) out
-          _ -> error "Expected a list!"
-
-        let (nil, cons) = partitionEithers constrs
-
-        e <- local (const $ problem { examples = nil }) $ hole "e"
-
-        x <- freshName "x"
-        r <- freshName "r"
-        f <- local (const $ Problem problem.signature
-          { inputs = problem.signature.inputs ++
-            [ Named x t
-            , Named r problem.signature.output
-            ]
-          } cons) $ hole "f"
-
-        let result = Apps (Var "fold") [Lams [x, r] f, e, Var name]
-        return result
-
-      Data "Tree" [t, u] -> do
-        constrs <- forM paired \case
-          (Ctr "Leaf" x, Example ins out) -> return . Left $
-            Example (ins ++ [x]) out
-          (Ctr "Node" (Tuple [l, x, r]), Example ins out) ->
-            case (recurse (l:ins), recurse (r:ins)) of
-              (Just left, Just right) -> return . Right $
-                Example (ins ++ [left, x, right]) out
-              _ -> throwError TraceIncomplete
-          _ -> error "Expected a tree!"
-
-        let (leaf, node) = partitionEithers constrs
-
-        y <- freshName "y"
-        e <- local (const $ Problem problem.signature
-          { inputs = problem.signature.inputs ++ [ Named y u ] } leaf) $ hole "e"
-
-        l <- freshName "l"
-        x <- freshName "x"
-        r <- freshName "r"
-        f <- local (const $ Problem problem.signature
-          { inputs = problem.signature.inputs ++
-            [ Named l problem.signature.output
-            , Named x t
-            , Named r problem.signature.output
-            ]
-          } node) $ hole "f"
-
-        let result = Apps (Var "fold") [Lams [l, x, r] f, e, Var name]
-        return result
-
-      Data "Nat" [] -> do
-        constrs <- forM paired \case
-          (Ctr "Zero" _, ex) -> return $ Left ex
-          (Ctr "Succ" n, Example ins out) ->
-            case recurse (n:ins) of
-              Nothing -> throwError TraceIncomplete
-              Just r -> return . Right $ Example (ins ++ [r]) out
-          _ -> error "Expected a nat!"
-
-        let (zero, succ) = partitionEithers constrs
-
-        e <- local (const $ problem { examples = zero }) $ hole "e"
+              Just q -> return q
+            (_, y) -> return y
+          return $ Example (ins ++ [z]) out
 
         r <- freshName "r"
         f <- local (const $ Problem problem.signature
           { inputs = problem.signature.inputs ++
-            [ Named r problem.signature.output ]
-          } succ) $ hole "f"
+            [ Named r $ Data baseFunctor (ts ++ [problem.signature.output]) ]
+          } examples) $ hole "f"
 
-        let result = Apps (Var "fold") [Lams [r] f, e, Var name]
+        let result = Apps (Var "cata") [Lams [r] f, Var name]
         return result
 
       _ -> throwError NotApplicable -- not implemented for all types

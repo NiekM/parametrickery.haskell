@@ -1,6 +1,7 @@
 module Language.Type where
 
-import Data.List qualified as List
+import Data.Functor.Compose
+import Data.Monoid (Any(..))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 
@@ -48,19 +49,34 @@ getFree = \case
 type Constructor = Named Mono
 
 data DataDef = DataDef
-  { name :: Name
-  , arguments :: [Name]
+  { arguments :: [Name]
   , constructors :: [Constructor]
   } deriving stock (Eq, Ord, Show)
 
+base :: Named DataDef -> Maybe (Named DataDef)
+base (Named name def)
+  | recursive = Just $ Named (name <> "F") basedef
+  | otherwise = Nothing
+  where
+    basedef = DataDef (def.arguments ++ ["r"]) cs
+
+    (Any recursive, Compose cs) = traverse locate (Compose def.constructors)
+
+    locate :: Mono -> (Any, Mono)
+    locate = \case
+      t | t == Data name (Free <$> def.arguments) -> (Any True, Free "r")
+      Product ts -> Product <$> traverse locate ts
+      Data d ts -> Data d <$> traverse locate ts
+      t -> (Any False, t)
+
 newtype Context = Context
-  { datatypes :: [DataDef]
+  { datatypes :: [Named DataDef]
   } deriving stock (Eq, Ord, Show)
 
 getConstructors :: Name -> [Mono] -> Context -> [Constructor]
 getConstructors name ts ctx =
-  case List.find (\d -> d.name == name) ctx.datatypes of
-    Nothing -> error "Unknown datatype"
+  case find name ctx.datatypes of
+    Nothing -> error $ "Unknown datatype " <> show name
     Just datatype ->
       let mapping = Map.fromList $ zip datatype.arguments ts
       in datatype.constructors <&> \(Named c t) ->

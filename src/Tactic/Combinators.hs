@@ -38,8 +38,7 @@ firstOf :: Has (Error TacticFailure) sig m => [m a] -> m a
 firstOf = foldr orElse $ throwError NotApplicable
 
 -- TODO: should we not check for realizability inbetween?
-andThen :: (Has (Catch TacticFailure) sig m, Tactic sig m) =>
-  m Filling -> m Filling -> m Filling
+andThen :: Tactic sig m => m Filling -> m Filling -> m Filling
 andThen f g = do
   filling <- f
   join <$> forM filling \(Named _ p) ->

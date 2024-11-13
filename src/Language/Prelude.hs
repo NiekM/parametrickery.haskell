@@ -2,6 +2,7 @@ module Language.Prelude (datatypes) where
 
 import GHC.Generics
 
+import Data.Maybe
 import Data.Tree
 
 import Language.Generics
@@ -14,7 +15,7 @@ data Nat
 
 -- TODO: define recursive types using fixpoints?
 datatypes :: Context
-datatypes = Context
+datatypes = Context $
   [ toData Bool
   , toData Ordering
   , toData Nat
@@ -22,4 +23,4 @@ datatypes = Context
   , toData (type [])
   , toData Either
   , toData Tree
-  ]
+  ] >>= \d -> d : maybeToList (base d)

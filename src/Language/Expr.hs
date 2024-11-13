@@ -122,13 +122,14 @@ norm ctx = \case
   App f x -> case App (norm ctx f) (norm ctx x) of
     App (Lam v e) y -> norm (Map.insert v y ctx) e
     Case (Ctr c e) xs -> norm ctx $
-      Apps (Maybe.fromJust $ List.lookup c xs) (projections e)
-    Apps (Var "fold") [cons, nil, List xs] -> norm ctx $
-      foldr (\y r -> Apps cons [y, r]) nil xs
-    Apps (Var "fold") [node, leaf, Tree t] -> norm ctx $
-      foldTree (\l y r -> Apps node [l, y, r]) (Apps leaf . projections) t
-    Apps (Var "fold") [succ, zero, Nat n] -> norm ctx $
-      applyN n (App succ) zero
+      App (Maybe.fromJust $ List.lookup c xs) e
+    Apps (Var "cata") [alg, List xs] -> norm ctx $
+      foldr (\y r -> App alg $ Cons y r) (App alg Nil) xs
+    Apps (Var "cata") [alg, Tree xs] -> norm ctx $
+      foldTree (\l y r -> App alg $ Ctr "Node" $ Tuple [l, y, r])
+        (\y -> App alg $ Ctr "Leaf" y) xs
+    Apps (Var "cata") [alg, Nat n] -> norm ctx $
+      applyN n (App alg . Ctr "Succ") (App alg $ Ctr "Zero" Unit)
     Apps (Var "map") [g, List xs] -> List $ map (norm ctx . App g) xs
     Apps (Var "filter") [p, List xs] -> List $
       filter (fromMaybe False . unBool . norm ctx . App p) xs

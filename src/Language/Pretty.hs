@@ -54,6 +54,10 @@ prettyCtr = \case
 instance Pretty h => Pretty (Expr l h) where
   pretty = prettyMinPrec
 
+prettyC :: Pretty (Prec b) => Name -> [b] -> Int -> Doc ann
+prettyC x [] _ = prettyCtr x
+prettyC x xs p = parensIf (p > 2) . sep $ prettyCtr x : map prettyMaxPrec xs
+
 instance Pretty h => Pretty (Prec (Expr l h)) where
   pretty (Prec p e) = case e of
     Tuple xs -> tupled $ map pretty xs
@@ -128,6 +132,15 @@ instance Pretty Signature where
 
 instance Pretty (Named Signature) where
   pretty (Named name sig) = pretty name <+> ":" <+> pretty sig
+
+instance Pretty (Named DataDef) where
+  pretty (Named name def) =
+    "data" <+> sep (pretty name : map pretty def.arguments) <+>
+      "=" <+> concatWith (surround " | ") (def.constructors <&>
+      \c -> sep (prettyCtr c.name : map prettyMaxPrec (projections c.value)))
+
+instance Pretty Context where
+  pretty (Context datatypes) = statements $ map pretty datatypes
 
 instance Pretty Problem where
   pretty = prettyNamed "_"

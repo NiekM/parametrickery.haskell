@@ -2,6 +2,7 @@ module Data.Name
   ( Name(Name)
   , Named(..)
   , fromString
+  , rename
   , prettyNamed
   , find
   ) where
@@ -19,6 +20,9 @@ newtype Name = Name { getName :: Text }
 data Named a = Named { name :: Name, value :: a }
   deriving stock (Eq, Ord, Show)
   deriving stock (Functor, Foldable, Traversable)
+
+rename :: (Name -> Name) -> Named a -> Named a
+rename f (Named name x) = Named (f name) x
 
 -- It is a common pattern to print something with a name. In these cases
 -- 'Named' can be used as a wrapper before calling 'pretty'.
