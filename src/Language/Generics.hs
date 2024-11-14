@@ -232,6 +232,8 @@ instance (GToData (Rep (f A B)), Generic (f A B)) =>
   ToData (f :: Type -> Type -> Type) where
   toData _ = gdatatype (Rep (f A B)) <&> DataDef ["a", "b"]
 
+-- TODO: it seems that this does not work if one of the constructors has the
+-- same name as the type itself...
 class GToData f where
   gdatatype :: forall g -> f ~ g => Named [Constructor]
 

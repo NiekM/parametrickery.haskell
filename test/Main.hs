@@ -67,6 +67,10 @@ benches =
   , Bench "cons"              $ Model.cons @Int
   , Bench "copyFirst"         $ Model.copyFirst @Int
   , Bench "copyLast"          $ Model.copyLast @Int
+  -- TODO: it is all about phrasing! If we say that our tool cannot synthesize
+  -- deleteMax, that's not very impressive, but if we show that our tool
+  -- exhaustively searched the program space, that sounds much more impressive.
+  -- Same for `ordNub`, `splitAt`, etc.
   , Bench "deleteMax"         $ Model.deleteMax @Int
   , Bench "depth"             $ Model.depth @Int @Int
   , Bench "drop"              $ Model.drop @Int
