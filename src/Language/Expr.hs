@@ -31,7 +31,7 @@ import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Foldable
 
-import Data.Tree
+import Data.Tree.Binary
 
 import Unsafe.Coerce qualified as Unsafe
 

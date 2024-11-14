@@ -15,6 +15,8 @@ import Data.Void
 import Data.Kind
 import Data.Proxy
 
+import Data.Tree.Binary
+
 import Base
 
 import Language.Expr
@@ -63,6 +65,7 @@ instance ToExpr Ordering
 instance ToExpr a => ToExpr (Maybe a)
 instance ToExpr a => ToExpr [a]
 instance (ToExpr a, ToExpr b) => ToExpr (Either a b)
+instance (ToExpr a, ToExpr b) => ToExpr (Tree a b)
 
 class GToExpr f where
   gtoExpr :: f a -> Value
@@ -124,8 +127,9 @@ instance (FromExpr a, FromExpr b, FromExpr c) => FromExpr (a, b, c) where
 instance FromExpr Bool
 instance FromExpr Ordering
 instance FromExpr a => FromExpr (Maybe a)
-instance (FromExpr a, FromExpr b) => FromExpr (Either a b)
 instance FromExpr a => FromExpr [a]
+instance (FromExpr a, FromExpr b) => FromExpr (Either a b)
+instance (FromExpr a, FromExpr b) => FromExpr (Tree a b)
 
 class GFromExpr f where
   gfromExpr :: Value -> Maybe (f a)

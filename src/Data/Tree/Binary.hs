@@ -1,4 +1,4 @@
-module Data.Tree where
+module Data.Tree.Binary where
 
 import GHC.Generics
 

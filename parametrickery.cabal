@@ -79,7 +79,7 @@ library
   -- Modules exported by the library.
   exposed-modules:
       Data.Name
-    , Data.Tree
+    , Data.Tree.Binary
     , Language.Type
     , Language.Expr
     , Language.Container
@@ -150,7 +150,8 @@ test-suite parametrickery-test
   main-is:          Main.hs
 
   other-modules:
-    Test.Compare
+      Test.Compare
+    , Model
 
   -- Test dependencies.
   build-depends:

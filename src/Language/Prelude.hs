@@ -3,7 +3,7 @@ module Language.Prelude (datatypes) where
 import GHC.Generics
 
 import Data.Maybe
-import Data.Tree
+import Data.Tree.Binary
 
 import Language.Generics
 import Language.Type
