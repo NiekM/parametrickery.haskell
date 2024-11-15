@@ -60,6 +60,8 @@ benches =
   [ Bench "allSame"           $ Model.allSame @Int
   , Bench "append"            $ Model.append @Int
   , Bench "breadthFirst"      $ Model.breadthFirst @Int @Int
+  -- TODO: it seems that the innermost fold is not trace complete, and perhaps
+  -- cannot be trace complete by providing just toplevel examples.
   , Bench "cartesian"         $ Model.cartesian @Int
   , Bench "clamp"             $ Model.clamp @Int
   , Bench "compress"          $ Model.compress @Int

@@ -126,11 +126,12 @@ fullBench = runBench bench
 
 synthAll :: IO ()
 synthAll = do
+  let milliseconds = 1_000_000
   bs <- forM bench \problem -> do
     putStrLn ""
     print $ "Problem:" <+> pretty problem.name
     putStrLn ""
-    res <- timeout 1_000_000 $ synthesize problem
+    res <- timeout milliseconds $ gen problem
     case res of
       Nothing -> False <$ putStrLn "Synthesis failed: timeout"
       Just Nothing -> False <$ putStrLn "Synthesis failed: exhaustive"
@@ -144,8 +145,8 @@ synthAll = do
   putStrLn ""
   print $ "Failed:" <+> sep (punctuate ", " $ map pretty failed)
   where
-    synthesize :: Named Problem -> IO (Maybe (Program Void))
-    synthesize problem = case synth problem.value of
+    gen :: Named Problem -> IO (Maybe (Program Void))
+    gen problem = case synth problem.value of
       Nothing -> return Nothing
       Just r -> return (Just r)
 
@@ -164,20 +165,45 @@ synthAll = do
             [pretty passed, "out of", pretty total, "tests passed"]
           return $ and xs
 
--- TODO: check that the result has no unsolved holes.
+data Options = Options
+  { tactic :: Refinement SynthC
+  , fuel :: Maybe Nat
+  }
+
+def :: Options
+def = Options auto Nothing
+
+data Solution = Solution
+  { weight :: Nat
+  , extract :: Filling
+  , next :: Maybe Solution
+  } deriving (Eq, Ord, Show)
+
+instance Pretty Solution where
+  pretty solution = prettySplit solution.extract
+
+synthesize :: Options -> Problem -> Maybe Solution
+synthesize options problem = makeSolution
+  . map (bimap getSum $ norm mempty)
+  . whileJust . map sequence
+  . runSearch . search datatypes
+  . limitFuel options.fuel
+  $ runTac problem options.tactic
+  where
+    limitFuel Nothing = fmap Just
+    limitFuel (Just n) = limit n
+
+    whileJust = catMaybes . takeWhile isJust
+
+    makeSolution :: [(Nat, Filling)] -> Maybe Solution
+    makeSolution = \case
+      [] -> Nothing
+      (n, f) : xs -> Just . Solution n f $ makeSolution xs
+
 synth :: Problem -> Maybe (Program Void)
-synth problem = best auto problem >>= vacant
-
-upTo :: Nat -> Problem -> [Program Void]
-upTo fuel problem = mapMaybe vacant $ allUpTo fuel auto problem
-
-best :: Refinement SynthC -> Problem -> Maybe Filling
-best tactic problem = fmap (norm mempty . snd) . runSearchBest
-  . search datatypes $ runTac problem tactic
-
-allUpTo :: Nat -> Refinement SynthC -> Problem -> [Filling]
-allUpTo fuel tactic problem = catMaybes . takeWhile isJust . map snd .
-  runSearch . search datatypes . limit fuel $ runTac problem tactic
+synth problem = do
+  solution <- synthesize def problem
+  vacant solution.extract
 
 runCheck :: Problem -> Either Conflict [Rule]
 runCheck = runReader datatypes . check
@@ -221,4 +247,4 @@ prettySplit e
   where helpers = map pretty $ holes e
 
 tryOut :: Interpret a => Problem -> a
-tryOut problem = interpret . fromJust $ synth problem
+tryOut = interpret . fromJust . synth

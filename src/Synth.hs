@@ -6,6 +6,7 @@ module Synth
   , Refinement
   , search
   , runTac
+  , step
   , auto, greedy
   ) where
 
@@ -64,8 +65,9 @@ runTac problem tactic = do
     Right program -> return program
 
 -- TODO: use relevancy
-auto :: Ref sig m => m Filling
-auto = do
+-- TODO: normalize problems by removing examples that are equivalent
+step :: Ref sig m => m Filling
+step = do
   problem <- ask @Problem
   rules <- runError @Conflict (check problem) >>= \case
     Right r -> return r
@@ -79,7 +81,10 @@ auto = do
       , weigh 3 >> anywhere2 \x y -> elimOrd x y <| elimEq x y
       , weigh 1 >> introCtr
       , weigh 0 >> introTuple
-      ] `andThen` auto
+      ]
+
+auto :: Ref sig m => m Filling
+auto = step `andThen` auto
 
 greedy :: Ref sig m => m Filling
 greedy = firstOf

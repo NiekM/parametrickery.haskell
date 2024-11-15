@@ -19,11 +19,13 @@ append = (++)
 breadthFirst :: Tree a b -> [a]
 breadthFirst = List.concat . levels
 
-cartesian :: [[a]] -> [[a]]
+cartesian :: forall a. [[a]] -> [[a]]
 cartesian xss = foldr f [[]] xss
   where
+    f :: [a] -> [[a]] -> [[a]]
     f xs yss = foldr g [] xs
       where
+        g :: a -> [[a]] -> [[a]]
         g x zss = foldr (\ys qss -> (x:ys):qss) zss yss
 
 clamp :: Ord a => a -> a -> a -> a
