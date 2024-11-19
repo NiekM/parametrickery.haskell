@@ -70,7 +70,13 @@ common shared-properties
     , TypeFamilies
     , ViewPatterns
 
-  build-depends: base
+  build-depends:
+      base
+    , containers
+    , directory
+    , lens
+    , prettyprinter
+    , text
 
 library
   -- Import shared properties.
@@ -109,15 +115,8 @@ library
 
   -- Other library packages from which modules are imported.
   build-depends:
-      directory
-    , containers
-    , mtl
-    , prettyprinter
-    , text
-    , lens
+      fused-effects
     , megaparsec
-    , pqueue
-    , fused-effects
     , monad-dijkstra
 
   -- Directories containing source files.
@@ -150,15 +149,13 @@ test-suite parametrickery-test
   main-is:          Main.hs
 
   other-modules:
-      Test.Compare
     , Model
+    , Test.Compare
 
   -- Test dependencies.
   build-depends:
-      directory
-    , hspec
-    , containers
-    , prettyprinter
+      hspec
+    , parametrickery
     , QuickCheck
     , text
     , parametrickery
