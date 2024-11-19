@@ -23,13 +23,12 @@ import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Prelude hiding (succ)
 
 import Control.Carrier.Error.Either
 import Control.Carrier.Reader
 import Control.Effect.Fresh.Named
 
-import Base
+import Base hiding (fold)
 import Language.Container.Morphism
 import Language.Expr
 import Language.Pretty ()
@@ -291,7 +290,7 @@ andThen f g = do
 
 fold :: Tactic sig m => Name -> m Filling
 fold name = cata name `andThen` do
-  elim =<< asks (last . variables)
+  elim =<< asks (List.last . variables)
 
 cata :: Tactic sig m => Name -> m Filling
 cata name = do

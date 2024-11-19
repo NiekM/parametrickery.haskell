@@ -2,6 +2,8 @@
 
 module Test.Compare where
 
+import Base
+
 import Test.QuickCheck
 
 class Compare a where

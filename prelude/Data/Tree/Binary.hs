@@ -1,5 +1,6 @@
 module Data.Tree.Binary where
 
+import Base
 import GHC.Generics
 
 data Tree a b

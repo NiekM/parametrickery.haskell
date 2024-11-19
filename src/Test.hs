@@ -77,7 +77,7 @@ instance IsString Problem where
   fromString = (.value) . fromString @(Named Problem)
 
 isFold :: Named Problem -> [Either TacticFailure Filling]
-isFold problem = runTactic datatypes problem.value $ anywhere fold
+isFold problem = runTactic datatypes problem.value $ anywhere Tactic.fold
 
 runBench :: [Named Problem] -> IO ()
 runBench benchmark = do

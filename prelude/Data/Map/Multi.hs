@@ -15,13 +15,12 @@ module Data.Map.Multi
   , filterWithKey
   ) where
 
-import Prelude hiding (map, lookup)
 import Data.Map qualified as Map
 import Data.Map.Utils qualified as Map
 import Data.Set qualified as Set
 import Data.Coerce
 
-import Base hiding (empty)
+import Base hiding (map, empty)
 
 -- TODO: would nonempty sets make more sense?
 newtype Multi k v = Multi (Map k (Set v))

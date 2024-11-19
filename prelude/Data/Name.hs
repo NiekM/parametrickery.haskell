@@ -7,10 +7,11 @@ module Data.Name
   , find
   ) where
 
+import Prelude
 import Data.String
 import Data.List qualified as List
-
 import Data.Text (Text)
+
 import Prettyprinter
 
 newtype Name = Name { getName :: Text }

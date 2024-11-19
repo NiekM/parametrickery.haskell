@@ -1,8 +1,8 @@
 module Language.Prelude (datatypes) where
 
+import Base hiding (Nat)
 import GHC.Generics
 
-import Data.Maybe
 import Data.Tree.Binary
 
 import Language.Generics

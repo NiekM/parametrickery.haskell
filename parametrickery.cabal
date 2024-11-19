@@ -63,6 +63,7 @@ common shared-properties
     , DerivingVia
     , DuplicateRecordFields
     , LambdaCase
+    , NoImplicitPrelude
     , NoFieldSelectors
     , OverloadedStrings
     , OverloadedRecordDot
@@ -84,8 +85,6 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
-      Data.Name
-    , Data.Tree.Binary
     , Language.Type
     , Language.Expr
     , Language.Container
@@ -105,12 +104,9 @@ library
 
   -- Modules included in this library but not exported.
   other-modules:
-      Base
     , Control.Effect.Search
     , Control.Effect.Fresh.Named
     , Control.Effect.Weight
-    , Data.Map.Utils
-    , Data.Map.Multi
     , Utils
 
   -- Other library packages from which modules are imported.
@@ -118,9 +114,31 @@ library
       fused-effects
     , megaparsec
     , monad-dijkstra
+    , parametrickery-prelude
 
   -- Directories containing source files.
   hs-source-dirs:   src
+
+library parametrickery-prelude
+  -- Import shared properties.
+  import:           shared-properties
+
+  -- Modules exported by the library.
+  exposed-modules:
+      Base
+    , Data.Map.Multi
+    , Data.Name
+    , Data.Tree.Binary
+
+  -- Modules included in this library but not exported.
+  other-modules:
+      Data.Map.Utils
+
+  -- Other library packages from which modules are imported.
+  build-depends: fused-effects
+
+  -- Directories containing source files.
+  hs-source-dirs:   prelude
 
 executable parametrickery
   -- Import shared properties.
@@ -130,7 +148,9 @@ executable parametrickery
   main-is:          Main.hs
 
   -- Other library packages from which modules are imported.
-  build-depends: parametrickery
+  build-depends:
+      parametrickery
+    , parametrickery-prelude
 
   -- Directories containing source files.
   hs-source-dirs:   app
@@ -149,13 +169,14 @@ test-suite parametrickery-test
   main-is:          Main.hs
 
   other-modules:
-    , Model
+      Model
     , Test.Compare
 
   -- Test dependencies.
   build-depends:
       hspec
     , parametrickery
+    , parametrickery-prelude
     , QuickCheck
 
 benchmark parametrickery-bench
@@ -177,4 +198,5 @@ benchmark parametrickery-bench
   build-depends:
       criterion
     , parametrickery
+    , parametrickery-prelude
     , QuickCheck

@@ -4,13 +4,13 @@
 
 module Main (main) where
 
-import Numeric.Natural
+import Base
+
 import System.Timeout (timeout)
 import Control.Exception (evaluate)
 import Data.Typeable
 import Data.Text.IO qualified as Text
 
-import Prettyprinter
 import Test.QuickCheck hiding (Success, Failure)
 
 import Model qualified
@@ -21,8 +21,6 @@ import Language.Problem
 import Language.Parser
 import Language.Generics
 import Synth
-
-type Nat = Natural
 
 instance Arbitrary Nat where
   arbitrary = fromInteger . abs <$> arbitrary

@@ -1,13 +1,12 @@
 module Model where
 
+import Base
+
 import Data.Either qualified as Either
 import Data.Ord qualified as Ord
 import Data.Tree.Binary
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
-import Numeric.Natural
-
-type Nat = Natural
 
 allSame :: Eq a => [a] -> Bool
 allSame [] = True

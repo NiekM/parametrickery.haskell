@@ -2,9 +2,7 @@
 
 module Main where
 
-import Control.Lens
-import Control.Monad
-import Numeric.Natural
+import Base
 
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
@@ -13,13 +11,11 @@ import Control.Exception (evaluate)
 import Criterion.Main
 import Test.QuickCheck hiding (Success, Failure)
 
-import Data.Name
 import Data.Tree.Binary
 import Language.Generics (Interpret(..))
 import Language.Problem
 import Language.Parser
 import Synth
-import Prettyprinter
 
 import Test.Compare
 import Model qualified
@@ -129,8 +125,6 @@ models =
   ]
 
 -- TODO: put these in a better location
-
-type Nat = Natural
 
 instance Arbitrary Nat where
   arbitrary = fromInteger . abs <$> arbitrary

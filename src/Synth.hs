@@ -146,7 +146,7 @@ step = do
     Total -> greedy
     _ -> anyOne assume <| asum
       [ anywhere \x ->
-          (weigh 2 >> introMap x <| introFilter x <| (weigh 2 >> fold x))
+          (weigh 2 >> introMap x <| introFilter x <| (weigh 2 >> Tactic.fold x))
           <|> (weigh 3 >> elim x)
       , weigh 3 >> anywhere2 \x y -> elimOrd x y <| elimEq x y
       , weigh 1 >> introCtr
