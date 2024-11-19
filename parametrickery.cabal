@@ -177,3 +177,4 @@ benchmark parametrickery-bench
   build-depends:
       criterion
     , parametrickery
+    , QuickCheck

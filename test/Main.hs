@@ -5,20 +5,22 @@
 module Main (main) where
 
 import Numeric.Natural
-import System.Timeout
+import System.Timeout (timeout)
+import Control.Exception (evaluate)
 import Data.Typeable
+import Data.Text.IO qualified as Text
 
 import Prettyprinter
-import Test.QuickCheck
+import Test.QuickCheck hiding (Success, Failure)
 
-import Model qualified as Model
+import Model qualified
 import Test.Compare
 
-import Data.Name
 import Data.Tree.Binary
 import Language.Problem
+import Language.Parser
 import Language.Generics
-import Test
+import Synth
 
 type Nat = Natural
 
@@ -39,21 +41,31 @@ instance (Arbitrary a, Arbitrary b) => Arbitrary (Tree a b) where
   arbitrary = arbitrary2
 
 data Bench = forall a. (Compare a, Interpret a) => Bench
-  { problem :: Named Problem
+  { name :: String
   , model :: a
   }
 
 testBench :: Bench -> IO ()
-testBench (Bench problem model) = do
-  print $ "Testing" <+> pretty problem.name <> ":"
-  x <- timeout 1_000_000 case synth problem.value of
-    Nothing -> return Nothing
-    Just r -> return $ Just r
-  case x of
-    Nothing -> putStrLn "Synthesis failed: timeout"
-    Just Nothing -> putStrLn "Synthesis failed: exhaustive"
-    Just (Just r) -> quickCheck . withMaxSize 25 $
-      comparison model (interpret r)
+testBench (Bench name model) = do
+  print $ "Testing" <+> pretty name <> ":"
+  content <- Text.readFile $ "data/bench/" <> name
+  case lexParse parser content of
+    Nothing -> putStrLn "Failed to parse"
+    Just problem -> do
+      timed <- timeout 1_000_000 . evaluate $ synthesize def problem
+      case timed of
+        Nothing ->
+          putStrLn "timeout"
+        Just (Failure Depleted) ->
+          putStrLn "out of fuel"
+        Just (Failure Exhausted) ->
+          putStrLn "unrealizable"
+        Just (Success _ (Unfinished _filling)) ->
+          putStrLn "out of tactics"
+        Just (Success _ (Finished program))
+          | testProblem program problem -> quickCheck . withMaxSize 25 $
+            comparison model (interpret program)
+          | otherwise -> putStrLn "inconsistent result"
 
 benches :: [Bench]
 benches =

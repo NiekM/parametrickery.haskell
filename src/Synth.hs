@@ -36,7 +36,6 @@ import Tactic.Combinators
 import Tactic
 
 import Language.Prelude
-import Data.Maybe
 import Data.List qualified as List
 import Prettyprinter
 
@@ -57,9 +56,14 @@ data SynthFailure
   deriving stock (Eq, Ord, Show)
 
 data Extract
-  = TotalExtract (Program Void)
-  | PartialExtract Filling
+  = Finished (Program Void)
+  | Unfinished Filling
   deriving stock (Eq, Ord, Show)
+
+instance Pretty Extract where
+  pretty = \case
+    Finished program -> pretty program
+    Unfinished filling -> prettySplit filling
 
 data Solution
   = Success Nat Extract
@@ -84,8 +88,8 @@ synthesize options problem = case runSearchBest searchSpace of
   Just (Sum weight, result) -> case result of
     Nothing -> Failure Depleted
     Just filling -> Success weight case vacant filling of
-      Nothing -> PartialExtract filling
-      Just program -> TotalExtract program
+      Nothing -> Unfinished filling
+      Just program -> Finished program
   where
     limitFuel Nothing = fmap Just
     limitFuel (Just n) = limit n

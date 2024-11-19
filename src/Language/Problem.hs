@@ -28,6 +28,15 @@ data Problem = Problem
   , examples  :: [Example]
   } deriving stock (Eq, Ord, Show)
 
+testProblem :: Program Void -> Problem -> Bool
+testProblem program problem = and $ problem.examples <&> \example ->
+  let
+    inputs = map Value example.inputs
+    expr = Apps program inputs
+  in case norm mempty expr of
+    Value output | output == example.output -> True
+    _ -> False
+
 data Arg = Arg
   { mono  :: Mono
   , terms :: [Value]
