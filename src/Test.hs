@@ -59,16 +59,16 @@ instance (Pretty e, Pretty a) => Pretty (Either e a) where
 
 ------ Examples -------
 
-{-# NOINLINE bench #-}
-bench :: [Named Problem]
-bench = Unsafe.unsafePerformIO do
+{-# NOINLINE benches #-}
+benches :: [Named Problem]
+benches = Unsafe.unsafePerformIO do
   xs <- listDirectory "data/bench/"
   forM (reverse xs) \name -> do
     content <- Text.readFile $ "data/bench/" <> name
     return $ parse content
 
 getBench :: Name -> Named Problem
-getBench name = Named name . fromJust $ find name bench
+getBench name = Named name . fromJust $ find name benches
 
 instance IsString (Named Problem) where
   fromString = getBench . fromString
@@ -103,7 +103,7 @@ runBench benchmark = do
 paperBench :: IO ()
 paperBench = runBench bench'
   where
-    bench' = bench & filter \x -> x.name `elem`
+    bench' = benches & filter \x -> x.name `elem`
       [ "null"
       , "length"
       , "head"
@@ -122,12 +122,12 @@ paperBench = runBench bench'
       ]
 
 fullBench :: IO ()
-fullBench = runBench bench
+fullBench = runBench benches
 
 synthAll :: IO ()
 synthAll = do
   let milliseconds = 1_000_000
-  bs <- forM bench \problem -> do
+  bs <- forM benches \problem -> do
     putStrLn ""
     print $ "Problem:" <+> pretty problem.name
     putStrLn ""
@@ -141,7 +141,7 @@ synthAll = do
   let total = length bs
   print $ sep
     [pretty passed, "out of", pretty total, "synthesized"]
-  let failed = zip bench bs & map ((.name) . fst) . filter (not . snd)
+  let failed = zip benches bs & map ((.name) . fst) . filter (not . snd)
   putStrLn ""
   print $ "Failed:" <+> sep (punctuate ", " $ map pretty failed)
   where
@@ -165,45 +165,10 @@ synthAll = do
             [pretty passed, "out of", pretty total, "tests passed"]
           return $ and xs
 
-data Options = Options
-  { tactic :: Refinement SynthC
-  , fuel :: Maybe Nat
-  }
-
-def :: Options
-def = Options auto Nothing
-
-data Solution = Solution
-  { weight :: Nat
-  , extract :: Filling
-  , next :: Maybe Solution
-  } deriving (Eq, Ord, Show)
-
-instance Pretty Solution where
-  pretty solution = prettySplit solution.extract
-
-synthesize :: Options -> Problem -> Maybe Solution
-synthesize options problem = makeSolution
-  . map (bimap getSum $ norm mempty)
-  . whileJust . map sequence
-  . runSearch . search datatypes
-  . limitFuel options.fuel
-  $ runTac problem options.tactic
-  where
-    limitFuel Nothing = fmap Just
-    limitFuel (Just n) = limit n
-
-    whileJust = catMaybes . takeWhile isJust
-
-    makeSolution :: [(Nat, Filling)] -> Maybe Solution
-    makeSolution = \case
-      [] -> Nothing
-      (n, f) : xs -> Just . Solution n f $ makeSolution xs
-
 synth :: Problem -> Maybe (Program Void)
-synth problem = do
-  solution <- synthesize def problem
-  vacant solution.extract
+synth problem = case synthesize def problem of
+  Success _ (TotalExtract program) -> Just program
+  _ -> Nothing
 
 runCheck :: Problem -> Either Conflict [Rule]
 runCheck = runReader datatypes . check
@@ -228,23 +193,18 @@ testExtract program problem = forM problem.examples \example ->
 -- TODO:
 -- - Are paramorphisms + relevance superior to catamorphisms?
 -- - Can we show that any function is a paramorphism? Or the opposite?
+--   Yes. A paramorphism is strictly stronger than elim.
 -- - How well does relevance analysis reflect ease of synthesis?
 -- - Is progress purely based on relevance?
 --
 
 -- DONE:
 -- - Can we do anamorphisms? It seems not.
+--   Because the input of a coalgebra is unconstrained.
+--   TODO: but is there some dual to unrealizability for anamorphisms?
+--   it seems that some dual notion should exist. although the problem lies in
+--   the fact that the coalgebra has an infinite input.
 --
-
-prettySplit :: (Pretty h, Pretty (Named h)) => Expr l (Named h) -> Doc ann
-prettySplit e
-  | null helpers = pretty e
-  | otherwise = nest 2 $ vsep
-    [ pretty $ fmap (.name) e
-    , nest 2 . vsep $ "where"
-      : List.intersperse "" helpers
-    ]
-  where helpers = map pretty $ holes e
 
 tryOut :: Interpret a => Problem -> a
 tryOut = interpret . fromJust . synth

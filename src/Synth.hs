@@ -1,7 +1,13 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Synth
-  ( Synth
+  ( synthesize
+  , Solution(..)
+  , SynthFailure(..)
+  , Extract(..)
+  , Options(..)
+  , def
+  , Synth
   , SynthC
   , Refinement
   , search
@@ -12,6 +18,7 @@ module Synth
 
 import Control.Effect.Fresh.Named
 import Control.Effect.Weight
+import Control.Effect.Search
 import Control.Carrier.Error.Either
 import Control.Carrier.Reader
 
@@ -27,6 +34,65 @@ import Language.Coverage
 
 import Tactic.Combinators
 import Tactic
+
+import Language.Prelude
+import Data.Maybe
+import Data.List qualified as List
+import Prettyprinter
+
+import Utils
+
+data Options = Options
+  { tactic :: Refinement SynthC
+  , fuel :: Maybe Nat
+  , time :: Maybe Nat
+  }
+
+def :: Options
+def = Options auto Nothing Nothing
+
+data SynthFailure
+  = Exhausted -- out of programs
+  | Depleted -- out of fuel
+  deriving stock (Eq, Ord, Show)
+
+data Extract
+  = TotalExtract (Program Void)
+  | PartialExtract Filling
+  deriving stock (Eq, Ord, Show)
+
+data Solution
+  = Success Nat Extract
+  | Failure SynthFailure
+  deriving stock (Eq, Ord, Show)
+
+prettySplit :: (Pretty h, Pretty (Named h)) => Expr l (Named h) -> Doc ann
+prettySplit e
+  | null helpers = pretty e
+  | otherwise = nest 2 $ vsep
+    [ pretty $ fmap (.name) e
+    , nest 2 . vsep $ "where"
+      : List.intersperse "" helpers
+    ]
+  where helpers = map pretty $ holes e
+
+synthesize :: Options -> Problem -> Solution
+synthesize options problem = case runSearchBest searchSpace of
+  Nothing -> Failure Exhausted
+  -- TODO: when we add a fuel limit, it says depleted even if it should be
+  -- exhausted. How do we distinguish between them?
+  Just (Sum weight, result) -> case result of
+    Nothing -> Failure Depleted
+    Just filling -> Success weight case vacant filling of
+      Nothing -> PartialExtract filling
+      Just program -> TotalExtract program
+  where
+    limitFuel Nothing = fmap Just
+    limitFuel (Just n) = limit n
+
+    searchSpace = search datatypes
+      . limitFuel options.fuel
+      $ runTac problem options.tactic
 
 type Synth sig m =
   ( Has (Reader Context) sig m

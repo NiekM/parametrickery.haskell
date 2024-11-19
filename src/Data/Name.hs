@@ -1,5 +1,5 @@
 module Data.Name
-  ( Name(Name)
+  ( Name(..)
   , Named(..)
   , fromString
   , rename
