@@ -157,5 +157,23 @@ test-suite parametrickery-test
       hspec
     , parametrickery
     , QuickCheck
-    , text
+
+benchmark parametrickery-bench
+  -- Import shared properties.
+  import:           shared-properties
+
+  -- The interface type and version of the test suite.
+  type:             exitcode-stdio-1.0
+
+  -- Directories containing source files.
+  hs-source-dirs:   bench
+
+  -- The entrypoint to the test suite.
+  main-is:          Main.hs
+
+  other-modules: Model
+
+  -- Test dependencies.
+  build-depends:
+      criterion
     , parametrickery
