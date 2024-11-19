@@ -46,7 +46,7 @@ main = do
     let len = Text.length name.getName
     let padding = pretty $ replicate (maxLength + 3 - len) ' '
     putStr . show $ pretty name <> ":" <> padding
-    timed <- timeout 1_000_000 . evaluate $ synthesiz def problem
+    timed <- timeout 1_000_000 . evaluate $ synthesize def problem
     case timed of
       Nothing ->
         putStrLn "timeout" >> return False
