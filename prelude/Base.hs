@@ -1,7 +1,6 @@
 module Base
   ( module Data.Function
   , module Data.Int
-  , module Data.String
   , module Data.Void
   , module Data.Bool
   , module Data.Text
@@ -32,11 +31,11 @@ module Base
   , module System.IO
   , module Prettyprinter
   , module Data.Name
+  , module Data.Nat
   , module GHC.Num
   , module GHC.Show
   , module GHC.Read
   , module GHC.Real
-  , Nat
   , Project(..)
   , undefined
   , error
@@ -51,7 +50,6 @@ import GHC.Read (Read(..))
 import GHC.Real (fromIntegral)
 
 import Data.Int (Int)
-import Data.String (String)
 import Data.Void
 import Data.Text (Text)
 import Data.Bool
@@ -91,9 +89,9 @@ import System.IO
 import Prettyprinter (Pretty(..), (<+>), parens, indent)
 
 import Data.Name
+import Data.Nat
 
 import Data.String
-import Numeric.Natural (Natural)
 import Debug.Trace qualified as Debug
 import GHC.Err qualified as Err
 
@@ -105,8 +103,6 @@ error = Err.error
 
 trace :: String -> a -> a
 trace = Debug.trace
-
-type Nat = Natural
 
 class Project a where
   projections :: a -> [a]

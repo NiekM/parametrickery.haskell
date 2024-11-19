@@ -128,14 +128,18 @@ library parametrickery-prelude
       Base
     , Data.Map.Multi
     , Data.Name
+    , Data.Nat
     , Data.Tree.Binary
+    , Test.Compare
 
   -- Modules included in this library but not exported.
   other-modules:
       Data.Map.Utils
 
   -- Other library packages from which modules are imported.
-  build-depends: fused-effects
+  build-depends:
+      fused-effects
+    , QuickCheck
 
   -- Directories containing source files.
   hs-source-dirs:   prelude
@@ -168,9 +172,7 @@ test-suite parametrickery-test
   -- The entrypoint to the test suite.
   main-is:          Main.hs
 
-  other-modules:
-      Model
-    , Test.Compare
+  -- other-modules:
 
   -- Test dependencies.
   build-depends:

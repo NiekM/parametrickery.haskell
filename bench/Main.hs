@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 module Main where
 
 import Base
@@ -11,7 +9,6 @@ import Control.Exception (evaluate)
 import Criterion.Main
 import Test.QuickCheck hiding (Success, Failure)
 
-import Data.Tree.Binary
 import Language.Generics (Interpret(..))
 import Language.Problem
 import Language.Parser
@@ -123,21 +120,3 @@ models =
   , Named "unzip"             . Model $ Model.unzip @Int @Int
   , Named "zip"               . Model $ Model.zip @Int @Int
   ]
-
--- TODO: put these in a better location
-
-instance Arbitrary Nat where
-  arbitrary = fromInteger . abs <$> arbitrary
-
-instance Arbitrary2 Tree where
-  liftArbitrary2 gen1 gen2 = sized \n -> do
-    k <- choose (0, n)
-    go k
-    where
-      go 0 = Leaf <$> gen2
-      go n = do
-        k <- choose (0, n - 1)
-        Node <$> go k <*> gen1 <*> go (n - k - 1)
-
-instance (Arbitrary a, Arbitrary b) => Arbitrary (Tree a b) where
-  arbitrary = arbitrary2
