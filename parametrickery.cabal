@@ -103,11 +103,7 @@ library
     , Test
 
   -- Modules included in this library but not exported.
-  other-modules:
-    , Control.Effect.Search
-    , Control.Effect.Fresh.Named
-    , Control.Effect.Weight
-    , Utils
+  -- other-modules:
 
   -- Other library packages from which modules are imported.
   build-depends:
@@ -126,19 +122,24 @@ library parametrickery-prelude
   -- Modules exported by the library.
   exposed-modules:
       Base
+    , Control.Effect.Fresh.Named
+    , Control.Effect.Search
+    , Control.Effect.Weight
     , Data.Map.Multi
+    , Data.Map.Utils
     , Data.Name
     , Data.Nat
     , Data.Tree.Binary
     , Test.Compare
+    , Utils
 
   -- Modules included in this library but not exported.
-  other-modules:
-      Data.Map.Utils
+  -- other-modules:
 
   -- Other library packages from which modules are imported.
   build-depends:
       fused-effects
+    , monad-dijkstra
     , QuickCheck
 
   -- Directories containing source files.
