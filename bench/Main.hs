@@ -45,9 +45,9 @@ main = do
         putStrLn "out of fuel" >> return False
       Just (Failure Exhausted) ->
         putStrLn "unrealizable" >> return True
-      Just (Success _ (Unfinished _filling)) ->
+      Just (Success ((_, Unfinished _filling) :| _)) ->
         putStrLn "out of tactics" >> return False
-      Just (Success _ (Finished program))
+      Just (Success ((_, Finished program) :| _))
         | testProblem program problem -> do
           result <- quickCheckWithResult stdArgs { chatty = False }
             . withMaxSize 25 $ comparison model (interpret program)

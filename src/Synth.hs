@@ -44,13 +44,19 @@ import Utils
 data Arguments = Arguments
   { tactic :: Refinement SynthC
   , fuel :: Maybe Nat
-  , time :: Maybe Nat
+  , solutions :: Maybe Nat
   , settings :: Settings
   , context :: Context
   }
 
 def :: Arguments
-def = Arguments auto Nothing Nothing defaultSettings datatypes
+def = Arguments
+  { tactic = auto
+  , fuel = Nothing
+  , solutions = Just 1
+  , settings = defaultSettings
+  , context = datatypes
+  }
 
 data SynthFailure
   = Exhausted -- out of programs
@@ -73,13 +79,14 @@ instance Pretty Extract where
     Unfinished filling -> prettySplit filling
 
 data Solution
-  = Success Nat Extract
+  = Success (NonEmpty (Nat, Extract))
   | Failure SynthFailure
   deriving stock (Eq, Ord, Show)
 
 instance Pretty Solution where
   pretty = \case
-    Success _ extr -> pretty extr
+    Success ((_, extr) :| []) -> pretty extr
+    Success extracts -> pretty . toList $ fmap snd extracts
     Failure failure -> pretty failure
 
 prettySplit :: (Pretty h, Pretty (Named h)) => Expr l (Named h) -> Doc ann
@@ -92,23 +99,32 @@ prettySplit e
     ]
   where helpers = map pretty $ holes e
 
+takeWhileJust :: [Maybe a] -> [a]
+takeWhileJust = foldr (maybe (const []) (:)) []
+
 synthesize :: Arguments -> Problem -> Solution
-synthesize args problem = case runSearchBest searchSpace of
-  Nothing -> Failure Exhausted
+synthesize args problem = case runSearch searchSpace of
+  [] -> Failure Exhausted
   -- TODO: when we add a fuel limit, it says depleted even if it should be
   -- exhausted. How do we distinguish between them?
-  Just (Sum weight, result) -> case result of
-    Nothing -> Failure Depleted
-    Just filling -> Success weight case vacant $ norm mempty filling of
-      Nothing -> Unfinished filling
-      Just program -> Finished program
+  xs ->
+    let take = maybe id List.genericTake args.solutions
+    in case take . takeWhileJust $ map sequence xs of
+    [] -> Failure Depleted
+    (y:ys) -> Success $ (y :| ys) <&> \(Sum weight, filling) ->
+      (weight, toExtract filling)
   where
-    limitFuel Nothing = fmap Just
-    limitFuel (Just n) = limit n
+    toExtract :: Filling -> Extract
+    toExtract filling =
+      let normalized = norm mempty filling
+      in case vacant normalized of
+        Nothing -> Unfinished normalized
+        Just program -> Finished program
 
+    searchSpace :: Search (Sum Nat) (Maybe Filling)
     searchSpace = search args.settings args.context
-      . limitFuel args.fuel
-      $ runTac problem args.tactic
+      . maybe (fmap Just) limit args.fuel
+      $ runTac problem (hole "_" `andThen` args.tactic)
 
 type Synth sig m =
   ( Has (Reader Context) sig m

@@ -167,7 +167,7 @@ synthAll = do
 
 synth :: Problem -> Maybe (Program Void)
 synth problem = case synthesize def problem of
-  Success _ (Finished program) -> Just program
+  Success ((_, Finished program) :| _) -> Just program
   _ -> Nothing
 
 runCheck :: Problem -> Either Conflict [Rule]
