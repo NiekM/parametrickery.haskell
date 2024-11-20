@@ -129,6 +129,7 @@ library parametrickery-prelude
     , Data.Map.Utils
     , Data.Name
     , Data.Nat
+    , Data.Some
     , Data.Tree.Binary
     , Test.Compare
     , Utils

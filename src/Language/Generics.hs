@@ -15,6 +15,7 @@ import Data.Void
 import Data.Kind
 import Data.Proxy
 
+import Data.Some
 import Data.Tree.Binary
 
 import Base
@@ -45,6 +46,9 @@ class ToExpr a where
   default toExpr :: (Generic a, GToExpr (Rep a)) => a -> Value
   toExpr = gtoExpr . from
 
+instance ToExpr Value where
+  toExpr = id
+
 instance ToExpr Int where
   toExpr = Lit . MkInt
 
@@ -64,6 +68,7 @@ instance ToExpr Bool
 instance ToExpr Ordering
 instance ToExpr a => ToExpr (Maybe a)
 instance ToExpr a => ToExpr [a]
+instance ToExpr a => ToExpr (Some a)
 instance (ToExpr a, ToExpr b) => ToExpr (Either a b)
 instance (ToExpr a, ToExpr b) => ToExpr (Tree a b)
 
