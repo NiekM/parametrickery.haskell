@@ -4,6 +4,8 @@
 module Tactic
   ( Tactic
   , TacticC
+  , Settings(..)
+  , defaultSettings
   , TacticFailure(..)
   , Filling
   , runTactic
@@ -38,6 +40,17 @@ import Language.Type
 
 import Language.Container
 
+data Settings = Settings
+  { removeDuplicates :: Bool
+  , removeIrrelevant :: Bool
+  } deriving (Eq, Ord, Show)
+
+defaultSettings :: Settings
+defaultSettings = Settings
+  { removeDuplicates = True
+  , removeIrrelevant = True
+  }
+
 data TacticFailure
   = NotApplicable
   | TraceIncomplete
@@ -52,13 +65,14 @@ instance Pretty TacticFailure where
 
 type Tactic sig m =
   ( Has (Reader Context) sig m
+  , Has (Reader Settings) sig m
   , Has (Reader Problem) sig m
   , Has Fresh sig m
   , Has (Throw TacticFailure) sig m
   )
 
-type TacticC m =
-  ReaderC Problem (ReaderC Context (ErrorC TacticFailure (FreshC m)))
+type TacticC m = ReaderC Problem
+  (ReaderC Settings (ReaderC Context (ErrorC TacticFailure (FreshC m))))
 
 type Filling = Program (Named Problem)
 
@@ -69,8 +83,8 @@ liftThrow f m = runError m >>= \case
 
 runTactic :: Functor m => Context -> Problem -> TacticC m a ->
   m (Either TacticFailure a)
-runTactic ctx problem =
-  evalFresh . runError . runReader ctx . runReader problem
+runTactic ctx problem = evalFresh . runError . runReader ctx
+  . runReader defaultSettings . runReader problem
 
 getArg :: Tactic sig m => Name -> m Arg
 getArg name = do
@@ -95,8 +109,12 @@ hole :: Tactic sig m => Name -> m Filling
 hole v = do
   _ <- checkRealizable
   name <- freshName v
-  elimTuples $ local removeDuplicates $ removeIrrelevant do
-    Hole . Named name <$> ask
+  settings :: Settings <- ask
+  foldr (.) id
+    [ elimTuples
+    , applyWhen settings.removeDuplicates $ local removeDuplicates
+    , applyWhen settings.removeIrrelevant removeIrrelevant
+    ] do Hole . Named name <$> ask
 
 -- NOTE: computing irrelevance is currently super slow
 removeIrrelevant :: Tactic sig m => m Filling -> m Filling

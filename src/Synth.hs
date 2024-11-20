@@ -5,7 +5,7 @@ module Synth
   , Solution(..)
   , SynthFailure(..)
   , Extract(..)
-  , Options(..)
+  , Arguments(..)
   , def
   , Synth
   , SynthC
@@ -41,19 +41,26 @@ import Prettyprinter
 
 import Utils
 
-data Options = Options
+data Arguments = Arguments
   { tactic :: Refinement SynthC
   , fuel :: Maybe Nat
   , time :: Maybe Nat
+  , settings :: Settings
+  , context :: Context
   }
 
-def :: Options
-def = Options auto Nothing Nothing
+def :: Arguments
+def = Arguments auto Nothing Nothing defaultSettings datatypes
 
 data SynthFailure
   = Exhausted -- out of programs
   | Depleted -- out of fuel
   deriving stock (Eq, Ord, Show)
+
+instance Pretty SynthFailure where
+  pretty = \case
+    Exhausted -> "Exhausted"
+    Depleted -> "Depleted"
 
 data Extract
   = Finished (Program Void)
@@ -70,6 +77,11 @@ data Solution
   | Failure SynthFailure
   deriving stock (Eq, Ord, Show)
 
+instance Pretty Solution where
+  pretty = \case
+    Success _ extr -> pretty extr
+    Failure failure -> pretty failure
+
 prettySplit :: (Pretty h, Pretty (Named h)) => Expr l (Named h) -> Doc ann
 prettySplit e
   | null helpers = pretty e
@@ -80,23 +92,23 @@ prettySplit e
     ]
   where helpers = map pretty $ holes e
 
-synthesize :: Options -> Problem -> Solution
-synthesize options problem = case runSearchBest searchSpace of
+synthesize :: Arguments -> Problem -> Solution
+synthesize args problem = case runSearchBest searchSpace of
   Nothing -> Failure Exhausted
   -- TODO: when we add a fuel limit, it says depleted even if it should be
   -- exhausted. How do we distinguish between them?
   Just (Sum weight, result) -> case result of
     Nothing -> Failure Depleted
-    Just filling -> Success weight case vacant filling of
+    Just filling -> Success weight case vacant $ norm mempty filling of
       Nothing -> Unfinished filling
       Just program -> Finished program
   where
     limitFuel Nothing = fmap Just
     limitFuel (Just n) = limit n
 
-    searchSpace = search datatypes
-      . limitFuel options.fuel
-      $ runTac problem options.tactic
+    searchSpace = search args.settings args.context
+      . limitFuel args.fuel
+      $ runTac problem args.tactic
 
 type Synth sig m =
   ( Has (Reader Context) sig m
@@ -118,10 +130,10 @@ type Ref sig m =
 -- refinement. Clicking on refinements explores them (if realizable) and perhaps
 -- outputs the current state to the console? Or perhaps a next button that
 -- explores the next node (based on its weight).
-type SynthC = ReaderC Context (FreshC (Search (Sum Nat)))
+type SynthC = ReaderC Settings (ReaderC Context (FreshC (Search (Sum Nat))))
 
-search :: Context -> SynthC a -> Search (Sum Nat) a
-search ctx = evalFresh . runReader ctx
+search :: Settings -> Context -> SynthC a -> Search (Sum Nat) a
+search settings ctx = evalFresh . runReader ctx . runReader settings
 
 type Refinement m = ReaderC Problem (ErrorC TacticFailure m) Filling
 

@@ -12,17 +12,21 @@ import Test.QuickCheck hiding (Success, Failure)
 import Language.Generics (Interpret(..))
 import Language.Problem
 import Language.Parser
+import Tactic
 import Synth
 
 import Test.Compare
 import Model qualified
 
-benchProblem :: Named Problem -> Benchmark
-benchProblem (Named name problem) =
-  bench (show $ pretty name) $ whnf (synthesize def) problem 
+benchProblem :: Arguments -> Named Problem -> Benchmark
+benchProblem args (Named name problem) =
+  bench (show $ pretty name) $ whnf (synthesize args) problem
 
 main :: IO ()
 main = do
+
+  let args = def { settings = defaultSettings { removeIrrelevant = False } }
+
   problems <- forM models \model -> do
     problem <- loadProblem model.name
     return $ fmap (problem,) model
@@ -33,7 +37,7 @@ main = do
     let len = Text.length name.getName
     let padding = pretty $ replicate (maxLength + 3 - len) ' '
     putStr . show $ pretty name <> ":" <> padding
-    timed <- timeout 1_000_000 . evaluate $ synthesize def problem
+    timed <- timeout 1_000_000 . evaluate $ synthesize args problem
     case timed of
       Nothing ->
         putStrLn "timeout" >> return False
@@ -45,9 +49,8 @@ main = do
         putStrLn "out of tactics" >> return False
       Just (Success _ (Finished program))
         | testProblem program problem -> do
-          let args = stdArgs { chatty = False }
-          result <- quickCheckWithResult args . withMaxSize 25 $
-            comparison model (interpret program)
+          result <- quickCheckWithResult stdArgs { chatty = False }
+            . withMaxSize 25 $ comparison model (interpret program)
           if isSuccess result
             then putStrLn "success" >> return True
             else putStrLn "overfitted" >> return False
@@ -55,7 +58,7 @@ main = do
 
   let benches = map (fst <$>) successful
 
-  defaultMain $ map benchProblem benches
+  defaultMain $ map (benchProblem args) benches
 
 loadProblem :: Name -> IO Problem
 loadProblem name = do

@@ -37,7 +37,6 @@ orElse t u = catchError @TacticFailure t $ const u
 firstOf :: Has (Error TacticFailure) sig m => [m a] -> m a
 firstOf = foldr orElse $ throwError NotApplicable
 
--- TODO: should we not check for realizability inbetween?
 andThen :: Tactic sig m => m Filling -> m Filling -> m Filling
 andThen f g = do
   filling <- f
