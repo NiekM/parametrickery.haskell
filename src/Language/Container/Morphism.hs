@@ -113,6 +113,8 @@ applyRule :: Rule -> [Value] -> Maybe Value
 applyRule rule terms = do
   inElements <- matchPattern rule.input terms
   outElements <-
+    -- Here, at the call to toMap, we arbitrarily pick one origin, which leads
+    -- to a bug...
     Multi.toMap $ Multi.compose (Multi.fromMap inElements) rule.origins
   accept <$> inject outElements rule.output
 
