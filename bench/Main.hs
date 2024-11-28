@@ -6,7 +6,7 @@ import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import System.Timeout (timeout)
 import Control.Exception (evaluate)
-import Criterion.Main
+import Test.Tasty.Bench
 import Test.QuickCheck hiding (Success, Failure)
 
 import Language.Generics (Interpret(..))

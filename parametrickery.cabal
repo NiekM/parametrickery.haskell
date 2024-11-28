@@ -200,7 +200,7 @@ benchmark parametrickery-bench
 
   -- Test dependencies.
   build-depends:
-      criterion
+      tasty-bench
     , parametrickery
     , parametrickery-prelude
     , QuickCheck

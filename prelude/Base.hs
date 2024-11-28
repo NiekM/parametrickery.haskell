@@ -36,10 +36,10 @@ module Base
   , module GHC.Show
   , module GHC.Read
   , module GHC.Real
+  , module Debug.Trace
   , Project(..)
   , undefined
   , error
-  , trace
   ) where
 
 import Data.Function
@@ -92,7 +92,7 @@ import Data.Name
 import Data.Nat
 
 import Data.String
-import Debug.Trace qualified as Debug
+import Debug.Trace (trace, traceM, traceShow, traceShowM)
 import GHC.Err qualified as Err
 
 undefined :: a
@@ -100,9 +100,6 @@ undefined = Err.undefined
 
 error :: String -> a
 error = Err.error
-
-trace :: String -> a -> a
-trace = Debug.trace
 
 class Project a where
   projections :: a -> [a]
