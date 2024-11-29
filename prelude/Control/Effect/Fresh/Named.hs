@@ -25,7 +25,8 @@ freshName t = do
   return $ t <> fromString (show n)
 
 newtype FreshC m a = FreshC { runFreshC :: StateC (Map Name Nat) m a }
-  deriving newtype (Alternative, Applicative, Functor, Monad, Fail.MonadFail, MonadFix, MonadIO, MonadPlus)
+  deriving newtype (Alternative, Applicative, Functor, Monad)
+  deriving newtype (Fail.MonadFail, MonadFix, MonadIO, MonadPlus)
 
 evalFresh :: Functor m => FreshC m a -> m a
 evalFresh (FreshC s) = evalState mempty s

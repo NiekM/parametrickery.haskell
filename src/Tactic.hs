@@ -109,9 +109,9 @@ checkRealizable = do
   problem <- ask @Problem
   liftThrow Unrealizable $ check problem
 
-hole :: Tactic sig m => Name -> m Filling
-hole v = do
-  _ <- checkRealizable
+hole :: Tactic sig m => Name -> Bool -> m Filling
+hole v recalculate = do
+  when recalculate $ void checkRealizable
   name <- freshName v
   settings :: Settings <- ask
   foldr (.) id
@@ -170,7 +170,8 @@ introTuple = do
   problem <- ask @Problem
   case problem.signature.output of
     Product _ ->
-      tuple <$> forM (projections problem) \p -> local (const p) (hole "_")
+      tuple <$> forM (projections problem) \p ->
+        local (const p) (hole "_" False)
     _ -> throwError NotApplicable -- not a tuple
 
 -- TODO: test this properly
@@ -197,7 +198,7 @@ introCtr = do
               let goals = projections ct
               es <- forM (zip exampless goals) \(examples, output) -> do
                 let signature = problem.signature { output } :: Signature
-                local (const Problem { signature, examples }) $ hole "_"
+                local (const Problem { signature, examples }) $ hole "_" False
               return . Ctr c $ tuple es
     _ -> throwError NotApplicable -- not a datatype
 
@@ -211,7 +212,7 @@ elimArg expr arg = do
       -- require all cases to have at least some examples
       when (any (null . (.examples) . snd) m) $ throwError NotApplicable
       arms <- forM m \(a, p) -> do
-        local (const p) $ binds [Named "a" a] $ hole "_"
+        local (const p) $ binds [Named "a" a] $ hole "_" False
       return $ App (Elim $ Map.assocs arms) (vacuous expr)
 
 elim :: Tactic sig m => Name -> m Filling
@@ -238,7 +239,7 @@ introMap name = do
         let signature = Signature constraints (context ++ [Named x t]) u
         let subproblem = Problem signature $ concat examples
         local (const subproblem) do
-          f <- hole "f"
+          f <- hole "f" True
           let result = Apps (Var "map") [Lams [x] f, Var name]
           return result
       _ -> throwError NotApplicable
@@ -268,7 +269,7 @@ introMapSome name = do
         let signature = Signature constraints (context ++ new) u
         let subproblem = Problem signature $ concat examples
         local (const subproblem) do
-          f <- hole "f"
+          f <- hole "f" True
           let result = Apps (Var "map") [Lams [x] f, Var name]
           return result
       _ -> throwError NotApplicable
@@ -300,7 +301,7 @@ introFilter name = do
             Signature constraints (context ++ [Named x t]) (Data "Bool" [])
           subproblem = Problem signature $ concat examples
         local (const subproblem) do
-          f <- hole "f"
+          f <- hole "f" True
           let result = Apps (Var "filter") [Lams [x] f, Var name]
           return result
       _ -> throwError NotApplicable
@@ -382,7 +383,7 @@ cata name = do
         f <- local (const $ Problem problem.signature
           { inputs = problem.signature.inputs ++
             [ Named r $ Data baseFunctor (ts ++ [problem.signature.output]) ]
-          } examples) $ hole "f"
+          } examples) $ hole "f" True
 
         let result = Apps (Var "cata") [Lams [r] f, Var name]
         return result
