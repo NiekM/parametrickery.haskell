@@ -124,7 +124,7 @@ synthesize args problem = case runSearch searchSpace of
     searchSpace :: Search (Sum Nat) (Maybe Filling)
     searchSpace = search args.settings args.context
       . maybe (fmap Just) limit args.fuel
-      $ runTac problem (hole "_" True `andThen` args.tactic)
+      $ runTac problem (hole True `andThen` args.tactic)
 
 type Synth sig m =
   ( Has (Reader Context) sig m

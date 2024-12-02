@@ -9,6 +9,7 @@ module Tactic
   , TacticFailure(..)
   , Filling
   , runTactic
+  , none
   , hole
   , assume
   , introCtr
@@ -44,6 +45,8 @@ import Language.Container
 import Data.Some
 import Language.Generics
 
+import Utils
+
 data Settings = Settings
   { removeDuplicates :: Bool
   , removeIrrelevant :: Bool
@@ -52,7 +55,7 @@ data Settings = Settings
 defaultSettings :: Settings
 defaultSettings = Settings
   { removeDuplicates = True
-  , removeIrrelevant = True
+  , removeIrrelevant = False
   }
 
 data TacticFailure
@@ -109,16 +112,32 @@ checkRealizable = do
   problem <- ask @Problem
   liftThrow Unrealizable $ check problem
 
-hole :: Tactic sig m => Name -> Bool -> m Filling
-hole v recalculate = do
-  when recalculate $ void checkRealizable
-  name <- freshName v
+reconstruct :: [Rule] -> Problem -> Problem
+reconstruct rules problem = problem { examples = fromRule <$> rules }
+  where
+    fromRule rule = fromMaybe (error "err") $
+      problem.examples & altMap \example ->
+        Example example.inputs <$> applyRule rule example.inputs
+
+tryRealizable :: Tactic sig m => m Filling -> m Filling
+tryRealizable cnt = do
+  rules <- checkRealizable
+  local (reconstruct rules) cnt
+
+none :: Tactic sig m => m Filling
+none = do
+  name <- freshName "_"
+  Hole . Named name <$> ask
+
+hole :: Tactic sig m => Bool -> m Filling
+hole recalculate = do
   settings :: Settings <- ask
   foldr (.) id
     [ elimTuples
-    , applyWhen settings.removeDuplicates $ local removeDuplicates
+    , applyWhen settings.removeDuplicates $ local removeIdenticalInputs
     , applyWhen settings.removeIrrelevant removeIrrelevant
-    ] do Hole . Named name <$> ask
+    , applyWhen recalculate tryRealizable
+    ] none
 
 -- NOTE: computing irrelevance is currently super slow
 removeIrrelevant :: Tactic sig m => m Filling -> m Filling
@@ -129,10 +148,9 @@ removeIrrelevant cnt = do
       Set.fromList $ map (.name) . filter ((== Free "_") . (.value)) $ signature.inputs) r.relevance
   local (hide irrelevantNames) cnt
 
-removeDuplicates :: Problem -> Problem
-removeDuplicates = onArgs \args ->
+removeIdenticalInputs :: Problem -> Problem
+removeIdenticalInputs = onArgs \args ->
   Args (nubOn (.value) args.inputs) args.output
-  where nubOn f = map NonEmpty.head . NonEmpty.groupAllWith f
 
 -- NOTE: this seems to work correctly, but fromRules does not work anymore in
 -- this different setting
@@ -171,7 +189,7 @@ introTuple = do
   case problem.signature.output of
     Product _ ->
       tuple <$> forM (projections problem) \p ->
-        local (const p) (hole "_" False)
+        local (const p) (hole False)
     _ -> throwError NotApplicable -- not a tuple
 
 -- TODO: test this properly
@@ -198,7 +216,7 @@ introCtr = do
               let goals = projections ct
               es <- forM (zip exampless goals) \(examples, output) -> do
                 let signature = problem.signature { output } :: Signature
-                local (const Problem { signature, examples }) $ hole "_" False
+                local (const Problem { signature, examples }) $ hole False
               return . Ctr c $ tuple es
     _ -> throwError NotApplicable -- not a datatype
 
@@ -212,7 +230,7 @@ elimArg expr arg = do
       -- require all cases to have at least some examples
       when (any (null . (.examples) . snd) m) $ throwError NotApplicable
       arms <- forM m \(a, p) -> do
-        local (const p) $ binds [Named "a" a] $ hole "_" False
+        local (const p) $ binds [Named "a" a] $ hole False
       return $ App (Elim $ Map.assocs arms) (vacuous expr)
 
 elim :: Tactic sig m => Name -> m Filling
@@ -239,7 +257,7 @@ introMap name = do
         let signature = Signature constraints (context ++ [Named x t]) u
         let subproblem = Problem signature $ concat examples
         local (const subproblem) do
-          f <- hole "f" True
+          f <- hole True
           let result = Apps (Var "map") [Lams [x] f, Var name]
           return result
       _ -> throwError NotApplicable
@@ -269,7 +287,7 @@ introMapSome name = do
         let signature = Signature constraints (context ++ new) u
         let subproblem = Problem signature $ concat examples
         local (const subproblem) do
-          f <- hole "f" True
+          f <- hole True
           let result = Apps (Var "map") [Lams [x] f, Var name]
           return result
       _ -> throwError NotApplicable
@@ -301,7 +319,7 @@ introFilter name = do
             Signature constraints (context ++ [Named x t]) (Data "Bool" [])
           subproblem = Problem signature $ concat examples
         local (const subproblem) do
-          f <- hole "f" True
+          f <- hole True
           let result = Apps (Var "filter") [Lams [x] f, Var name]
           return result
       _ -> throwError NotApplicable
@@ -383,7 +401,7 @@ cata name = do
         f <- local (const $ Problem problem.signature
           { inputs = problem.signature.inputs ++
             [ Named r $ Data baseFunctor (ts ++ [problem.signature.output]) ]
-          } examples) $ hole "f" True
+          } examples) $ hole True
 
         let result = Apps (Var "cata") [Lams [r] f, Var name]
         return result
