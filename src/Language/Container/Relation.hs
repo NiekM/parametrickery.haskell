@@ -10,7 +10,6 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
 import Base
-import Utils
 
 import Language.Type
 import Language.Expr
@@ -45,6 +44,10 @@ computeRelation p = \case
 computeRelations :: [Constraint] -> Map Position Value -> [Relation]
 computeRelations cs p = cs <&> computeRelation p
 
+increasing :: Ord a => [a] -> Bool
+increasing [] = True
+increasing (x:xs) = and $ zipWith (<) (x:xs) xs
+
 checkRelation :: Map Position Value -> Relation -> Bool
 checkRelation elements = \case
   RelEq r ->
@@ -52,4 +55,4 @@ checkRelation elements = \case
     in all ((== 1) . Set.size) q && Set.size q == Set.size r
   RelOrd r ->
     let q = map (Set.map (elements Map.!?)) r
-    in all ((== 1) . Set.size) q && ordered q
+    in all ((== 1) . Set.size) q && increasing q
