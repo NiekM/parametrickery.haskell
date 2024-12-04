@@ -28,3 +28,21 @@ main = do
   roundTrip (type [Int])
   roundTrip (Either Int Int)
   roundTrip (Tree Int Int)
+
+  -- TODO:
+  -- [ ] checkRelation (computeRelation ...) == True
+  -- [ ] applyRule ... (checkExample ...) == ...
+  -- [ ] reconstruct . reconstruct == reconstruct
+  -- [ ] norm . norm == norm
+
+  -- [ ] `greedy` always succeeds
+  -- [ ] isMap ==> isFold
+  -- [ ] isMap ==> isMapSome
+  -- [ ] isFilter ==> isFold
+  -- [ ] isFilter ==> isFilterSome
+  -- [ ] reversible ==> isFold
+  -- [ ] preserveRealizable introCtr
+  -- [ ] preserveRealizable introTuple
+  -- [ ] preserveRealizable (anywhere elim)
+  -- [ ] preserveRealizable (anywhere2 elimEq)
+  -- [ ] preserveRealizable (anywhere2 elimOrd)

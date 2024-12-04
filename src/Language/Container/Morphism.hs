@@ -120,3 +120,10 @@ applyRule rule terms = do
 
 applyRules :: [Rule] -> [Value] -> Maybe Value
 applyRules rules terms = altMap (`applyRule` terms) rules
+
+reconstruct :: [Rule] -> Problem -> Problem
+reconstruct rules problem = problem { examples = fromRule <$> rules }
+  where
+    fromRule rule = fromMaybe (error "err") $
+      problem.examples & altMap \example ->
+        Example example.inputs <$> applyRule rule example.inputs

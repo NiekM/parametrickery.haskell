@@ -14,7 +14,6 @@ data Nat
   | Succ Nat
   deriving (Eq, Ord, Show, Generic)
 
--- TODO: define recursive types using fixpoints?
 datatypes :: Context
 datatypes = Context $
   [ toData Bool

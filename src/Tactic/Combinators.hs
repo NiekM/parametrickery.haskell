@@ -37,12 +37,6 @@ orElse t u = catchError @TacticFailure t $ const u
 firstOf :: Has (Error TacticFailure) sig m => [m a] -> m a
 firstOf = foldr orElse $ throwError NotApplicable
 
-andThen :: Tactic sig m => m Filling -> m Filling -> m Filling
-andThen f g = do
-  filling <- f
-  join <$> forM filling \(Named _ p) ->
-    local (const p) g
-
 -- TODO: can we have an empty tactic at the end? maybe for that we should remove
 -- Named from filling
 allOf :: (Has (Catch TacticFailure) sig m, Tactic sig m) =>

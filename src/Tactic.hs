@@ -11,6 +11,7 @@ module Tactic
   , runTactic
   , none
   , hole
+  , andThen
   , assume
   , introCtr
   , introTuple
@@ -46,6 +47,12 @@ import Data.Some
 import Language.Generics
 
 import Utils
+
+-- TODO: split into multiple files
+-- - Tactic.Map
+-- - Tactic.Filter
+-- - Tactic.Fold
+-- - Tactic.Relation
 
 data Settings = Settings
   { removeDuplicates :: Bool
@@ -111,13 +118,6 @@ checkRealizable :: Tactic sig m => m [Rule]
 checkRealizable = do
   problem <- ask @Problem
   liftThrow Unrealizable $ check problem
-
-reconstruct :: [Rule] -> Problem -> Problem
-reconstruct rules problem = problem { examples = fromRule <$> rules }
-  where
-    fromRule rule = fromMaybe (error "err") $
-      problem.examples & altMap \example ->
-        Example example.inputs <$> applyRule rule example.inputs
 
 tryRealizable :: Tactic sig m => m Filling -> m Filling
 tryRealizable cnt = do
@@ -291,7 +291,6 @@ introMapSome name = do
           let result = Apps (Var "map") [Lams [x] f, Var name]
           return result
       _ -> throwError NotApplicable
-
 
 isFilter :: Eq a => [a] -> [a] -> Bool
 isFilter xs ys = filter (`elem` ys) xs == ys
