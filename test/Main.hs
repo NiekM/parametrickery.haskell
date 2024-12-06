@@ -12,6 +12,7 @@ import Test.Tasty.QuickCheck (testProperty)
 
 import Data.Tree.Binary
 import Language.Arbitrary ()
+import Language.Expr
 import Language.Generics
 
 showType :: forall a -> Typeable a => String
@@ -34,9 +35,14 @@ roundTrips = testGroup "fromExpr . toExpr == Just"
   , roundTrip (Tree Int Int)
   ]
 
+normValue :: TestTree
+normValue = testProperty "(normalize :: Value -> Value) == id"
+  \(v :: Value) -> normalize v == v
+
 main :: IO ()
 main = defaultMain $ testGroup "all"
   [ roundTrips
+  , normValue
   ]
 
   -- TODO:
