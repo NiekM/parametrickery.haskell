@@ -43,6 +43,9 @@ import Tactic
 import Tactic.Combinators
 import Synth
 
+import Test.QuickCheck hiding (Success, Failure, total)
+import Language.Arbitrary
+
 ------ Utilities ------
 
 parse :: Parse a => Text -> a
@@ -75,6 +78,12 @@ instance IsString (Named Problem) where
 
 instance IsString Problem where
   fromString = (.value) . fromString @(Named Problem)
+
+isAFold :: Problem -> Solution
+isAFold = synthesize def
+  { solutions = Nothing
+  , tactic = anywhere Tactic.fold
+  }
 
 isFold :: Named Problem -> [Either TacticFailure Filling]
 isFold problem = runTactic datatypes problem.value $ anywhere Tactic.fold
