@@ -142,6 +142,7 @@ library parametrickery-prelude
       fused-effects
     , monad-dijkstra
     , QuickCheck
+    , random
 
   -- Directories containing source files.
   hs-source-dirs:   prelude

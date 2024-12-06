@@ -1,5 +1,6 @@
 module Base
   ( module Data.Function
+  , module Data.String
   , module Data.Int
   , module Data.Void
   , module Data.Bool
@@ -47,8 +48,9 @@ import Data.Function
 import GHC.Num (Num(..))
 import GHC.Show (Show(..))
 import GHC.Read (Read(..))
-import GHC.Real (fromIntegral)
+import GHC.Real (fromIntegral, div, mod, divMod)
 
+import Data.String (String)
 import Data.Int (Int)
 import Data.Void
 import Data.Text (Text)
@@ -91,7 +93,6 @@ import Prettyprinter (Pretty(..), (<+>), parens, indent)
 import Data.Name
 import Data.Nat
 
-import Data.String
 import Debug.Trace (trace, traceM, traceShow, traceShowM)
 import GHC.Err qualified as Err
 
