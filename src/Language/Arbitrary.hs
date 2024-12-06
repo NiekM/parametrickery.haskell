@@ -3,13 +3,16 @@
 module Language.Arbitrary where
 
 import Base
+import Data.Map qualified as Map
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Tree.Binary
 
 import Test.QuickCheck hiding (total)
 import Language.Type
+import Language.Container
 import Language.Expr
+import Language.Problem
 import Language.Generics
 
 (|:) :: [a] -> a -> NonEmpty a
@@ -27,7 +30,7 @@ sizedMono :: [Name] -> Nat -> Gen Mono
 sizedMono free size = case size of
   0 -> frequency . map (second pure) $
     [ (1, Top)
-    , (2, Base Int)
+    -- , (2, Base Int)
     ] ++ [ (5, Free v) | v <- free ]
   n -> oneof . map snd $ filter fst
     [ (n >= 2,) $ Data "Tree" <$> do
@@ -42,22 +45,81 @@ sizedMono free size = case size of
       Product <$> forM (NonEmpty.toList sizes) (sizedMono free)
     ]
 
-aMono :: [Name] -> Gen Mono
-aMono free = sized \n -> choose (0, fromIntegral n) >>= sizedMono free
+mono :: [Name] -> Gen Mono
+mono free = sized \n -> choose (0, fromIntegral n) >>= sizedMono free
+
+sig :: [Name] -> Gen Signature
+sig free = do
+  len <- frequency . map (second pure) $ [(1, 1), (2, 2), (1, 3)]
+  ins <- replicateM len $ choose (0, 3) >>= sizedMono free
+  output <- choose (0, 3) >>= sizedMono free
+  let inputs = zipWith Named ["x", "y", "z"] ins
+  return $ Signature [] inputs output
 
 -- We assume that all free variables are instantiated as Int
-aConstant :: Mono -> Gen Value
-aConstant = \case
+constant :: Mono -> Gen Value
+constant = \case
   Free _ -> error "Unexpected free variable"
-  Base Int -> resize 5 $ Lit . MkInt <$> arbitrary
-  Product ts -> Tuple <$> forM ts (scale (`div` length ts) . aConstant)
+  Base Int -> resize 3 $ Lit . MkInt <$> arbitrary
+  Product ts -> Tuple <$> forM ts (scale (`div` length ts) . constant)
   Data "Bool" [] -> toExpr @Bool <$> arbitrary
+  Data "Ordering" [] -> toExpr @Ordering <$> arbitrary
   Data "List" [t] -> toExpr @[_] <$> liftArbitrary
-    (scale (`div` 2) $ aConstant t)
-  Data "Maybe" [t] -> toExpr @(Maybe _) <$> liftArbitrary (aConstant t)
+    (scale (`div` 2) $ constant t)
+  Data "Maybe" [t] -> toExpr @(Maybe _) <$> liftArbitrary (constant t)
   Data "Tree" [t, u] -> toExpr @(Tree _ _) <$> liftArbitrary2
-    (scale (`div` 2) $ aConstant t) (scale (`div` 2) $ aConstant u)
+    (scale (`div` 2) $ constant t) (scale (`div` 2) $ constant u)
   Data t _ -> error $ "Datatype " <> show t <> " not supported"
 
 instance Arbitrary Value where
-  arbitrary = aConstant =<< resize 3 (aMono [])
+  arbitrary = constant =<< resize 3 (mono [])
+
+instance Arbitrary Name where
+  arbitrary = sized \n -> do
+    k <- choose (1, n + 1)
+    fromString <$> vectorOf k do
+      elements $ '_' : ['a' .. 'z']
+
+instance Arbitrary1 Named where
+  liftArbitrary arb = Named <$> arbitrary <*> arb
+
+instance Arbitrary a => Arbitrary (Named a) where
+  arbitrary = arbitrary1
+
+constraint :: [Name] -> Gen Constraint
+constraint free = do
+  name <- elements free
+  elements [Eq name, Ord name]
+
+valueMap :: [Name] -> Gen (Map Position Value)
+valueMap free = sized \n -> do
+  Map.unions <$> forM free \name -> do
+    t <- resize 3 $ mono []
+    k <- choose (0, fromIntegral n)
+    Map.fromList <$> forM [0 .. k] \i -> do
+      (Named name i,) <$> constant t
+
+-- TODO: we may want to generate examples that are more likely to be realizable.
+-- For example, we could try to only generate signatures that are inhabited.
+-- Perhaps more interestingly: decide beforehand whether an example should be
+-- realizable, and ensure that around 50/50 are (un)realizable.
+example :: Signature -> Gen Example
+example signature = scale (`div` length signature.inputs) do
+  let ty = Data "Ordering" []
+  let arg = constant . instantiate (const ty)
+  inputs <- forM signature.inputs \input -> arg input.value
+  output <- arg signature.output
+  return $ Example inputs output
+
+problem :: [Name] -> Gen Problem
+problem free = do
+  signature <- sig free
+  len <- frequency . map (second pure) $
+    [ (2, 1)
+    , (3, 2)
+    , (2, 3)
+    , (1, 4)
+    , (1, 5)
+    ]
+  examples <- vectorOf len $ example signature
+  return $ Problem signature examples

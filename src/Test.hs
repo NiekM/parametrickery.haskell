@@ -44,7 +44,7 @@ import Tactic.Combinators
 import Synth
 
 import Test.QuickCheck hiding (Success, Failure, total)
-import Language.Arbitrary
+import Language.Arbitrary qualified as Arbitrary
 
 ------ Utilities ------
 

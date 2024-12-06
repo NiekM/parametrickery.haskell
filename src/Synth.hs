@@ -12,7 +12,7 @@ module Synth
   , Refinement
   , search
   , runTac
-  , step
+  , step, greedyStep
   , auto, greedy
   ) where
 
@@ -184,12 +184,15 @@ step = do
 auto :: Ref sig m => m Filling
 auto = step `andThen` auto
 
-greedy :: Ref sig m => m Filling
-greedy = firstOf
+greedyStep :: Ref sig m => m Filling
+greedyStep = firstOf
   [ anyOne assume
   , introTuple
   , introCtr
   , weigh 1 >> anyOne elim
   , weigh 1 >> anyTwo elimOrd
   , weigh 1 >> anyTwo elimEq
-  ] `andThen` greedy
+  ]
+
+greedy :: Ref sig m => m Filling
+greedy = greedyStep `andThen` greedy

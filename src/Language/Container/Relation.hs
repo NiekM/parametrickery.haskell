@@ -1,5 +1,6 @@
 module Language.Container.Relation
   ( Relation(..)
+  , computeRelation
   , computeRelations
   , relevant
   , checkRelation

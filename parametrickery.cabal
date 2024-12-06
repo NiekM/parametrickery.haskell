@@ -181,7 +181,8 @@ test-suite parametrickery-test
 
   -- Test dependencies.
   build-depends:
-      parametrickery
+      fused-effects
+    , parametrickery
     , parametrickery-prelude
     , tasty
     , tasty-quickcheck
