@@ -6,34 +6,45 @@ import Base
 
 import Data.Typeable
 
-import Test.QuickCheck hiding (Success, Failure)
-
-import Test.Compare
+import Test.QuickCheck (Arbitrary)
+import Test.Tasty
+import Test.Tasty.QuickCheck (testProperty)
 
 import Data.Tree.Binary
+import Language.Arbitrary ()
 import Language.Generics
 
+showType :: forall a -> Typeable a => String
+showType t = show . typeRep $ Proxy @t
+
 roundTrip :: forall a ->
-  (Arbitrary a, FromExpr a, ToExpr a, Eq a, Show a, Typeable a) => IO ()
-roundTrip t = do
-  putStrLn $ "Roundtripping " <> show (typeRep $ Proxy @t)
-  quickCheck . comparison Just $ fromExpr . toExpr @t
+  (Arbitrary a, FromExpr a, ToExpr a False, Eq a, Show a, Typeable a)
+  => TestTree
+roundTrip t = testProperty ("@(" <> showType t <> ")")
+  \(e :: t) -> fromExpr (toExpr e) == Just e
+
+roundTrips :: TestTree
+roundTrips = testGroup "fromExpr . toExpr == Just"
+  [ roundTrip Int
+  , roundTrip (type Bool)
+  , roundTrip (type Ordering)
+  , roundTrip (Maybe Int)
+  , roundTrip (type [Int])
+  , roundTrip (Either Int Int)
+  , roundTrip (Tree Int Int)
+  ]
 
 main :: IO ()
-main = do
-  roundTrip Int
-  roundTrip Bool
-  roundTrip Ordering
-  roundTrip (Maybe Int)
-  roundTrip (type [Int])
-  roundTrip (Either Int Int)
-  roundTrip (Tree Int Int)
+main = defaultMain $ testGroup "all"
+  [ roundTrips
+  ]
 
   -- TODO:
   -- [ ] checkRelation (computeRelation ...) == True
   -- [ ] applyRule ... (checkExample ...) == ...
   -- [ ] reconstruct . reconstruct == reconstruct
-  -- [ ] norm . norm == norm
+  -- [ ] normalize . normalize == normalize
+  -- [x] (normalize :: Value -> Value) == id
 
   -- [ ] `greedy` always succeeds
   -- [ ] isMap ==> isFold

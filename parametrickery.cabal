@@ -179,9 +179,10 @@ test-suite parametrickery-test
 
   -- Test dependencies.
   build-depends:
-      hspec
-    , parametrickery
+      parametrickery
     , parametrickery-prelude
+    , tasty
+    , tasty-quickcheck
     , QuickCheck
 
 benchmark parametrickery-bench
