@@ -116,7 +116,7 @@ synthesize args problem = case runSearch searchSpace of
   where
     toExtract :: Filling -> Extract
     toExtract filling =
-      let normalized = norm mempty filling
+      let normalized = normalize filling
       in case vacant normalized of
         Nothing -> Unfinished normalized
         Just program -> Finished program

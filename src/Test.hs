@@ -152,7 +152,7 @@ synthAll = do
 
     testAndPrint :: Named Problem -> Program Void -> IO Bool
     testAndPrint problem result = do
-      let f = norm mempty result
+      let f = normalize result
       print . indent 2 $ prettyNamed problem.name f
       case vacant f of
         Nothing -> False <$ putStrLn "Some holes left!"
@@ -178,7 +178,7 @@ testExtract program problem = forM problem.examples \example ->
   let
     inputs = map Value example.inputs
     expr = Apps program inputs
-  in case norm mempty expr of
+  in case normalize expr of
     Value output
       | output == example.output -> return True
       | otherwise -> do

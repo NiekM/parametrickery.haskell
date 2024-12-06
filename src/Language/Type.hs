@@ -2,7 +2,7 @@ module Language.Type where
 
 import Data.Functor.Compose
 import Data.Monoid (Any(..))
-import Data.Map qualified as Map
+import Data.List qualified as List
 import Data.Set qualified as Set
 
 import Base
@@ -27,12 +27,11 @@ instance Project Mono where
     Product ts -> ts
     t -> [t]
 
-instantiate :: Map Name Mono -> Mono -> Mono
-instantiate m = \case
-  Free a | Just t <- Map.lookup a m -> t
-  Free a -> Free a
-  Product ts -> Product (instantiate m <$> ts)
-  Data d ts -> Data d (instantiate m <$> ts)
+instantiate :: (Name -> Mono) -> Mono -> Mono
+instantiate f = \case
+  Free a -> f a
+  Product ts -> Product (instantiate f <$> ts)
+  Data d ts -> Data d (instantiate f <$> ts)
   Base b -> Base b
 
 -- Base types
@@ -78,7 +77,9 @@ getConstructors name ts ctx =
   case find name ctx.datatypes of
     Nothing -> error $ "Unknown datatype " <> show name
     Just datatype ->
-      let mapping = Map.fromList $ zip datatype.arguments ts
+      let
+        mapping var =
+          fromMaybe (Free var) . List.lookup var $ zip datatype.arguments ts
       in datatype.constructors <&> \(Named c t) ->
         Named c (instantiate mapping t)
 

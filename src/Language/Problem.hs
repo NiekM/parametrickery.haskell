@@ -33,7 +33,7 @@ testProblem program problem = and $ problem.examples <&> \example ->
   let
     inputs = map Value example.inputs
     expr = Apps program inputs
-  in case norm mempty expr of
+  in case normalize expr of
     Value output | output == example.output -> True
     _ -> False
 

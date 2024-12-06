@@ -17,7 +17,7 @@ module Language.Expr
   , Value
   , holes
   , accept
-  , norm
+  , normalize
   , asProgram
   , toValue
   , tuple
@@ -108,7 +108,10 @@ tuple :: [Expr l h] -> Expr l h
 tuple [x] = x
 tuple xs = Tuple xs
 
-norm :: Map Name (Program h) -> Program h -> Program h
+normalize :: Expr l h -> Expr l h
+normalize = norm mempty
+
+norm :: Map Name (Expr l h) -> Expr l h -> Expr l h
 norm ctx = \case
   Tuple xs -> Tuple $ map (norm ctx) xs
   Ctr c x -> Ctr c $ norm ctx x
