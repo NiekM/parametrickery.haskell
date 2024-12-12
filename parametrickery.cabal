@@ -101,6 +101,10 @@ library
     , Synth
     , Tactic
     , Tactic.Combinators
+    , Tactic.Filter
+    , Tactic.Fold
+    , Tactic.Map
+    , Tactic.Relation
     , Test
 
   -- Modules included in this library but not exported.

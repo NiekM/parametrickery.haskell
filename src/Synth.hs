@@ -34,6 +34,10 @@ import Language.Coverage
 
 import Tactic.Combinators
 import Tactic
+import Tactic.Map qualified as Tactic
+import Tactic.Filter qualified as Tactic
+import Tactic.Fold qualified as Tactic
+import Tactic.Relation qualified as Tactic
 
 import Language.Prelude
 import Data.List qualified as List
@@ -174,9 +178,9 @@ step = do
     Total -> greedy
     _ -> anyOne assume <| asum
       [ anywhere \x ->
-          (weigh 2 >> introMap x <| introFilter x <| (weigh 2 >> Tactic.fold x))
+          (weigh 2 >> Tactic.map x <| Tactic.filter x <| (weigh 2 >> Tactic.fold x))
           <|> (weigh 3 >> elim x)
-      , weigh 3 >> anywhere2 \x y -> elimOrd x y <| elimEq x y
+      , weigh 3 >> anywhere2 \x y -> Tactic.elimOrd x y <| Tactic.elimEq x y
       , weigh 1 >> introCtr
       , weigh 0 >> introTuple
       ]
@@ -190,8 +194,8 @@ greedyStep = firstOf
   , introTuple
   , introCtr
   , weigh 1 >> anyOne elim
-  , weigh 1 >> anyTwo elimOrd
-  , weigh 1 >> anyTwo elimEq
+  , weigh 1 >> anyTwo Tactic.elimOrd
+  , weigh 1 >> anyTwo Tactic.elimEq
   ]
 
 greedy :: Ref sig m => m Filling

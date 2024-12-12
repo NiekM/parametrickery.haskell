@@ -18,6 +18,7 @@ import System.Timeout
 import Control.Monad.Search
 import Control.Carrier.Reader
 import Control.Carrier.NonDet.Church
+import Control.Carrier.Error.Either
 import Control.Effect.Fresh.Named
 import Data.String
 import Prettyprinter
@@ -41,6 +42,7 @@ import Utils
 
 import Tactic
 import Tactic.Combinators
+import Tactic.Fold qualified as Tactic
 import Synth
 
 import Test.QuickCheck hiding (Success, Failure, total)
@@ -84,6 +86,14 @@ isAFold = synthesize def
   { solutions = Nothing
   , tactic = anywhere Tactic.fold
   }
+
+type TacticC m = ReaderC Problem
+  (ReaderC Settings (ReaderC Context (ErrorC TacticFailure (FreshC m))))
+
+runTactic :: Functor m => Context -> Problem -> TacticC m a ->
+  m (Either TacticFailure a)
+runTactic ctx problem = evalFresh . runError . runReader ctx
+  . runReader defaultSettings . runReader problem
 
 isFold :: Named Problem -> [Either TacticFailure Filling]
 isFold problem = runTactic datatypes problem.value $ anywhere Tactic.fold
