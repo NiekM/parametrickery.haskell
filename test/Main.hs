@@ -98,8 +98,8 @@ main = defaultMain $ testGroup "all"
   -- [ ] reconstruct . reconstruct == reconstruct
   -- [ ] normalize . normalize == normalize
   -- [x] (normalize :: Value -> Value) == id
-
   -- [?] `greedy` always succeeds
+  -- [ ] tactics "preserve" totality (the total amount of missing cases should stay the same)
   -- [ ] isMap ==> isFold
   -- [ ] isMap ==> isMapSome
   -- [ ] isFilter ==> isFold

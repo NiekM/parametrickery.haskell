@@ -29,7 +29,7 @@ data Problem = Problem
   } deriving stock (Eq, Ord, Show)
 
 testProblem :: Program Void -> Problem -> Bool
-testProblem program problem = and $ problem.examples <&> \example ->
+testProblem program problem = problem.examples & all \example ->
   let
     inputs = map Value example.inputs
     expr = Apps program inputs

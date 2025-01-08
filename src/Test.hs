@@ -42,7 +42,10 @@ import Utils
 
 import Tactic
 import Tactic.Combinators
+import Tactic.Filter qualified as Tactic
 import Tactic.Fold qualified as Tactic
+import Tactic.Map qualified as Tactic
+import Tactic.Relation qualified as Tactic
 import Synth
 
 import Test.QuickCheck hiding (Success, Failure, total)

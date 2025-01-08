@@ -10,7 +10,7 @@ module Tactic
   , getArg
   , none
   , hole
-  , andThen
+  , andThen, (>>>)
   , assume
   , introCtr
   , introTuple
@@ -215,9 +215,10 @@ elim name = do
   arg <- getArg name
   local (hide [name]) $ elimArg (Var name) arg
 
-andThen :: Tactic sig m => m Filling -> m Filling -> m Filling
+andThen, (>>>) :: Tactic sig m => m Filling -> m Filling -> m Filling
 andThen f g = do
   filling <- f
   join <$> forM filling \(Named _ p) ->
     local (const p) g
+(>>>) = andThen
 

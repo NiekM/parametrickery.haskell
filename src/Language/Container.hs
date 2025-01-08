@@ -24,7 +24,7 @@ data Container = Container
 -- variables.
 poly :: Has (Reader Context) sig m => Mono -> Term a -> m (Term (Name, Term a))
 poly = \cases
-  (Free v) x -> return $ return (v, x)
+  (Free v) x -> return $ Hole (v, x)
   (Product ts) (Tuple xs) -> Tuple <$> zipWithM poly ts xs
   (Data d ts) (Ctr c x) -> do
     cs <- asks $ getConstructors d ts
