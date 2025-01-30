@@ -41,3 +41,31 @@ filter name = do
 
 -- TODO: filterSome
 
+-- NOTE: one way to generalize filter.
+-- It would be cool to define filter in terms of partition, but we'd need to first introduce a 'fst' tactic, which has a wildcard on the second field of a tuple.
+partition :: Tactic sig m => Name -> m Filling
+partition name = do
+  Arg mono terms <- getArg name
+  local (hide [name]) do
+    problem <- ask @Problem
+    case (mono, problem.signature.output) of
+      (Data "List" [t], Product [Data "List" [u], Data "List" [v]]) -> do
+        when (t /= u || t /= v) $ throwError $ NotApplicable "list types do not match"
+        examples <- forM (zip terms problem.examples) \case
+          (List inputs, Example scope (Tuple [List trues, List falses])) -> do
+            unless (isFilter inputs trues && isFilter inputs falses) $ throwError $ NotApplicable "not a partition"
+            return $ List.nub inputs <&> \x ->
+              Example (scope ++ [x]) $ Bool $ x `elem` trues
+          _ -> error "Not actually lists."
+        x <- freshName "x"
+        let
+          Signature constraints context _ = problem.signature
+          signature =
+            Signature constraints (context ++ [Named x t]) (Data "Bool" [])
+          subproblem = Problem signature $ concat examples
+        local (const subproblem) do
+          f <- hole True
+          let result = Apps (Var "partition") [Lams [x] f, Var name]
+          return result
+      _ -> throwError $ NotApplicable "span only works on `List a -> (List a, List a)`"
+
