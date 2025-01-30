@@ -13,6 +13,8 @@ import Language.Generics (Interpret(..))
 import Language.Problem
 import Language.Parser
 import Tactic
+import Tactic.Combinators (anywhere)
+import Tactic.Fold qualified as Tactic
 import Synth
 
 import Test.Compare
@@ -22,39 +24,60 @@ benchProblem :: Arguments -> Named Problem -> Benchmark
 benchProblem args (Named name problem) =
   bench (show $ pretty name) $ whnf (synthesize args) problem
 
+paperBench :: [Named Model]
+paperBench = models & filter \model -> model.name `elem`
+  [ "null"
+  , "length"
+  , "head"
+  , "last"
+  , "tail"
+  , "init"
+  , "reverse"
+  , "index"
+  , "drop"
+  , "take"
+  , "splitAt"
+  , "append"
+  , "zip"
+  , "unzip"
+  , "concat"
+  ]
+
+testSynthesis :: Arguments -> Problem -> Model -> IO (String, Bool)
+testSynthesis args problem (Model model) = do
+  timed <- timeout 1_000_000 . evaluate $ synthesize args problem
+  case timed of
+    Nothing -> return ("timeout", False)
+    Just (Failure Depleted) -> return ("out of fuel", False)
+    Just (Failure Exhausted) -> return ("unrealizable", True)
+    Just (Success ((_, Unfinished _filling) :| _)) -> return ("realizable", True)
+    Just (Success ((_, Finished program) :| _))
+      | testProblem program problem -> do
+        result <- quickCheckWithResult stdArgs { chatty = False }
+          . withMaxSize 25 $ comparison model (interpret program)
+        return if isSuccess result
+          then ("success", True)
+          else ("overfitted", False)
+      | otherwise -> return ("inconsistent result", False)
+
 main :: IO ()
 main = do
 
   let args = def { settings = defaultSettings { removeIrrelevant = False } }
+  let testBench = models
 
-  problems <- forM models \model -> do
+  problems <- forM testBench \model -> do
     problem <- loadProblem model.name
     return $ fmap (problem,) model
 
   let maxLength = maximum $ problems <&> Text.length . (.name.getName)
 
-  successful <- problems & filterM \(Named name (problem, Model model)) -> do
+  successful <- problems & filterM \(Named name (problem, model)) -> do
     let len = Text.length name.getName
-    let padding = pretty $ replicate (maxLength + 3 - len) ' '
-    putStr . show $ pretty name <> ":" <> padding
-    timed <- timeout 1_000_000 . evaluate $ synthesize args problem
-    case timed of
-      Nothing ->
-        putStrLn "timeout" >> return False
-      Just (Failure Depleted) ->
-        putStrLn "out of fuel" >> return False
-      Just (Failure Exhausted) ->
-        putStrLn "unrealizable" >> return True
-      Just (Success ((_, Unfinished _filling) :| _)) ->
-        putStrLn "out of tactics" >> return False
-      Just (Success ((_, Finished program) :| _))
-        | testProblem program problem -> do
-          result <- quickCheckWithResult stdArgs { chatty = False }
-            . withMaxSize 25 $ comparison model (interpret program)
-          if isSuccess result
-            then putStrLn "success" >> return True
-            else putStrLn "overfitted" >> return False
-        | otherwise -> putStrLn "inconsistent result" >> return False
+    (str, res) <- testSynthesis args problem model
+    let padding = replicate (maxLength + 3 - len) ' '
+    putStrLn $ show (pretty name) <> ":" <> padding <> str
+    return res
 
   let benches = map (fst <$>) successful
 
