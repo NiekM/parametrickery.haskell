@@ -110,8 +110,8 @@ alt1 p q = (:|) <$> p <*> many (q *> p)
 parseList :: Shape -> Parser a -> Parser [a]
 parseList b p = brackets b (alt p (sep ","))
 
-statementSep :: Parser Lexeme
-statementSep = newline 0 <|> sep ";"
+statements :: Parser a -> Parser [a]
+statements p = catMaybes <$> alt (optional p) (newline 0)
 
 identifier :: Parser Name
 identifier = Name <$> flip token Set.empty \case
@@ -246,7 +246,7 @@ instance Parse Problem where
 instance Parse (Named Problem) where
   parser = do
     Named name signature <- parser
-    bs <- many (statementSep *> parser)
+    bs <- statements parser
     examples <- forM bs \(Named name' b) -> do
       guard $ name == name'
       return b
