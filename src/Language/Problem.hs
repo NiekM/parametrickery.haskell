@@ -49,7 +49,7 @@ data Args = Args
 
 toArgs :: Problem -> Args
 toArgs (Problem signature examples) = Args
-  { inputs = zipWith (fmap . flip Arg) inputs signature.inputs
+  { inputs = zipWith (fmap . flip Arg) (inputs ++ repeat []) signature.inputs
   , output = Arg signature.output outputs
   } where
     (inputs, outputs) = first List.transpose . unzip
