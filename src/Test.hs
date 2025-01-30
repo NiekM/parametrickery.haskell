@@ -108,7 +108,7 @@ runBench benchmark = do
     print $ "Problem:" <+> pretty problem.name
     putStrLn ""
     forM_ (isFold problem) \case
-      Left NotApplicable -> return ()
+      Left (NotApplicable _) -> return ()
       Left TraceIncomplete -> putStrLn "Trace incomplete"
       Left (Unrealizable conflict) -> print $ pretty conflict
       Right f -> do

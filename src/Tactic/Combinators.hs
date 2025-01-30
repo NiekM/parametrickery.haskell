@@ -35,7 +35,7 @@ orElse t u = catchError @TacticFailure t $ const u
 (<|) = orElse
 
 firstOf :: Has (Error TacticFailure) sig m => [m a] -> m a
-firstOf = foldr orElse $ throwError NotApplicable
+firstOf = foldr orElse $ throwError $ NotApplicable "empty list of tactics"
 
 -- TODO: can we have an empty tactic at the end? maybe for that we should remove
 -- Named from filling

@@ -20,10 +20,10 @@ filter name = do
     problem <- ask @Problem
     case (mono, problem.signature.output) of
       (Data "List" [t], Data "List" [u]) -> do
-        when (t /= u) $ throwError NotApplicable
+        when (t /= u) $ throwError $ NotApplicable "list types do not match"
         examples <- forM (zip terms problem.examples) \case
           (List inputs, Example scope (List outputs)) -> do
-            unless (isFilter inputs outputs) $ throwError NotApplicable
+            unless (isFilter inputs outputs) $ throwError $ NotApplicable "not a filter"
             return $ List.nub inputs <&> \x ->
               Example (scope ++ [x]) $ Bool $ x `elem` outputs
           _ -> error "Not actually lists."
@@ -37,7 +37,7 @@ filter name = do
           f <- hole True
           let result = Apps (Var "filter") [Lams [x] f, Var name]
           return result
-      _ -> throwError NotApplicable
+      _ -> throwError $ NotApplicable "filter only works on lists"
 
 -- TODO: filterSome
 

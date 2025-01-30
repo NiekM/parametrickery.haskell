@@ -45,7 +45,7 @@ cata name = do
         let baseFunctor = d <> "F"
         ds <- ask @Context
         case find baseFunctor ds.datatypes of
-          Nothing -> throwError NotApplicable
+          Nothing -> throwError $ NotApplicable "not a recursive datatype"
           _ -> return ()
         examples <- forM paired \(x, Example ins out) -> do
           e <- poly (Data baseFunctor (ts ++ [Free "r"])) x
@@ -65,5 +65,5 @@ cata name = do
         let result = Apps (Var "cata") [Lams [r] f, Var name]
         return result
 
-      _ -> throwError NotApplicable -- not implemented for all types
+      _ -> throwError $ NotApplicable "not a datatype"
 

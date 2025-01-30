@@ -20,7 +20,7 @@ map name = do
       (Data "List" [t], Data "List" [u]) -> do
         examples <- forM (zip terms problem.examples) \case
           (List inputs, Example scope (List outputs)) -> do
-            unless (length inputs == length outputs) $ throwError NotApplicable
+            unless (length inputs == length outputs) $ throwError $ NotApplicable "input and output length don't match"
             return $ zipWith (\x y -> Example (scope ++ [x]) y) inputs outputs
           _ -> error "Not actually lists."
         x <- freshName "x"
@@ -31,7 +31,7 @@ map name = do
           f <- hole True
           let result = Apps (Var "map") [Lams [x] f, Var name]
           return result
-      _ -> throwError NotApplicable
+      _ -> throwError $ NotApplicable "map only implemented for lists"
 
 mapSome :: Tactic sig m => Name -> m Filling
 mapSome name = do
@@ -42,7 +42,7 @@ mapSome name = do
       (Data "List" [t], Data "List" [u]) -> do
         examples <- forM (zip terms problem.examples) \case
           (List inputs, Example scope (List outputs)) -> do
-            unless (length inputs == length outputs) $ throwError NotApplicable
+            unless (length inputs == length outputs) $ throwError $ NotApplicable "input and output length don't match"
             let
               xs = case inputs of
                 [] -> error "cannot be"
@@ -61,6 +61,6 @@ mapSome name = do
           f <- hole True
           let result = Apps (Var "map") [Lams [x] f, Var name]
           return result
-      _ -> throwError NotApplicable
+      _ -> throwError $ NotApplicable "mapSome only implemented for lists"
 
 

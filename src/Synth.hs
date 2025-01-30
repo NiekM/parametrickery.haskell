@@ -161,7 +161,7 @@ runTac :: Synth sig m => Problem -> Refinement m -> m Filling
 runTac problem tactic = do
   let vars = variables problem
   runError (runReader problem (Lams vars <$> tactic)) >>= \case
-    Left NotApplicable -> empty
+    Left (NotApplicable _message) -> empty
     Left TraceIncomplete -> empty
     Left (Unrealizable _conflict) -> empty
     Right program -> return program

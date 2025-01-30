@@ -23,7 +23,7 @@ elimEq name1 name2 = do
       -> do
       let bools = Arg (Data "Bool" []) $ Bool <$> zipWith (==) xs ys
       elimArg (Apps (Var "eq") [Var name1, Var name2]) bools
-    _ -> throwError NotApplicable
+    _ -> throwError $ NotApplicable "args don't have the same type or have no Eq constraint"
 
 elimOrd :: Tactic sig m => Name -> Name -> m Filling
 elimOrd name1 name2 = do
@@ -37,5 +37,5 @@ elimOrd name1 name2 = do
       -> do
       let ords = Arg (Data "Ordering" []) $ Ordering <$> zipWith compare xs ys
       elimArg (Apps (Var "cmp") [Var name1, Var name2]) ords
-    _ -> throwError NotApplicable
+    _ -> throwError $ NotApplicable "args don't have the same type or have no Ord constraint"
 
