@@ -11,6 +11,7 @@ module Tactic
   , none
   , hole
   , andThen, (>>>)
+  , focus
   , assume
   , introCtr
   , introTuple
@@ -26,6 +27,7 @@ import Data.Set qualified as Set
 import Control.Carrier.Error.Either
 import Control.Carrier.Reader
 import Control.Effect.Fresh.Named
+import Control.Carrier.State.Strict
 
 import Base hiding (fold)
 import Language.Container.Morphism
@@ -129,8 +131,6 @@ removeIdenticalInputs :: Problem -> Problem
 removeIdenticalInputs = onArgs \args ->
   Args (nubOn (.value) args.inputs) args.output
 
--- NOTE: this seems to work correctly, but fromRules does not work anymore in
--- this different setting
 elimTuples :: Tactic sig m => m Filling -> m Filling
 elimTuples cnt = do
   args <- asks toArgs
@@ -222,4 +222,18 @@ andThen f g = do
   join <$> forM filling \(Named _ p) ->
     local (const p) g
 (>>>) = andThen
+
+enumerate :: Traversable t => t a -> t (Nat, a)
+enumerate t = run $ evalState @Nat 0 do
+  t & traverse \x -> do
+    n <- get
+    put (n + 1)
+    return (n, x)
+
+focus :: Tactic sig m => Nat -> m Filling -> m Filling -> m Filling
+focus n f g = do
+  filling <- f
+  let numbered = enumerate filling
+  join <$> forM numbered \(m, Named _ p) ->
+    local (const p) (if n == m then g else none)
 
