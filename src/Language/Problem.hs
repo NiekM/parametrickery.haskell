@@ -114,7 +114,7 @@ instance Project Example where
   projections (Example ins out) = Example ins <$> projections out
 
 instance Project Problem where
-  projections prob = zipWith Problem ss bs
+  projections prob = zipWith Problem ss (bs ++ repeat [])
     where
       ss = projections prob.signature
       bs = List.transpose $ map projections prob.examples
