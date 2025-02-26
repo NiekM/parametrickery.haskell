@@ -11,7 +11,7 @@ module Tactic
   , none
   , hole
   , andThen, (>>>)
-  , focus
+  , focus, (>>*)
   , assume
   , introCtr
   , introTuple
@@ -233,9 +233,14 @@ enumerate t = run $ evalState @Nat 0 do
     return (n, x)
 
 focus :: Tactic sig m => Nat -> m Filling -> m Filling -> m Filling
-focus n f g = do
+focus n f g = f >>* (replicate (fromIntegral n) none ++ [g])
+
+(>>*) :: Tactic sig m => m Filling -> [m Filling] -> m Filling
+(>>*) f gs = do
   filling <- f
   let numbered = enumerate filling
-  join <$> forM numbered \(m, Named _ p) ->
-    local (const p) (if n == m then g else none)
+  join <$> forM numbered \(n, Named _ p) ->
+    local (const p) case gs List.!? (fromIntegral n) of
+      Nothing -> none
+      Just g -> g
 
