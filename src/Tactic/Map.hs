@@ -20,7 +20,7 @@ map name = do
       (Data "List" [t], Data "List" [u]) -> do
         examples <- forM (zip terms problem.examples) \case
           (List inputs, Example scope (List outputs)) -> do
-            unless (length inputs == length outputs) $ throwError $ NotApplicable "input and output length don't match"
+            unless (length inputs == length outputs) $ throwError $ PropagationError "input and output length don't match"
             return $ zipWith (\x y -> Example (scope ++ [x]) y) inputs outputs
           _ -> error "Not actually lists."
         x <- freshName "x"
@@ -42,7 +42,7 @@ mapSome name = do
       (Data "List" [t], Data "List" [u]) -> do
         examples <- forM (zip terms problem.examples) \case
           (List inputs, Example scope (List outputs)) -> do
-            unless (length inputs == length outputs) $ throwError $ NotApplicable "input and output length don't match"
+            unless (length inputs == length outputs) $ throwError $ PropagationError "input and output length don't match"
             let
               xs = case inputs of
                 [] -> error "cannot be"

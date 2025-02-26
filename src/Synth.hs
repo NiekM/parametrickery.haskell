@@ -163,6 +163,7 @@ runTac problem tactic = do
   runError (runReader problem (Lams vars <$> tactic)) >>= \case
     Left (NotApplicable _message) -> empty
     Left TraceIncomplete -> empty
+    Left (PropagationError _message) -> empty
     Left (Unrealizable _conflict) -> empty
     Right program -> return program
 

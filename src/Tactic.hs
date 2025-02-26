@@ -55,6 +55,7 @@ defaultSettings = Settings
 data TacticFailure
   = NotApplicable Text
   | TraceIncomplete
+  | PropagationError Text
   | Unrealizable Conflict
   deriving stock (Eq, Ord, Show)
 
@@ -62,6 +63,7 @@ instance Pretty TacticFailure where
   pretty = \case
     NotApplicable t -> "Not Applicable:" <+> pretty t
     TraceIncomplete -> "Trace Incomplete"
+    PropagationError t -> "Propagation Failed:" <+> pretty t
     Unrealizable conflict -> pretty conflict
 
 type Tactic sig m =
@@ -167,7 +169,7 @@ introTuple = do
     Product _ ->
       tuple <$> forM (projections problem) \p ->
         local (const p) (hole False)
-    _ -> throwError $ NotApplicable "not a tuple"
+    _ -> throwError $ NotApplicable "goal is not a tuple"
 
 -- TODO: test this properly
 introCtr :: Tactic sig m => m Filling
@@ -195,15 +197,15 @@ introCtr = do
                 let signature = problem.signature { output } :: Signature
                 local (const Problem { signature, examples }) $ hole False
               return . Ctr c $ tuple es
-    _ -> throwError $ NotApplicable "not a datatype"
+    _ -> throwError $ NotApplicable "goal is not a datatype"
 
 elimArg :: Tactic sig m => Program Void -> Arg -> m Filling
 elimArg expr arg = do
   ctx <- ask @Context
   problem <- ask @Problem
   case split ctx arg problem of
-    Nothing -> throwError $ NotApplicable "split failed"
-    Just m -> do
+    Left e -> throwError $ NotApplicable $ "elim: " <> e
+    Right m -> do
       -- require all cases to have at least some examples
       -- TODO: this tactic should not be disallowed when examples are missing, but during synthesis we should have an option to disallow it.
       when (any (null . (.examples) . snd) m) $ throwError $ NotApplicable "not all cases have examples"

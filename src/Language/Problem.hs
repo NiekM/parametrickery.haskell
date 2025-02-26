@@ -95,11 +95,11 @@ outputArg problem = (toArgs problem).output
 named :: [Named a] -> Map Name a
 named = Map.fromList . map \x -> (x.name, x.value)
 
-split :: Context -> Arg -> Problem -> Maybe (Map Name (Arg, Problem))
+split :: Context -> Arg -> Problem -> Either Text (Map Name (Arg, Problem))
 split ctx (Arg (Data d ts) terms) (Problem signature examples) = do
   fields <- forM terms \case
-    Ctr c x -> Just (c, x)
-    _ -> Nothing
+    Ctr c x -> Right (c, x)
+    _ -> Left "field is not a constructor"
   let
     cs = named $ getConstructors d ts ctx
     paired = zipWith (fmap . (,)) examples fields
@@ -108,7 +108,7 @@ split ctx (Arg (Data d ts) terms) (Problem signature examples) = do
     args = Map.intersectionWith Arg cs vals
     prbs = Problem signature <$> exs
   return $ Map.intersectionWith (,) args prbs
-split _ _ _ = Nothing
+split _ _ _ = Left "argument is not a datatype"
 
 instance Project Example where
   projections (Example ins out) = Example ins <$> projections out

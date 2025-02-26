@@ -23,7 +23,7 @@ filter name = do
         when (t /= u) $ throwError $ NotApplicable "list types do not match"
         examples <- forM (zip terms problem.examples) \case
           (List inputs, Example scope (List outputs)) -> do
-            unless (isFilter inputs outputs) $ throwError $ NotApplicable "not a filter"
+            unless (isFilter inputs outputs) $ throwError $ PropagationError "not a filter"
             return $ List.nub inputs <&> \x ->
               Example (scope ++ [x]) $ Bool $ x `elem` outputs
           _ -> error "Not actually lists."
@@ -53,7 +53,7 @@ partition name = do
         when (t /= u || t /= v) $ throwError $ NotApplicable "list types do not match"
         examples <- forM (zip terms problem.examples) \case
           (List inputs, Example scope (Tuple [List trues, List falses])) -> do
-            unless (isFilter inputs trues && isFilter inputs falses) $ throwError $ NotApplicable "not a partition"
+            unless (isFilter inputs trues && isFilter inputs falses) $ throwError $ PropagationError "not a partition"
             return $ List.nub inputs <&> \x ->
               Example (scope ++ [x]) $ Bool $ x `elem` trues
           _ -> error "Not actually lists."
