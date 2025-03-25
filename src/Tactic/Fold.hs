@@ -23,47 +23,93 @@ liftThrow f m = runError m >>= \case
   Left e -> throwError $ f e
   Right x -> return x
 
+getBaseFunctor :: Tactic sig m => Mono -> m (Name, [Mono])
+getBaseFunctor = \case
+  Data d ts -> do
+    let baseFunctor = d <> "F"
+    ds <- ask @Context
+    case find baseFunctor ds.datatypes of
+      Nothing -> throwError $ NotApplicable "cannot unroll nonrecursive datatype"
+      _ -> return ()
+    return (baseFunctor, ts)
+  _ -> throwError $ NotApplicable "cannot unroll nondatatype"
+
+unroll :: Tactic sig m => Mono -> Term Void -> m (Term (Term Void))
+unroll mono term = do
+  (baseFunctor, types) <- getBaseFunctor mono
+  matched <- poly (Data baseFunctor (types ++ [Free "r"])) term
+  return $ matched >>= \case
+    ("r", x) -> return x
+    (_, other) -> absurd <$> other
+
 cata :: Tactic sig m => Name -> m Filling
 cata name = do
   Arg mono terms <- getArg name
   local (hide [name]) do
     problem <- ask @Problem
-    let
-      paired = zip terms problem.examples
-      restructured = Problem
-        { signature = problem.signature
-          { inputs = Named name mono : problem.signature.inputs }
-        , examples = paired <&> \(i, Example is o) -> Example (i:is) o
-        }
 
-    rules <- liftThrow Unrealizable $ check restructured
+    rules <- liftThrow Unrealizable $ check Problem
+      { signature = problem.signature
+        { inputs = Named name mono : problem.signature.inputs }
+      , examples = zip terms problem.examples <&>
+        \(i, Example is o) -> Example (i:is) o
+      }
 
     let recurse = applyRules rules
 
-    case mono of
-      Data d ts -> do
-        let baseFunctor = d <> "F"
-        ds <- ask @Context
-        case find baseFunctor ds.datatypes of
-          Nothing -> throwError $ NotApplicable "cata: argument is not a recursive datatype"
-          _ -> return ()
-        examples <- forM paired \(x, Example ins out) -> do
-          e <- poly (Data baseFunctor (ts ++ [Free "r"])) x
-          z <- join <$> forM e \case
-            ("r", r) -> case recurse (r:ins) of
-              Nothing -> throwError TraceIncomplete
-              Just q -> return q
-            (_, y) -> return y
-          return $ Example (ins ++ [z]) out
+    unrolled <- forM terms $ unroll mono
 
-        r <- freshName "r"
-        f <- local (const $ Problem problem.signature
-          { inputs = problem.signature.inputs ++
-            [ Named r $ Data baseFunctor (ts ++ [problem.signature.output]) ]
-          } examples) $ hole True
+    examples <- forM (zip unrolled problem.examples)
+      \(argument, Example inputs output) -> do
+        fixed <- join <$> forM argument \x ->
+          maybe (throwError TraceIncomplete) pure $ recurse (x:inputs)
+        return $ Example (inputs ++ [fixed]) output
 
-        let result = Apps (Var "cata") [Lams [r] f, Var name]
-        return result
+    (baseFunctor, types) <- getBaseFunctor mono
 
-      _ -> throwError $ NotApplicable "cata: argument is not a datatype"
+    r <- freshName "r"
+    f <- local (const $ Problem problem.signature
+      { inputs = problem.signature.inputs ++
+        [ Named r $ Data baseFunctor (types ++ [problem.signature.output]) ]
+      } examples) $ hole True
+
+    let result = Apps (Var "cata") [Lams [r] f, Var name]
+    return result
+
+para :: Tactic sig m => Name -> m Filling
+para name = do
+  Arg mono terms <- getArg name
+  local (hide [name]) do
+    problem <- ask @Problem
+
+    rules <- liftThrow Unrealizable $ check Problem
+      { signature = problem.signature
+        { inputs = Named name mono : problem.signature.inputs }
+      , examples = zip terms problem.examples <&>
+        \(i, Example is o) -> Example (i:is) o
+      }
+
+    let recurse = applyRules rules
+
+    unrolled <- forM terms $ unroll mono
+
+    examples <- forM (zip unrolled problem.examples)
+      \(argument, Example inputs output) -> do
+        fixed <- join <$> forM argument \x ->
+          maybe (throwError TraceIncomplete) (pure . Tuple . (:[x])) $ recurse (x:inputs)
+        return $ Example (inputs ++ [fixed]) output
+
+    (baseFunctor, types) <- getBaseFunctor mono
+
+    r <- freshName "r"
+    f <- local (const $ Problem problem.signature
+      { inputs = problem.signature.inputs ++
+        [ Named r $ Data baseFunctor (types ++
+          [Product [problem.signature.output, mono]])
+        ]
+      } examples) $ hole True
+
+    let result = Apps (Var "para") [Lams [r] f, Var name]
+
+    return result
 
