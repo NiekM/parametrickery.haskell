@@ -10,7 +10,6 @@ import Data.Functor.Identity
 
 import Test.QuickCheck (Arbitrary)
 import Test.Tasty
-import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck (testProperty, forAll, discard, classify, withMaxSize)
 import Control.Carrier.Reader
 import Control.Carrier.Throw.Either
