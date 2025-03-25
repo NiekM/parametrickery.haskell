@@ -29,10 +29,10 @@ getBaseFunctor = \case
     let baseFunctor = d <> "F"
     ds <- ask @Context
     case find baseFunctor ds.datatypes of
-      Nothing -> throwError $ NotApplicable "cannot unroll nonrecursive datatype"
+      Nothing -> notApplicable "cannot unroll nonrecursive datatype"
       _ -> return ()
     return (baseFunctor, ts)
-  _ -> throwError $ NotApplicable "cannot unroll nondatatype"
+  _ -> notApplicable "cannot unroll nondatatype"
 
 unroll :: Tactic sig m => Mono -> Term Void -> m (Term (Term Void))
 unroll mono term = do

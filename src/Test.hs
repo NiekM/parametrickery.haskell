@@ -89,7 +89,7 @@ instance IsString Problem where
 isAFold :: Problem -> Solution
 isAFold = synthesize def
   { solutions = Nothing
-  , tactic = anywhere Tactic.fold
+  , tactic = everywhere Tactic.fold
   }
 
 type TacticC m = ReaderC Problem
@@ -101,7 +101,7 @@ runTactic ctx problem = evalFresh . runError . runReader ctx
   . runReader defaultSettings . runReader problem
 
 isFold :: Named Problem -> [Either TacticFailure Filling]
-isFold problem = runTactic datatypes problem.value $ anywhere Tactic.fold
+isFold problem = runTactic datatypes problem.value $ everywhere Tactic.fold
 
 runBench :: [Named Problem] -> IO ()
 runBench benchmark = do

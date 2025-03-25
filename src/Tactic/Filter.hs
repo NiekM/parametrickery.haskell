@@ -20,7 +20,7 @@ filter name = do
     problem <- ask @Problem
     case (mono, problem.signature.output) of
       (Data "List" [t], Data "List" [u]) -> do
-        when (t /= u) $ throwError $ NotApplicable "list types do not match"
+        when (t /= u) $ notApplicable "list types do not match"
         examples <- forM (zip terms problem.examples) \case
           (List inputs, Example scope (List outputs)) -> do
             unless (isFilter inputs outputs) $ throwError $ PropagationError "not a filter"
@@ -37,7 +37,7 @@ filter name = do
           f <- hole True
           let result = Apps (Var "filter") [Lams [x] f, Var name]
           return result
-      _ -> throwError $ NotApplicable "filter only works on lists"
+      _ -> notApplicable "filter only works on lists"
 
 -- TODO: filterSome
 
@@ -50,7 +50,7 @@ partition name = do
     problem <- ask @Problem
     case (mono, problem.signature.output) of
       (Data "List" [t], Product [Data "List" [u], Data "List" [v]]) -> do
-        when (t /= u || t /= v) $ throwError $ NotApplicable "list types do not match"
+        when (t /= u || t /= v) $ notApplicable "list types do not match"
         examples <- forM (zip terms problem.examples) \case
           (List inputs, Example scope (Tuple [List trues, List falses])) -> do
             unless (isFilter inputs trues && isFilter inputs falses) $ throwError $ PropagationError "not a partition"
@@ -67,5 +67,5 @@ partition name = do
           f <- hole True
           let result = Apps (Var "partition") [Lams [x] f, Var name]
           return result
-      _ -> throwError $ NotApplicable "span only works on `List a -> (List a, List a)`"
+      _ -> notApplicable "span only works on `List a -> (List a, List a)`"
 

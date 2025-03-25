@@ -27,15 +27,15 @@ import Control.Carrier.Reader
 import Control.Monad.Search
 import Control.Effect.Search ()
 
-import Base
+import Base hiding (repeat)
 import Language.Type
 import Language.Expr
 import Language.Problem
 import Language.Container.Morphism
 import Language.Coverage
 
-import Tactic.Combinators
 import Tactic
+import Tactic.Combinators
 import Tactic.Map qualified as Tactic
 import Tactic.Filter qualified as Tactic
 import Tactic.Fold qualified as Tactic
@@ -169,6 +169,24 @@ runTac problem tactic = do
     Left (Unrealizable _conflict) -> empty
     Right program -> return program
 
+-- TODO: use relevancy
+-- TODO: normalize problems by removing examples that are equivalent
+-- TODO: do we want to use weights? it might be nicer to add those later,
+--       if we add labels we can then use those to weigh the search.
+
+-- * Larger tactic groups
+
+constructors :: Ref sig m => m Filling
+constructors = introCtr <| introTuple
+
+eliminators :: Ref sig m => Name -> m Filling
+eliminators x = Tactic.map x <| Tactic.filter x <| Tactic.fold x <| Tactic.para x <| elim x
+
+relations :: Ref sig m => Name -> Name -> m Filling
+relations x y = Tactic.elimOrd x y <| Tactic.elimEq x y
+
+-- * Stopping conditions
+
 -- This is only applicable if the examples are fully covering.
 covering :: Ref sig m => m Filling
 covering = do
@@ -178,40 +196,7 @@ covering = do
     Left _ -> empty
   coverage problem.signature rules >>= \case
     Total -> none
-    _ -> throwError $ NotApplicable "no coverage"
-
--- TODO: use relevancy
--- TODO: normalize problems by removing examples that are equivalent
-step :: Ref sig m => m Filling
-step = anyOne assume <| asum
-  [ anywhere \x ->
-      -- Alternative tactic: use para if fold does not work, and use elim if its not a recursive datatype.
-      (weigh 2 >> Tactic.map x <| Tactic.filter x <| (weigh 2 >> Tactic.fold x <| Tactic.para x <| elim x))
-      -- (weigh 2 >> Tactic.map x <| Tactic.filter x <| (weigh 2 >> Tactic.fold x))
-      -- <|> (weigh 3 >> elim x)
-  , weigh 3 >> anywhere2 \x y -> Tactic.elimOrd x y <| Tactic.elimEq x y
-  , weigh 1 >> introCtr
-  , weigh 0 >> introTuple
-  ]
-
-phase1 :: Ref sig m => m Filling
-phase1 = covering <| step >>> phase1
-
-auto :: Ref sig m => m Filling
-auto = phase1 >>> greedy
-
-greedyStep :: Ref sig m => m Filling
-greedyStep = firstOf
-  [ anyOne assume
-  , introTuple
-  , introCtr
-  , weigh 1 >> anyOne elim
-  , weigh 1 >> anyTwo Tactic.elimOrd
-  , weigh 1 >> anyTwo Tactic.elimEq
-  ]
-
-greedy :: Ref sig m => m Filling
-greedy = greedyStep `andThen` greedy
+    _ -> notApplicable "no full coverage"
 
 -- This is only applicable if there are no examples.
 noExamples :: Ref sig m => m Filling
@@ -219,8 +204,59 @@ noExamples = do
   problem <- ask @Problem
   case problem.examples of
     [] -> none
-    _ -> throwError $ NotApplicable "some examples left"
+    _ -> notApplicable "some examples left"
 
--- Always finishes, but does not always fill all holes.
+-- * Single steps
+
+step :: Ref sig m => m Filling
+step = anywhere assume <| asum
+  [ everywhere eliminators
+  , everywhere2 relations
+  , constructors
+  ]
+
+greedyStep :: Ref sig m => m Filling
+greedyStep = firstOf
+  [ anywhere assume
+  , constructors
+  , anywhere elim
+  , anywhere2 relations
+  ]
+
+-- * Synthesizers
+
+phase1 :: Ref sig m => m Filling
+phase1 = until covering step
+
+auto :: Ref sig m => m Filling
+auto = phase1 >>> greedy
+
+greedy :: Ref sig m => m Filling
+greedy = repeat greedyStep
+
 extraGreedy :: Ref sig m => m Filling
-extraGreedy = noExamples <| greedyStep >>> extraGreedy
+extraGreedy = until noExamples greedyStep
+
+-- * Old versions with weights
+
+-- greedyStep :: Ref sig m => m Filling
+-- greedyStep = firstOf
+--   [ anyOne assume
+--   , introTuple
+--   , introCtr
+--   , weigh 1 >> anyOne elim
+--   , weigh 1 >> anyTwo Tactic.elimOrd
+--   , weigh 1 >> anyTwo Tactic.elimEq
+--   ]
+
+-- step :: Ref sig m => m Filling
+-- step = anyOne assume <| asum
+--   [ anywhere \x ->
+--       -- Alternative tactic: use para if fold does not work, and use elim if its not a recursive datatype.
+--       (weigh 2 >> Tactic.map x <| Tactic.filter x <| (weigh 2 >> Tactic.fold x <| Tactic.para x <| elim x))
+--       -- (weigh 2 >> Tactic.map x <| Tactic.filter x <| (weigh 2 >> Tactic.fold x))
+--       -- <|> (weigh 3 >> elim x)
+--   , weigh 3 >> anywhere2 \x y -> Tactic.elimOrd x y <| Tactic.elimEq x y
+--   , weigh 1 >> introCtr
+--   , weigh 0 >> introTuple
+--   ]

@@ -1,29 +1,29 @@
 module Tactic.Combinators where
 
-import Base
+import Base hiding (replicate, repeat)
 import Language.Problem
 import Tactic
 
-anywhere :: (Tactic sig m, Alternative m) => (Name -> m a) -> m a
-anywhere tactic = tactic =<< oneOf =<< asks variables
+everywhere :: (Tactic sig m, Alternative m) => (Name -> m a) -> m a
+everywhere tactic = tactic =<< oneOf =<< asks variables
 
-anywhere2 :: (Tactic sig m, Alternative m) => (Name -> Name -> m a) -> m a
-anywhere2 tactic = do
+everywhere2 :: (Tactic sig m, Alternative m) => (Name -> Name -> m a) -> m a
+everywhere2 tactic = do
   vars <- asks variables
   x <- oneOf vars
   y <- oneOf vars
   guard $ x < y
   tactic x y
 
-anyOne :: (Tactic sig m, Has (Catch TacticFailure) sig m) =>
+anywhere :: (Tactic sig m, Has (Catch TacticFailure) sig m) =>
   (Name -> m a) -> m a
-anyOne tactic = do
+anywhere tactic = do
   vars <- asks variables
   firstOf $ tactic <$> vars
 
-anyTwo :: (Tactic sig m, Has (Catch TacticFailure) sig m) =>
+anywhere2 :: (Tactic sig m, Has (Catch TacticFailure) sig m) =>
   (Name -> Name -> m a) -> m a
-anyTwo tactic = do
+anywhere2 tactic = do
   vars <- asks variables
   let pairs = [(x, y) | x <- vars, y <- vars, x < y]
   firstOf $ uncurry tactic <$> pairs
@@ -35,14 +35,17 @@ orElse t u = catchError @TacticFailure t $ const u
 (<|) = orElse
 
 firstOf :: Has (Error TacticFailure) sig m => [m a] -> m a
-firstOf = foldr orElse $ throwError $ NotApplicable "empty list of tactics"
+firstOf = foldr orElse $ notApplicable "empty list of tactics"
 
--- TODO: can we have an empty tactic at the end? maybe for that we should remove
--- Named from filling
-allOf :: (Has (Catch TacticFailure) sig m, Tactic sig m) =>
-  [m Filling] -> m Filling
-allOf = foldr1 andThen
+allOf :: Tactic sig m => [m Filling] -> m Filling
+allOf = foldr andThen none
 
-repl :: Tactic sig m => Nat -> m Filling -> m Filling
-repl 0 _ = none
-repl n t = t >>> repl (n - 1) t
+repeat :: Tactic sig m => m Filling -> m Filling
+repeat tactic = tactic >>> repeat tactic
+
+replicate :: Tactic sig m => Nat -> m Filling -> m Filling
+replicate 0 _ = none
+replicate n tactic = tactic >>> replicate (n - 1) tactic
+
+until :: (Tactic sig m, Has (Catch TacticFailure) sig m) => m Filling -> m Filling -> m Filling
+until t u = t <| u >>> until t u

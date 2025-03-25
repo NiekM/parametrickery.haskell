@@ -6,6 +6,7 @@ module Tactic
   , Settings(..)
   , defaultSettings
   , TacticFailure(..)
+  , notApplicable
   , Filling
   , getArg
   , none
@@ -76,6 +77,9 @@ type Tactic sig m =
 
 type Filling = Program (Named Problem)
 
+notApplicable :: Has (Throw TacticFailure) sig m => Text -> m a
+notApplicable = throwError . NotApplicable
+
 liftThrow :: Has (Throw e) sig m => (d -> e) -> ErrorC d m a -> m a
 liftThrow f m = runError m >>= \case
   Left e -> throwError $ f e
@@ -85,7 +89,7 @@ getArg :: Tactic sig m => Name -> m Arg
 getArg name = do
   inputs <- asks inputArgs
   case find name inputs of
-    Nothing -> throwError $ NotApplicable $ "unknown name " <> name.getName
+    Nothing -> notApplicable $ "unknown name " <> name.getName
     Just arg -> return arg
 
 binds :: Tactic sig m => [Named Arg] -> m Filling -> m Filling
@@ -159,7 +163,7 @@ assume :: Tactic sig m => Name -> m Filling
 assume name = do
   arg <- getArg name
   out <- asks outputArg
-  when (arg /= out) $ throwError $ NotApplicable "argument doesn't match spec"
+  when (arg /= out) $ notApplicable "argument doesn't match spec"
   return $ Var name
 
 introTuple :: Tactic sig m => m Filling
@@ -169,7 +173,7 @@ introTuple = do
     Product _ ->
       tuple <$> forM (projections problem) \p ->
         local (const p) (hole False)
-    _ -> throwError $ NotApplicable "goal is not a tuple"
+    _ -> notApplicable "goal is not a tuple"
 
 -- TODO: test this properly
 introCtr :: Tactic sig m => m Filling
@@ -182,10 +186,10 @@ introCtr = do
       exs <- forM problem.examples \example -> case example.output of
         Ctr c e -> (c,) <$> forM (projections e) \x ->
           return (example { output = x } :: Example)
-        _ -> throwError $ NotApplicable "output not a constructor"
+        _ -> notApplicable "output not a constructor"
       case NonEmpty.groupAllWith fst exs of
-        [] -> throwError $ NotApplicable "no examples"
-        (_:_:_) -> throwError $ NotApplicable "not all examples agree"
+        [] -> notApplicable "no examples"
+        (_:_:_) -> notApplicable "not all examples agree"
         [xs] -> do
           let c = fst $ NonEmpty.head xs
           let exampless = List.transpose $ snd <$> NonEmpty.toList xs
@@ -197,18 +201,19 @@ introCtr = do
                 let signature = problem.signature { output } :: Signature
                 local (const Problem { signature, examples }) $ hole False
               return . Ctr c $ tuple es
-    _ -> throwError $ NotApplicable "goal is not a datatype"
+    _ -> notApplicable "goal is not a datatype"
 
 elimArg :: Tactic sig m => Program Void -> Arg -> m Filling
 elimArg expr arg = do
   ctx <- ask @Context
   problem <- ask @Problem
   case split ctx arg problem of
-    Left e -> throwError $ NotApplicable $ "elim: " <> e
+    Left e -> notApplicable $ "elim: " <> e
     Right m -> do
       -- require all cases to have at least some examples
       -- TODO: this tactic should not be disallowed when examples are missing, but during synthesis we should have an option to disallow it.
-      when (any (null . (.examples) . snd) m) $ throwError $ NotApplicable "not all cases have examples"
+      -- maybe as an argoment to this function? This also disallows e.g. elimOrd when not all cases are present.
+      when (any (null . (.examples) . snd) m) $ notApplicable "not all cases have examples"
       arms <- forM m \(a, p) -> do
         local (const p) $ binds [Named "x" a] $ hole False
       return $ App (Elim $ Map.assocs arms) (vacuous expr)

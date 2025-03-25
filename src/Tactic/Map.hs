@@ -31,7 +31,7 @@ map name = do
           f <- hole True
           let result = Apps (Var "map") [Lams [x] f, Var name]
           return result
-      _ -> throwError $ NotApplicable "map only implemented for lists"
+      _ -> notApplicable "map only implemented for lists"
 
 mapSome :: Tactic sig m => Name -> m Filling
 mapSome name = do
@@ -61,6 +61,6 @@ mapSome name = do
           f <- hole True
           let result = Apps (Var "map") [Lams [x] f, Var name]
           return result
-      _ -> throwError $ NotApplicable "mapSome only implemented for lists"
+      _ -> notApplicable "mapSome only implemented for lists"
 
 
