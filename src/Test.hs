@@ -51,6 +51,8 @@ import Synth
 import Test.QuickCheck hiding (Success, Failure, total)
 import Language.Arbitrary qualified as Arbitrary
 
+import Bench
+
 ------ Utilities ------
 
 parse :: Parse a => Text -> a
@@ -109,6 +111,7 @@ runBench benchmark = do
     putStrLn ""
     forM_ (isFold problem) \case
       Left (NotApplicable _) -> return ()
+      Left (PropagationError err) -> print $ pretty err
       Left TraceIncomplete -> putStrLn "Trace incomplete"
       Left (Unrealizable conflict) -> print $ pretty conflict
       Right f -> do

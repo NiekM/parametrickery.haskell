@@ -4,12 +4,14 @@ module Main (main) where
 
 import Base
 
+import Data.Text qualified as Text
 import Data.Typeable
 import Data.Functor.Identity
 
 import Test.QuickCheck (Arbitrary)
 import Test.Tasty
-import Test.Tasty.QuickCheck (testProperty, forAll, discard, classify)
+import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck (testProperty, forAll, discard, classify, withMaxSize)
 import Control.Carrier.Reader
 import Control.Carrier.Throw.Either
 
@@ -22,7 +24,9 @@ import Language.Type
 import Language.Problem
 import Language.Prelude
 import Language.Generics
+import Tactic
 import Synth
+import Bench
 
 showType :: forall a -> Typeable a => String
 showType t = show . typeRep $ Proxy @t
@@ -71,26 +75,35 @@ ruleConsistency = testProperty
   where free = ["a", "b"]
 
 main :: IO ()
-main = defaultMain $ testGroup "all"
-  [ roundTrips
-  , normValue
-  , relationConsistency
-  , ruleConsistency
+main = do
+  problems <- forM testBench \model -> do
+    problem <- loadProblem model.name
+    return $ fmap (problem,) model
+
+  defaultMain $ testGroup "all"
+    [ roundTrips
+    , normValue
+    , relationConsistency
+    , ruleConsistency
+    , synthesisSucceeds problems
+    ]
+
+synthesisSucceeds :: [Named (Problem, Model)] -> TestTree
+synthesisSucceeds problems = testGroup "synthesis" $ problems <&> \(Named name (problem, model)) ->
+  testProperty (Text.unpack name.getName) . withMaxSize 25 $ testSynthesis args problem model
+  where args = def { settings = defaultSettings { removeIrrelevant = False } }
+
+testBench :: [Named Model]
+testBench = models & filter \model -> model.name `elem`
+  [ "null"
+  , "head"
+  , "last"
+  , "tail"
+  , "reverse"
+  , "append"
+  , "unzip"
+  , "concat"
   ]
-
--- NOTE: greedy does not always succeed. we cannot pattern match if a case is
--- missing. if we do allow this, we do not know what to do for a hole without
--- examples. greedy does always succeed when the example is total, but how do we
--- generate total examples?
-
--- greedySucceeds :: TestTree
--- greedySucceeds = testProperty "greedy succeeds" $
---   forAll (Arbitrary.problem ["a", "b"]) \problem ->
---     case runCheck $ check problem of
---       Left _err -> discard
---       Right _ -> case synthesize def { tactic = greedy } problem of
---         Failure _ -> False
---         Success _ -> True
 
   -- TODO:
   -- [x] checkRelation (computeRelation ...) == True

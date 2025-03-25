@@ -1,4 +1,4 @@
-module Model where
+module Bench.Model where
 
 import Base
 
