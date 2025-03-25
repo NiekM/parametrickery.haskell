@@ -111,6 +111,10 @@ tuple xs = Tuple xs
 normalize :: Expr l h -> Expr l h
 normalize = norm mempty
 
+paraList :: (a -> ([a], b) -> b) -> b -> [a] -> b
+paraList _ e [] = e
+paraList g e (y:ys) = g y (ys, paraList g e ys)
+
 norm :: Map Name (Expr l h) -> Expr l h -> Expr l h
 norm ctx = \case
   Tuple xs -> Tuple $ map (norm ctx) xs
@@ -133,6 +137,10 @@ norm ctx = \case
         (\y -> App alg $ Ctr "Leaf" y) xs
     Apps (Var "cata") [alg, Nat n] -> norm ctx $
       applyN n (App alg . Ctr "Succ") (App alg $ Ctr "Zero" Unit)
+    Apps (Var "para") [alg, List xs] -> norm ctx $
+      paraList (\y (ys, r) -> App alg $ Cons y (Tuple [r, List ys])) (App alg Nil) xs
+    Apps (Var "para") [alg, Tree xs] -> norm ctx $
+      paraTree (\l t y r u -> App alg $ Ctr "Node" (Tuple [Tuple [l, Tree t], y, Tuple [r, Tree u]])) (App alg . Ctr "Leaf") xs
     Apps (Var "map") [g, List xs] -> List $ map (norm ctx . App g) xs
     Apps (Var "filter") [p, List xs] -> List $
       filter (fromMaybe False . unBool . norm ctx . App p) xs
@@ -245,6 +253,7 @@ unTree = \case
 
 pattern Tree :: Tree (Expr l h) (Expr l h) -> Expr l h
 pattern Tree t <- (unTree -> Just t)
+  where Tree t = foldTree (\l x r -> Ctr "Node" $ Tuple [l, x, r]) (Ctr "Leaf") t
 
 -- * Nats
 

@@ -14,6 +14,11 @@ foldTree node leaf = \case
   Leaf x -> leaf x
   Node l x r -> node (foldTree node leaf l) x (foldTree node leaf r)
 
+paraTree :: (c -> Tree a b -> a -> c -> Tree a b -> c) -> (b -> c) -> Tree a b -> c
+paraTree node leaf = \case
+  Leaf x -> leaf x
+  Node l x r -> node (paraTree node leaf l) l x (paraTree node leaf r) r
+
 instance Arbitrary2 Tree where
   liftArbitrary2 gen1 gen2 = sized \n -> do
     k <- choose (0, n)
