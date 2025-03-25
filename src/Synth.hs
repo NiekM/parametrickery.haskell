@@ -15,6 +15,7 @@ module Synth
   , covering
   , step, greedyStep
   , auto, greedy
+  , noExamples, extraGreedy
   ) where
 
 import Control.Effect.Fresh.Named
@@ -211,3 +212,15 @@ greedyStep = firstOf
 
 greedy :: Ref sig m => m Filling
 greedy = greedyStep `andThen` greedy
+
+-- This is only applicable if there are no examples.
+noExamples :: Ref sig m => m Filling
+noExamples = do
+  problem <- ask @Problem
+  case problem.examples of
+    [] -> none
+    _ -> throwError $ NotApplicable "some examples left"
+
+-- Always finishes, but does not always fill all holes.
+extraGreedy :: Ref sig m => m Filling
+extraGreedy = noExamples <| greedyStep >>> extraGreedy
