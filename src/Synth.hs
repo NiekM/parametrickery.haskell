@@ -12,6 +12,7 @@ module Synth
   , Refinement
   , search
   , runTac
+  , covering
   , step, greedyStep
   , auto, greedy
   ) where
@@ -167,27 +168,36 @@ runTac problem tactic = do
     Left (Unrealizable _conflict) -> empty
     Right program -> return program
 
--- TODO: use relevancy
--- TODO: normalize problems by removing examples that are equivalent
-step :: Ref sig m => m Filling
-step = do
+-- This is only applicable if the examples are fully covering.
+covering :: Ref sig m => m Filling
+covering = do
   problem <- ask @Problem
   rules <- runError @Conflict (check problem) >>= \case
     Right r -> return r
     Left _ -> empty
   coverage problem.signature rules >>= \case
-    Total -> greedy
-    _ -> anyOne assume <| asum
-      [ anywhere \x ->
-          (weigh 2 >> Tactic.map x <| Tactic.filter x <| (weigh 2 >> Tactic.fold x))
-          <|> (weigh 3 >> elim x)
-      , weigh 3 >> anywhere2 \x y -> Tactic.elimOrd x y <| Tactic.elimEq x y
-      , weigh 1 >> introCtr
-      , weigh 0 >> introTuple
-      ]
+    Total -> none
+    _ -> throwError $ NotApplicable "no coverage"
+
+-- TODO: use relevancy
+-- TODO: normalize problems by removing examples that are equivalent
+step :: Ref sig m => m Filling
+step = anyOne assume <| asum
+  [ anywhere \x ->
+      -- Alternative tactic: use para if fold does not work, and use elim if its not a recursive datatype.
+      (weigh 2 >> Tactic.map x <| Tactic.filter x <| (weigh 2 >> Tactic.fold x <| Tactic.para x <| elim x))
+      -- (weigh 2 >> Tactic.map x <| Tactic.filter x <| (weigh 2 >> Tactic.fold x))
+      -- <|> (weigh 3 >> elim x)
+  , weigh 3 >> anywhere2 \x y -> Tactic.elimOrd x y <| Tactic.elimEq x y
+  , weigh 1 >> introCtr
+  , weigh 0 >> introTuple
+  ]
+
+phase1 :: Ref sig m => m Filling
+phase1 = covering <| step >>> phase1
 
 auto :: Ref sig m => m Filling
-auto = step `andThen` auto
+auto = phase1 >>> greedy
 
 greedyStep :: Ref sig m => m Filling
 greedyStep = firstOf
