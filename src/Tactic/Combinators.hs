@@ -42,3 +42,7 @@ firstOf = foldr orElse $ throwError $ NotApplicable "empty list of tactics"
 allOf :: (Has (Catch TacticFailure) sig m, Tactic sig m) =>
   [m Filling] -> m Filling
 allOf = foldr1 andThen
+
+repl :: Tactic sig m => Nat -> m Filling -> m Filling
+repl 0 _ = none
+repl n t = t >>> repl (n - 1) t

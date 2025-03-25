@@ -85,7 +85,7 @@ getArg :: Tactic sig m => Name -> m Arg
 getArg name = do
   inputs <- asks inputArgs
   case find name inputs of
-    Nothing -> throwError $ NotApplicable "unknown name"
+    Nothing -> throwError $ NotApplicable $ "unknown name " <> name.getName
     Just arg -> return arg
 
 binds :: Tactic sig m => [Named Arg] -> m Filling -> m Filling
