@@ -44,3 +44,6 @@ nominate :: Has Fresh sig m => Name -> a -> m (Named a)
 nominate t x = do
   name <- freshName t
   return $ Named name x
+
+withNames :: Traversable t => Name -> t a -> t (Named a)
+withNames prefix = run . evalFresh . traverse (nominate prefix)

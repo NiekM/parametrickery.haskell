@@ -75,7 +75,7 @@ type Tactic sig m =
   , Has (Throw TacticFailure) sig m
   )
 
-type Filling = Program (Named Problem)
+type Filling = Program Problem
 
 notApplicable :: Has (Throw TacticFailure) sig m => Text -> m a
 notApplicable = throwError . NotApplicable
@@ -110,9 +110,7 @@ tryRealizable cnt = do
   local (reconstruct rules) cnt
 
 none :: Tactic sig m => m Filling
-none = do
-  name <- freshName "_"
-  Hole . Named name <$> ask
+none = Hole <$> ask
 
 hole :: Tactic sig m => Bool -> m Filling
 hole recalculate = do
@@ -226,8 +224,7 @@ elim name = do
 andThen, (>>>) :: Tactic sig m => m Filling -> m Filling -> m Filling
 andThen f g = do
   filling <- f
-  join <$> forM filling \(Named _ p) ->
-    local (const p) g
+  join <$> forM filling \p -> local (const p) g
 (>>>) = andThen
 
 enumerate :: Traversable t => t a -> t (Nat, a)
@@ -244,7 +241,7 @@ focus n f g = f >>* (replicate (fromIntegral n) none ++ [g])
 (>>*) f gs = do
   filling <- f
   let numbered = enumerate filling
-  join <$> forM numbered \(n, Named _ p) ->
+  join <$> forM numbered \(n, p) ->
     local (const p) case gs List.!? (fromIntegral n) of
       Nothing -> none
       Just g -> g

@@ -115,9 +115,10 @@ runBench benchmark = do
       Left TraceIncomplete -> putStrLn "Trace incomplete"
       Left (Unrealizable conflict) -> print $ pretty conflict
       Right f -> do
-        print . prettyNamed problem.name $ fmap (.name) f
+        let f' = withNames "_" f
+        print . prettyNamed problem.name $ fmap (.name) f'
         putStrLn "  where"
-        forM_ (holes f) \(Named name subproblem) -> case runCheck subproblem of
+        forM_ (holes f') \(Named name subproblem) -> case runCheck subproblem of
           Left conflict -> print $ pretty conflict
           Right rules -> do
             print . indent 4 $ statements $

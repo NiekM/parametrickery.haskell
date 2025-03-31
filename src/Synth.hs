@@ -82,7 +82,7 @@ data Extract
 instance Pretty Extract where
   pretty = \case
     Finished program -> pretty program
-    Unfinished filling -> prettySplit filling
+    Unfinished filling -> prettySplit $ withNames "_" filling
 
 data Solution
   = Success (NonEmpty (Nat, Extract))
