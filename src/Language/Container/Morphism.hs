@@ -39,7 +39,7 @@ data Rule = Rule
 
 -- It seems that we only need to compute the relation for the inputs, since the
 -- output values are a subset (and if they are not, this is already a conflict).
-checkExample :: (Has (Reader Context) sig m, Has (Throw Conflict) sig m) =>
+checkExample :: (Has (Reader DataContext) sig m, Has (Throw Conflict) sig m) =>
   Signature -> Example -> m Rule
 checkExample signature example = do
   let types = map (.value) signature.inputs
@@ -91,7 +91,7 @@ data Conflict
 -- good to check whether the type is inhabited. Especially in the case were
 -- there are no examples, we should still be able to check automatically that
 -- e.g. `{x : a} -> b` is not realizable.
-check :: (Has (Reader Context) sig m, Has (Throw Conflict) sig m) =>
+check :: (Has (Reader DataContext) sig m, Has (Throw Conflict) sig m) =>
   Problem -> m [Rule]
 check problem =
   combine =<< mapM (checkExample problem.signature) problem.examples

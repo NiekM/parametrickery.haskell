@@ -18,7 +18,7 @@ subs = Set.toList . Set.powerSet
 maximal :: Ord a => [Set a] -> [Set a]
 maximal xs = filter (\x -> not $ any (x `Set.isProperSubsetOf`) xs) xs
 
-sufficient :: Has (Reader Context) sig m =>
+sufficient :: Has (Reader DataContext) sig m =>
   Set Name -> Problem -> m (Either Conflict (Signature, [Rule], Coverage))
 sufficient xs problem = runError do
   let restricted = onArgs (disable xs) problem
@@ -30,7 +30,7 @@ newtype Relevance = Relevance
   { relevance :: NonEmpty (Signature, [Rule], Coverage)
   } deriving stock (Eq, Ord, Show)
 
-relevance :: Has (Reader Context) sig m => Problem -> m Relevance
+relevance :: Has (Reader DataContext) sig m => Problem -> m Relevance
 relevance problem = do
   let sets = subs . Set.fromList $ variables problem
   xs <- catMaybes <$> forM sets \set -> do

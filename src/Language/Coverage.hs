@@ -12,7 +12,7 @@ import Language.Container
 import Language.Container.Morphism
 import Language.Container.Relation
 
-coveringShapes :: Context -> Mono -> Maybe [Term Name]
+coveringShapes :: DataContext -> Mono -> Maybe [Term Name]
 coveringShapes ctx = go []
   where
     -- We keep track of datatype names to recognize recursion.
@@ -66,7 +66,7 @@ toShape e = run $ evalState @(Map Name Nat) mempty do
     return $ Named v n
 
 -- Computes all shapes and relations required for coverage (if possible)
-coveringPatterns :: Context -> [Constraint] -> [Mono] -> Maybe [Pattern]
+coveringPatterns :: DataContext -> [Constraint] -> [Mono] -> Maybe [Pattern]
 coveringPatterns ctx constraints context = do
   shapes <- map toShape <$> coveringShapes ctx (Product context)
   concat <$> forM shapes \shape -> do
@@ -76,7 +76,7 @@ coveringPatterns ctx constraints context = do
       relations = traverse (coveringRelations positions) constraints
     return $ Pattern inputs <$> relations
 
-expectedCoverage :: Context -> Signature -> Maybe (Set Pattern)
+expectedCoverage :: DataContext -> Signature -> Maybe (Set Pattern)
 expectedCoverage ctx signature = Set.fromList <$> coveringPatterns ctx
   signature.constraints
   (map (.value) signature.inputs)
@@ -96,7 +96,7 @@ data Coverage = Total | Partial | Missing (Set Pattern)
 -- have relation coverage? or subpattern coverage, e.g. if it's a list booleans,
 -- do we still want coverage checking for a pattern such as [True], letting us
 -- know that we are missing [False]?
-coverage :: Has (Reader Context) sig m => Signature -> [Rule] -> m Coverage
+coverage :: Has (Reader DataContext) sig m => Signature -> [Rule] -> m Coverage
 coverage signature examples = do
   ctx <- ask
   return case expectedCoverage ctx signature of

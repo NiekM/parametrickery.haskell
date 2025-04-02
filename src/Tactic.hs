@@ -69,7 +69,7 @@ instance Pretty TacticFailure where
     Unrealizable conflict -> pretty conflict
 
 type Tactic sig m =
-  ( Has (Reader Context) sig m
+  ( Has (Reader DataContext) sig m
   , Has (Reader Settings) sig m
   , Has (Reader Problem) sig m
   , Has Fresh sig m
@@ -204,7 +204,7 @@ introCtr = do
 
 elimArg :: Tactic sig m => Program Void -> Arg -> m Filling
 elimArg expr arg = do
-  ctx <- ask @Context
+  ctx <- ask @DataContext
   problem <- ask @Problem
   case split ctx arg problem of
     Left e -> notApplicable $ "elim: " <> e

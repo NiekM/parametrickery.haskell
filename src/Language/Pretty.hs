@@ -155,8 +155,8 @@ instance Pretty (Named DataDef) where
       "=" <+> concatWith (surround " | ") (def.constructors <&>
       \c -> sep (prettyCtr c.name : map prettyMaxPrec (projections c.value)))
 
-instance Pretty Context where
-  pretty (Context datatypes) = statements $ map pretty datatypes
+instance Pretty DataContext where
+  pretty (DataContext datatypes) = statements $ map pretty datatypes
 
 instance Pretty Problem where
   pretty = prettyNamed "_"

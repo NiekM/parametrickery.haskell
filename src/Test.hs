@@ -94,9 +94,9 @@ isAFold = synthesize def
   }
 
 type TacticC m = ReaderC Problem
-  (ReaderC Settings (ReaderC Context (ErrorC TacticFailure (FreshC m))))
+  (ReaderC Settings (ReaderC DataContext (ErrorC TacticFailure (FreshC m))))
 
-runTactic :: Functor m => Context -> Problem -> TacticC m a ->
+runTactic :: Functor m => DataContext -> Problem -> TacticC m a ->
   m (Either TacticFailure a)
 runTactic ctx problem = evalFresh . runError . runReader ctx
   . runReader defaultSettings . runReader problem

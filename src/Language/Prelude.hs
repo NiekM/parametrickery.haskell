@@ -14,8 +14,8 @@ data Nat
   | Succ Nat
   deriving (Eq, Ord, Show, Generic)
 
-datatypes :: Context
-datatypes = Context $
+datatypes :: DataContext
+datatypes = DataContext $
   [ toData Bool
   , toData Ordering
   , toData Nat

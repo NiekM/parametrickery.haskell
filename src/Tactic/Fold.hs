@@ -21,7 +21,7 @@ getBaseFunctor :: Tactic sig m => Mono -> m (Name, [Mono])
 getBaseFunctor = \case
   Data d ts -> do
     let baseFunctor = d <> "F"
-    ds <- ask @Context
+    ds <- ask @DataContext
     case find baseFunctor ds.datatypes of
       Nothing -> notApplicable "cannot unroll nonrecursive datatype"
       _ -> return ()

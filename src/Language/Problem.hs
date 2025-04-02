@@ -95,7 +95,7 @@ outputArg problem = (toArgs problem).output
 named :: [Named a] -> Map Name a
 named = Map.fromList . map \x -> (x.name, x.value)
 
-split :: Context -> Arg -> Problem -> Either Text (Map Name (Arg, Problem))
+split :: DataContext -> Arg -> Problem -> Either Text (Map Name (Arg, Problem))
 split ctx (Arg (Data d ts) terms) (Problem signature examples) = do
   fields <- forM terms \case
     Ctr c x -> Right (c, x)

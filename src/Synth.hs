@@ -18,13 +18,11 @@ module Synth
   ) where
 
 import Control.Effect.Fresh.Named
-import Control.Effect.Weight
 import Control.Effect.Search
 import Control.Carrier.Error.Either
 import Control.Carrier.Reader
 
 import Control.Monad.Search
-import Control.Effect.Search ()
 
 import Base hiding (repeat)
 import Language.Type
@@ -50,7 +48,7 @@ data Arguments = Arguments
   , fuel :: Maybe Nat
   , solutions :: Maybe Nat
   , settings :: Settings
-  , context :: Context
+  , context :: DataContext
   }
 
 def :: Arguments
@@ -124,10 +122,8 @@ synthesize args problem = case dropFailures $ runSearch searchSpace of
       $ runTac problem (hole True `andThen` args.tactic)
 
 type Synth sig m =
-  ( Has (Reader Context) sig m
+  ( Has WeightedSearch sig m
   , Has Fresh sig m
-  , Has Weight sig m
-  , Has Choose sig m
   )
 
 type Ref sig m =
@@ -142,9 +138,9 @@ type Ref sig m =
 -- refinement. Clicking on refinements explores them (if realizable) and perhaps
 -- outputs the current state to the console? Or perhaps a next button that
 -- explores the next node (based on its weight).
-type SynthC = ReaderC Settings (ReaderC Context (FreshC (Search (Sum Nat))))
+type SynthC = ReaderC Settings (ReaderC DataContext (FreshC (Search (Sum Nat))))
 
-search :: Settings -> Context -> SynthC a -> Search (Sum Nat) a
+search :: Settings -> DataContext -> SynthC a -> Search (Sum Nat) a
 search settings ctx = evalFresh . runReader ctx . runReader settings
 
 type Refinement m = ReaderC Problem (ErrorC TacticFailure m) Filling

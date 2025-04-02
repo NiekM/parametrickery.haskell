@@ -68,11 +68,11 @@ base (Named name def)
       Data d ts -> Data d <$> traverse locate ts
       t -> (Any False, t)
 
-newtype Context = Context
+newtype DataContext = DataContext
   { datatypes :: [Named DataDef]
   } deriving stock (Eq, Ord, Show)
 
-getConstructors :: Name -> [Mono] -> Context -> [Constructor]
+getConstructors :: Name -> [Mono] -> DataContext -> [Constructor]
 getConstructors name ts ctx =
   case find name ctx.datatypes of
     Nothing -> error $ "Unknown datatype " <> show name
