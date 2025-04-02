@@ -40,8 +40,8 @@ import Tactic.Fold qualified as Tactic
 import Tactic.Relation qualified as Tactic
 
 import Language.Prelude
+import Language.Pretty
 import Data.List qualified as List
-import Prettyprinter
 
 import Utils
 
@@ -80,7 +80,7 @@ data Extract
 instance Pretty Extract where
   pretty = \case
     Finished program -> pretty program
-    Unfinished filling -> prettySplit $ withNames "_" filling
+    Unfinished filling -> pretty . Split $ withNames "_" filling
 
 data Solution
   = Success (NonEmpty (Nat, Extract))
@@ -92,16 +92,6 @@ instance Pretty Solution where
     Success ((_, extr) :| []) -> pretty extr
     Success extracts -> pretty . toList $ fmap snd extracts
     Failure failure -> pretty failure
-
-prettySplit :: (Pretty h, Pretty (Named h)) => Expr l (Named h) -> Doc ann
-prettySplit e
-  | null helpers = pretty e
-  | otherwise = nest 2 $ vsep
-    [ pretty $ fmap (.name) e
-    , nest 2 . vsep $ "where"
-      : List.intersperse "" helpers
-    ]
-  where helpers = map pretty $ holes e
 
 takeWhileJust :: [Maybe a] -> [a]
 takeWhileJust = foldr (maybe (const []) (:)) []

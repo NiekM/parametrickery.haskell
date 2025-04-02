@@ -5,6 +5,7 @@ module Language.Pretty where
 
 import Data.Set qualified as Set
 import Data.Map qualified as Map
+import Data.List qualified as List
 
 import Prettyprinter
 
@@ -41,6 +42,21 @@ prettyMinPrec = prettyPrec minBound
 
 prettyMaxPrec :: Pretty (Prec a) => a -> Doc ann
 prettyMaxPrec = prettyPrec maxBound
+
+-- Used for pretty printing datatypes with named elements.
+newtype Split f a = Split { getSplit :: f (Named a) }
+
+instance (Pretty (f Name), Pretty (Named a), Foldable f, Functor f) => Pretty (Split f a) where
+  pretty (Split f)
+    | null elements = shape
+    | otherwise = nest 2 $ vsep
+      [ shape
+      , nest 2 . vsep $ "where"
+        : List.intersperse "" elements
+      ]
+    where
+      elements = map pretty $ toList f
+      shape = pretty $ fmap (.name) f
 
 deriving newtype instance Pretty (Sum Nat)
 deriving newtype instance Pretty Lit

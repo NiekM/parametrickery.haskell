@@ -4,7 +4,7 @@ module Tactic.Predicate where
 
 import Control.Carrier.Reader
 
-import Base hiding (repeat)
+import Base
 import Language.Problem
 import Language.Container.Morphism
 import Language.Coverage
