@@ -12,10 +12,9 @@ module Synth
   , Refinement
   , search
   , runTac
-  , covering
   , step, greedyStep
   , auto, greedy
-  , noExamples, extraGreedy
+  , extraGreedy
   ) where
 
 import Control.Effect.Fresh.Named
@@ -31,11 +30,10 @@ import Base hiding (repeat)
 import Language.Type
 import Language.Expr
 import Language.Problem
-import Language.Container.Morphism
-import Language.Coverage
 
 import Tactic
 import Tactic.Combinators
+import Tactic.Predicate
 import Tactic.Map qualified as Tactic
 import Tactic.Filter qualified as Tactic
 import Tactic.Fold qualified as Tactic
@@ -181,25 +179,6 @@ eliminators x = Tactic.map x <| Tactic.filter x <| Tactic.fold x <| Tactic.para 
 
 relations :: Ref sig m => Name -> Name -> m Filling
 relations x y = Tactic.elimOrd x y <| Tactic.elimEq x y
-
--- * Stopping conditions
-
--- This is only applicable if the examples are fully covering.
-covering :: Tactic sig m => m Filling
-covering = do
-  problem <- ask @Problem
-  rules <- liftThrow Unrealizable (check problem)
-  coverage problem.signature rules >>= \case
-    Total -> none
-    _ -> notApplicable "no full coverage"
-
--- This is only applicable if there are no examples.
-noExamples :: Ref sig m => m Filling
-noExamples = do
-  problem <- ask @Problem
-  case problem.examples of
-    [] -> none
-    _ -> notApplicable "some examples left"
 
 -- * Single steps
 

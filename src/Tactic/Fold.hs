@@ -3,7 +3,6 @@ module Tactic.Fold where
 
 import Base
 import Control.Effect.Fresh.Named
-import Control.Carrier.Error.Either
 import Data.List qualified as List
 
 import Language.Expr
@@ -107,4 +106,3 @@ para name = do
     let result = Apps (Var "para") [Lams [r] f, Var name]
 
     return result
-

@@ -106,6 +106,7 @@ library
     , Tactic.Filter
     , Tactic.Fold
     , Tactic.Map
+    , Tactic.Predicate
     , Tactic.Relation
     , Test
 
