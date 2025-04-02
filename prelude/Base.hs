@@ -25,7 +25,7 @@ module Base
   , module Control.Applicative
   , module Control.Monad
   , module Control.Effect.Error
-  , module Control.Effect.NonDet
+  , module Control.Effect.Choose
   , module Control.Effect.Reader
   , module Control.Effect.State
   , module Control.Effect.Throw
@@ -77,11 +77,11 @@ import Data.Traversable (Traversable(..))
 
 import Data.Type.Equality (type (~))
 
-import Control.Applicative
+import Control.Applicative hiding (optional, many, some, (<|>))
 import Control.Monad
 
 import Control.Effect.Error
-import Control.Effect.NonDet
+import Control.Effect.Choose
 import Control.Effect.Reader
 import Control.Effect.State
 import Control.Effect.Throw

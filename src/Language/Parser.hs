@@ -10,7 +10,7 @@ import Text.Megaparsec.Char hiding (newline)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Set qualified as Set
 
-import Base hiding (some, many)
+import Base hiding (optional, some, many, (<|>))
 import Language.Type
 import Language.Expr
 import Language.Problem

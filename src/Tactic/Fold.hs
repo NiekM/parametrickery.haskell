@@ -18,11 +18,6 @@ fold :: Tactic sig m => Name -> m Filling
 fold name = cata name `andThen` do
   elim =<< asks (List.last . variables)
 
-liftThrow :: Has (Throw e) sig m => (d -> e) -> ErrorC d m a -> m a
-liftThrow f m = runError m >>= \case
-  Left e -> throwError $ f e
-  Right x -> return x
-
 getBaseFunctor :: Tactic sig m => Mono -> m (Name, [Mono])
 getBaseFunctor = \case
   Data d ts -> do

@@ -18,6 +18,7 @@ module Tactic
   , introTuple
   , elimArg
   , elim
+  , liftThrow
   ) where
 
 import Data.List qualified as List

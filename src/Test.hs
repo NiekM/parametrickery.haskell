@@ -17,7 +17,7 @@ import System.Timeout
 
 import Control.Monad.Search
 import Control.Carrier.Reader
-import Control.Carrier.NonDet.Church
+import Control.Carrier.Choose.Church
 import Control.Carrier.Error.Either
 import Control.Effect.Fresh.Named
 import Data.String

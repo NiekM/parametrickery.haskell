@@ -109,7 +109,7 @@ takeWhileJust :: [Maybe a] -> [a]
 takeWhileJust = foldr (maybe (const []) (:)) []
 
 synthesize :: Arguments -> Problem -> Solution
-synthesize args problem = case runSearch searchSpace of
+synthesize args problem = case dropFailures $ runSearch searchSpace of
   [] -> Failure Exhausted
   -- TODO: when we add a fuel limit, it says depleted even if it should be
   -- exhausted. How do we distinguish between them?
@@ -120,6 +120,9 @@ synthesize args problem = case runSearch searchSpace of
     (y:ys) -> Success $ (y :| ys) <&> \(Sum weight, filling) ->
       (weight, toExtract filling)
   where
+    dropFailures :: [(Sum Nat, Maybe (Either a b))] -> [(Sum Nat, Maybe b)]
+    dropFailures = mapMaybe $ traverse . traverse $ either (const Nothing) (Just)
+
     toExtract :: Filling -> Extract
     toExtract filling =
       let normalized = normalize filling
@@ -127,7 +130,7 @@ synthesize args problem = case runSearch searchSpace of
         Nothing -> Unfinished normalized
         Just program -> Finished program
 
-    searchSpace :: Search (Sum Nat) (Maybe Filling)
+    searchSpace :: Search (Sum Nat) (Maybe (Either TacticFailure Filling))
     searchSpace = search args.settings args.context
       . maybe (fmap Just) limit args.fuel
       $ runTac problem (hole True `andThen` args.tactic)
@@ -136,8 +139,7 @@ type Synth sig m =
   ( Has (Reader Context) sig m
   , Has Fresh sig m
   , Has Weight sig m
-  , Has NonDet sig m
-  , Alternative m
+  , Has Choose sig m
   )
 
 type Ref sig m =
@@ -159,15 +161,10 @@ search settings ctx = evalFresh . runReader ctx . runReader settings
 
 type Refinement m = ReaderC Problem (ErrorC TacticFailure m) Filling
 
-runTac :: Synth sig m => Problem -> Refinement m -> m Filling
+runTac :: Synth sig m => Problem -> Refinement m -> m (Either TacticFailure Filling)
 runTac problem tactic = do
   let vars = variables problem
-  runError (runReader problem (Lams vars <$> tactic)) >>= \case
-    Left (NotApplicable _message) -> empty
-    Left TraceIncomplete -> empty
-    Left (PropagationError _message) -> empty
-    Left (Unrealizable _conflict) -> empty
-    Right program -> return program
+  runError . runReader problem $ Lams vars <$> tactic
 
 -- TODO: use relevancy
 -- TODO: normalize problems by removing examples that are equivalent
@@ -188,12 +185,10 @@ relations x y = Tactic.elimOrd x y <| Tactic.elimEq x y
 -- * Stopping conditions
 
 -- This is only applicable if the examples are fully covering.
-covering :: Ref sig m => m Filling
+covering :: Tactic sig m => m Filling
 covering = do
   problem <- ask @Problem
-  rules <- runError @Conflict (check problem) >>= \case
-    Right r -> return r
-    Left _ -> empty
+  rules <- liftThrow Unrealizable (check problem)
   coverage problem.signature rules >>= \case
     Total -> none
     _ -> notApplicable "no full coverage"
@@ -209,7 +204,7 @@ noExamples = do
 -- * Single steps
 
 step :: Ref sig m => m Filling
-step = anywhere assume <| asum
+step = anywhere assume <| anyOf
   [ everywhere eliminators
   , everywhere2 relations
   , constructors

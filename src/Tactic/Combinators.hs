@@ -1,18 +1,24 @@
 module Tactic.Combinators where
 
-import Base hiding (replicate, repeat)
+import Control.Effect.Choose
+
+import Base hiding (replicate, repeat, (<|>))
 import Language.Problem
 import Tactic
 
-everywhere :: (Tactic sig m, Alternative m) => (Name -> m a) -> m a
-everywhere tactic = tactic =<< oneOf =<< asks variables
+anyOf :: (Has (Throw TacticFailure) sig m, Has Choose sig m) => [m a] -> m a
+anyOf [] = notApplicable "out of options"
+anyOf xs = foldr1 (<|>) xs
 
-everywhere2 :: (Tactic sig m, Alternative m) => (Name -> Name -> m a) -> m a
+everywhere :: (Tactic sig m, Has Choose sig m) => (Name -> m a) -> m a
+everywhere tactic = tactic =<< anyOf . map pure =<< asks variables
+
+everywhere2 :: (Tactic sig m, Has Choose sig m) => (Name -> Name -> m a) -> m a
 everywhere2 tactic = do
   vars <- asks variables
-  x <- oneOf vars
-  y <- oneOf vars
-  guard $ x < y
+  x <- anyOf $ map pure vars
+  y <- anyOf $ map pure vars
+  unless (x < y) $ notApplicable "require separate variables"
   tactic x y
 
 anywhere :: (Tactic sig m, Has (Catch TacticFailure) sig m) =>
