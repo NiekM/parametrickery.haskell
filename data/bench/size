@@ -1,4 +1,4 @@
-size : {t : Tree a b} -> Int
+size : {t : Tree a b} -> Nat
 size Leaf = 0
 size (Node (Leaf, 2, Leaf)) = 1
 size (Node (Node (Leaf, 1, Leaf), 2, Leaf)) = 2

@@ -1,4 +1,4 @@
-drop : {n : Int, xs : List a} -> List a
+drop : {n : Nat, xs : List a} -> List a
 drop 0 [] = []
 drop 0 [1] = [1]
 drop 0 [2, 1] = [2, 1]

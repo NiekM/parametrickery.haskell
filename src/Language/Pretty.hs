@@ -78,6 +78,7 @@ instance Pretty h => Pretty (Prec (Expr l h)) where
   pretty (Prec p e) = case e of
     Tuple xs -> tupled $ map pretty xs
     List xs -> pretty xs
+    Nat n -> pretty n
     Ctr c Unit -> prettyCtr c
     Ctr c x -> parensIf (p > 2) $ prettyCtr c <+> prettyPrec 3 x
     Lit l -> pretty l

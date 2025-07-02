@@ -1,4 +1,4 @@
-take : {n : Int, xs : List a} -> List a
+take : {n : Nat, xs : List a} -> List a
 take 0 [] = []
 take 0 [1] = []
 take 0 [2, 1] = []
@@ -7,3 +7,7 @@ take 1 [] = []
 take 1 [1] = [1]
 take 1 [2, 1] = [2]
 take 1 [3, 2, 1] = [3]
+take 2 [] = []
+take 2 [1] = [1]
+take 2 [2, 1] = [2,1]
+take 2 [3, 2, 1] = [3,2]

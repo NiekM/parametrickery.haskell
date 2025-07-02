@@ -51,12 +51,12 @@ deleteMax :: Ord a => [a] -> [a]
 deleteMax [] = []
 deleteMax xs = List.filter (/= List.maximum xs) xs
 
-depth :: Tree a b -> Int
+depth :: Tree a b -> Nat
 depth (Leaf _) = 0
 depth (Node l _ r) = 1 + max (size l) (size r)
 
-drop :: Int -> [a] -> [a]
-drop = List.drop
+drop :: Nat -> [a] -> [a]
+drop = List.genericDrop
 
 dupli :: [a] -> [a]
 dupli = concatMap \x -> [x, x]
@@ -65,8 +65,8 @@ head :: [a] -> Maybe a
 head [] = Nothing
 head (x:_) = Just x
 
-index :: Int -> [a] -> Maybe a
-index = flip (List.!?)
+index :: Nat -> [a] -> Maybe a
+index n = (List.!? fromIntegral n)
 
 init :: [a] -> [a]
 init [] = []
@@ -83,8 +83,8 @@ last :: [a] -> Maybe a
 last [] = Nothing
 last xs = Just $ List.last xs
 
-length :: [a] -> Int
-length = List.length
+length :: [a] -> Nat
+length = List.genericLength
 
 levels :: Tree a b -> [[a]]
 levels (Leaf _) = []
@@ -143,7 +143,7 @@ shiftr :: [a] -> [a]
 shiftr [] = []
 shiftr xs = List.last xs : List.init xs
 
-size :: Tree a b -> Int
+size :: Tree a b -> Nat
 size (Leaf _) = 0
 size (Node l _ r) = 1 + size l + size r
 
@@ -157,8 +157,8 @@ sorted :: Ord a => [a] -> Bool
 sorted [] = True
 sorted (x:xs) = List.and $ List.zipWith (<=) (x:xs) xs
 
-splitAt :: Int -> [a] -> ([a], [a])
-splitAt = List.splitAt
+splitAt :: Nat -> [a] -> ([a], [a])
+splitAt = List.genericSplitAt
 
 swap :: (a, b) -> (b, a)
 swap (x, y) = (y, x)
@@ -167,8 +167,8 @@ tail :: [a] -> [a]
 tail [] = []
 tail (_:xs) = xs
 
-take :: Int -> [a] -> [a]
-take = List.take
+take :: Nat -> [a] -> [a]
+take = List.genericTake
 
 unzip :: [(a, b)] -> ([a], [b])
 unzip = List.unzip

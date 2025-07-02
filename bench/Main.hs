@@ -23,18 +23,21 @@ benchProblem args (Named name problem) =
 paperBench :: [Named Model]
 paperBench = models & filter \model -> model.name `elem`
   [ "null"
-  , "length" -- Does not work because it uses Int
+  , "length"
   , "head"
   , "last"
   , "tail"
   , "init"
   , "reverse"
+
   , "index"
   , "drop"
   , "take"
   , "splitAt"
+
   , "append"
   , "zip"
+
   , "unzip"
   , "concat"
   ]

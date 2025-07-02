@@ -1,4 +1,4 @@
-index : {n : Int, xs : List a} -> Maybe a
+index : {n : Nat, xs : List a} -> Maybe a
 index 0 [] = Nothing
 index 0 [1] = Just 1
 index 0 [2, 1] = Just 2

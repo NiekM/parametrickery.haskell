@@ -1,4 +1,4 @@
-depth : {t : Tree a b} -> Int
+depth : {t : Tree a b} -> Nat
 depth Leaf = 0
 depth (Node (Leaf, 2, Leaf)) = 1
 depth (Node (Node (Leaf, 1, Leaf), 2, Leaf)) = 2

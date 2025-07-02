@@ -25,7 +25,8 @@ data Lexeme
   | Separator Text
   | Bracket Bracket
   | Underscore
-  | IntLit Int
+  -- | IntLit Int
+  | NatLit Nat
   | StringLit String
   | Newline Int
   deriving stock (Eq, Ord, Show, Read)
@@ -76,8 +77,11 @@ bracket = choice
   , (Square, Open) <$ char   '['  , (Square, Close) <$ char     ']'
   ]
 
-intLit :: Lexer Int
-intLit = read <$> some digitChar
+-- intLit :: Lexer Int
+-- intLit = read <$> some digitChar
+
+natLit :: Lexer Nat
+natLit = read <$> some digitChar
 
 stringLit :: Lexer String
 stringLit = char '"' >> manyTill L.charLiteral (char '"')
@@ -90,7 +94,8 @@ lex = (optional comment *>) . many . choice $ fmap (L.lexeme sc)
   , Separator <$> separator
   , Bracket <$> bracket
   , Underscore <$ char '_'
-  , IntLit <$> intLit
+  -- , IntLit <$> intLit
+  , NatLit <$> natLit
   , StringLit <$> stringLit
   ] ++ [ L.lexeme sc' $ Newline . length <$ eol <*> many (char ' ') ]
 
@@ -123,10 +128,15 @@ constructor = Name <$> flip token Set.empty \case
   Constr i -> Just i
   _ -> Nothing
 
-int :: Parser Int
-int = flip token Set.empty \case
-  IntLit i -> Just i
+nat :: Parser Nat
+nat = flip token Set.empty \case
+  NatLit i -> Just i
   _ -> Nothing
+
+-- int :: Parser Int
+-- int = flip token Set.empty \case
+--   IntLit i -> Just i
+--   _ -> Nothing
 
 sep :: Text -> Parser Lexeme
 sep = single . Separator
@@ -194,8 +204,8 @@ instance Parse Signature where
 instance Parse (Named Signature) where
   parser = Named <$> identifier <* op ":" <*> parser
 
-instance Parse Lit where
-  parser = MkInt <$> int
+-- instance Parse Lit where
+--   parser = MkInt <$> int
 
 parenExpr :: Parse h => Parser (Expr l h)
 parenExpr = brackets Round do
@@ -214,7 +224,8 @@ instance Parse h => Parse (Expr l h) where
     [ parenExpr
     , Ctr <$> constructor <*> option Unit parser
     , List <$> parseList Square parser
-    , Lit <$> parser
+    , Nat <$> nat
+    -- , Lit <$> parser
     , Hole <$> parser
     ]
 
