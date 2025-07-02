@@ -108,6 +108,7 @@ library
     , Tactic.Map
     , Tactic.Predicate
     , Tactic.Relation
+    , Tactic.Simplified
     , Test
 
   -- Modules included in this library but not exported.
