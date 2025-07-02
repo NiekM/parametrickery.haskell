@@ -22,9 +22,12 @@ module Language.Expr
   , toValue
   , tuple
   , lets
+
+  , eval
+  , fromVal
   ) where
 
-import Prelude hiding (Enum(..))
+import Prelude hiding (Enum(..), error)
 
 import Data.List qualified as List
 import Data.Map qualified as Map
@@ -127,16 +130,17 @@ norm ctx = \case
     App f (Var w) | v == w -> f
     y -> Lam v y
   App f x -> case App (norm ctx f) (norm ctx x) of
-    App (Lam v e) y -> norm (Map.insert v y ctx) e
+    App (Lam v e) y ->
+      norm (Map.insert v y ctx) e
     Case (Ctr c e) xs -> norm ctx $
-      App (Maybe.fromJust $ List.lookup c xs) e
+      App (Maybe.fromJust $ List.lookup c xs) (norm ctx e)
     Apps (Var "cata") [alg, List xs] -> norm ctx $
       foldr (\y r -> App alg $ Cons y r) (App alg Nil) xs
     Apps (Var "cata") [alg, Tree xs] -> norm ctx $
       foldTree (\l y r -> App alg $ Ctr "Node" $ Tuple [l, y, r])
         (\y -> App alg $ Ctr "Leaf" y) xs
     Apps (Var "cata") [alg, Nat n] -> norm ctx $
-      applyN n (App alg . Ctr "Succ") (App alg $ Ctr "Zero" Unit)
+      foldNat n (App alg . Ctr "Succ") (App alg $ Ctr "Zero" Unit)
     Apps (Var "para") [alg, List xs] -> norm ctx $
       paraList (\y (ys, r) -> App alg $ Cons y (Tuple [r, List ys])) (App alg Nil) xs
     Apps (Var "para") [alg, Tree xs] -> norm ctx $
@@ -152,6 +156,155 @@ norm ctx = \case
     y -> Prj i y
   Elim xs -> Elim $ map (norm ctx <$>) xs
   Hole h -> Hole h
+
+type Env h = Map Name (Val h)
+data Val h
+  = VLit Lit
+  | VTuple [Val h]
+  | VCtr Name (Val h)
+  | VClosure (Env h) Name (Program h)
+  | VElim [(Name, Val h)]
+  | VBuiltin Name [Val h]
+  deriving (Eq, Ord, Show)
+
+valTree :: Val h -> Maybe (Tree (Val h) (Val h))
+valTree = \case
+  VCtr "Leaf" x -> Just $ Leaf x
+  VCtr "Node" (VTuple [l, x, r]) -> Node <$> valTree l <*> pure x <*> valTree r
+  _ -> Nothing
+
+pattern VTree :: Tree (Val h) (Val h) -> Val h
+pattern VTree t <- (valTree -> Just t)
+  where VTree t = foldTree (\l x r -> VCtr "Node" $ VTuple [l, x, r]) (VCtr "Leaf") t
+
+pattern VNil = VCtr "[]" (VTuple [])
+pattern VCons x xs = VCtr ":" (VTuple [x, xs])
+
+valList :: Val h -> Maybe [Val h]
+valList = \case
+  VNil -> Just []
+  VCons x xs -> (x:) <$> valList xs
+  _ -> Nothing
+
+mkValList :: [Val h] -> Val h
+mkValList = foldr VCons VNil
+
+pattern VZero = VCtr "Zero" (VTuple [])
+pattern VSucc n = VCtr "Succ" n
+
+valNat :: Val h -> Maybe Nat
+valNat = \case
+  VZero -> Just 0
+  VSucc n -> (1+) <$> valNat n
+  _ -> Nothing
+
+pattern VTrue = VCtr "True" (VTuple [])
+pattern VFalse = VCtr "False" (VTuple [])
+
+fromBool :: Bool -> Val h
+fromBool False = VFalse
+fromBool True = VTrue
+
+toBool :: Val h -> Either String Bool
+toBool VFalse = Right False
+toBool VTrue = Right True
+toBool _ = Left "Not a boolean"
+
+fromOrdering :: Ordering -> Val h
+fromOrdering LT = VCtr "LT" (VTuple [])
+fromOrdering EQ = VCtr "EQ" (VTuple [])
+fromOrdering GT = VCtr "GT" (VTuple [])
+
+evalApp :: Env h -> Val h -> Val h -> Either String (Val h)
+evalApp env f e = case f of
+  VClosure cloEnv x body ->
+    eval (Map.insert x e cloEnv) body
+  VElim branches -> case e of
+    VCtr cname v -> do
+      case lookup cname branches of
+        Just arm -> evalApp env arm v
+        Nothing -> Left $ "No branch for constructor: " ++ show cname
+    _ -> Left "Elimination on non-constructor"
+  VBuiltin "eq" [] -> Right $ VBuiltin "eq" [e]
+  VBuiltin "eq" [x]
+    | Just a <- fromVal e >>= toValue, Just b <- fromVal x >>= toValue
+    -> Right $ fromBool (a == b)
+  VBuiltin "cmp" [] -> Right $ VBuiltin "cmp" [e]
+  VBuiltin "cmp" [x]
+    | Just a <- fromVal e >>= toValue, Just b <- fromVal x >>= toValue
+    -> Right $ fromOrdering (compare a b)
+  VBuiltin "map" [] -> Right $ VBuiltin "map" [e]
+  VBuiltin "map" [predicate]
+    | Just xs <- valList e -> mkValList <$> mapM (evalApp env predicate) xs
+    | otherwise -> Left "Map only works on lists"
+  VBuiltin "filter" [] -> Right $ VBuiltin "filter" [e]
+  VBuiltin "filter" [predicate]
+    | Just xs <- valList e -> mkValList <$> filterM (evalApp env predicate >=> toBool) xs
+    | otherwise -> Left "Filter only works on lists"
+  VBuiltin "cata" [] -> Right $ VBuiltin "cata" [e]
+  VBuiltin "cata" [alg]
+    | Just xs <- valList e ->
+      foldr (\x r -> r >>= evalApp env alg . VCons x) (evalApp env alg VNil) xs
+    | Just n <- valNat e ->
+      foldNat n (>>= evalApp env alg . VSucc) (evalApp env alg VZero)
+    | Just t <- valTree e ->
+      foldTree (\l x r -> do a <- l; b <- r; evalApp env alg (VCtr "Node" (VTuple [a, x, b]))) (evalApp env alg . VCtr "Leaf") t
+    | otherwise -> Left $ "Cata only works on some types"
+  VBuiltin "para" [] -> Right $ VBuiltin "para" [e]
+  VBuiltin "para" [alg]
+    | Just xs <- valList e ->
+      paraList (\x (ys, r) -> do a <- r; evalApp env alg (VCons x (VTuple [a, mkValList ys]))) (evalApp env alg VNil) xs
+    | Just t <- valTree e ->
+      paraTree (\l u x r s -> do a <- l; b <- r; evalApp env alg (VCtr "Node" (VTuple [VTuple [a, VTree u], x, VTuple [b, VTree s]]))) (evalApp env alg . VCtr "Leaf") t
+    | otherwise -> Left $ "Para only works on some types"
+  _ -> Left $ "Trying to apply a non-function"
+
+eval :: Env h -> Program h -> Either String (Val h)
+eval env expr = case expr of
+  Var x ->
+    case Map.lookup x env of
+      Just v -> Right v
+      Nothing
+        | x `elem` ["para", "cata", "map", "filter", "cmp", "eq"] -> Right $ VBuiltin x []
+        | otherwise -> Left $ "Unbound variable: " ++ show x.getName
+
+  Lam x body ->
+    Right $ VClosure env x body
+
+  Elim branches ->
+    VElim <$> mapM (mapM $ eval env) branches
+
+  App f e -> do
+    vf <- eval env f
+    ve <- eval env e
+    evalApp env vf ve
+
+  Tuple es -> VTuple <$> mapM (eval env) es
+
+  Prj i e -> do
+    v <- eval env e
+    case v of
+      VTuple vs ->
+        if i < List.genericLength vs then Right (List.genericIndex vs i)
+        else Left "Tuple index out of bounds"
+      _ -> Left "Projection on non-tuple"
+
+  Lit l -> Right $ VLit l
+
+  Ctr name arg -> do
+    arg' <- eval env arg
+    Right $ VCtr name arg'
+
+  Hole _ -> Left "Cannot evaluate holes"
+
+fromVal :: Val h -> Maybe (Program h)
+fromVal = \case
+  VLit i -> Just $ Lit i
+  VTuple vs -> Tuple <$> mapM fromVal vs
+  VCtr c v -> Ctr c <$> fromVal v
+  VClosure{} -> trace "closure" Nothing
+  VElim{} -> trace "elim" Nothing
+  VBuiltin{} -> trace "builtin" Nothing
 
 -- Smart constructors
 
@@ -269,12 +422,13 @@ unNat = \case
   Succ n -> (1+) <$> unNat n
   _ -> Nothing
 
-applyN :: Nat -> (a -> a) -> a -> a
-applyN n f = foldr (.) id $ replicate (fromIntegral n) f
+foldNat :: Nat -> (a -> a) -> a -> a
+foldNat 0 _ e = e
+foldNat n f e = f (foldNat (n - 1) f e)
 
 pattern Nat :: Nat -> Expr l h
 pattern Nat n <- (unNat -> Just n)
-  where Nat n = applyN n Succ Zero
+  where Nat n = foldNat n Succ Zero
 
 -- * Bools
 

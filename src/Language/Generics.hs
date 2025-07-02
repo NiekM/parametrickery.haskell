@@ -29,13 +29,15 @@ class Interpret a where
   interpret :: Program Void -> a
 
 instance {-# OVERLAPPING #-} FromExpr a => Interpret a where
-  interpret e = case toValue e >>= fromExpr of
-    Nothing -> error . show $ "Cannot interpret" <+> pretty e
-    Just v -> v
+  interpret e = case eval mempty e of
+    Left err -> error err
+    Right v -> case fromVal v >>= toValue >>= fromExpr of
+      Nothing -> error "Not a value"
+      Just x -> x
 
 instance {-# OVERLAPPING #-}
   (ToExpr a False, Interpret b) => Interpret (a -> b) where
-  interpret p = interpret . normalize . App p . Value . toExpr
+  interpret p = interpret . App p . Value . toExpr
 
 symbolName :: forall s -> KnownSymbol s => Name
 symbolName s = fromString . symbolVal $ Proxy @s
