@@ -58,7 +58,7 @@ relationConsistency = testProperty "checkRelation m (computeRelation m c)" $
     checkRelation m (computeRelation m c)
   where free = ["a", "b", "c"]
 
-runCheck :: ReaderC Context (ThrowC Conflict Identity) a -> Either Conflict a
+runCheck :: ReaderC DataContext (ThrowC Conflict Identity) a -> Either Conflict a
 runCheck = run . runThrow @Conflict . runReader datatypes
 
 ruleConsistency :: TestTree
