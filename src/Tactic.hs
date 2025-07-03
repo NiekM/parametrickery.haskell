@@ -212,7 +212,8 @@ elimArg expr arg = do
       -- require all cases to have at least some examples
       -- TODO: this tactic should not be disallowed when examples are missing, but during synthesis we should have an option to disallow it.
       -- maybe as an argoment to this function? This also disallows e.g. elimOrd when not all cases are present.
-      when (any (null . (.examples) . snd) m) $ notApplicable "not all cases have examples"
+      -- TODO: this also breaks fold detection sometimes.
+      -- when (any (null . (.examples) . snd) m) $ notApplicable "not all cases have examples"
       arms <- forM m \(a, p) -> do
         local (const p) $ binds [Named "x" a] $ hole False
       return $ App (Elim $ Map.assocs arms) (vacuous expr)

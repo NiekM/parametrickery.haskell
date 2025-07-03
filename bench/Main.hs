@@ -3,18 +3,23 @@ module Main where
 import Base
 
 import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import System.Timeout (timeout)
 import Control.Exception (evaluate)
 import Test.Tasty.Bench
 import Test.QuickCheck hiding (Success, Failure)
 
 import Language.Generics (Interpret(..))
+import Language.Parser
 import Language.Problem
+import Language.Prelude
 import Tactic
+import Tactic.Fold qualified as Tactic
 import Synth
 
 import Test.Compare
 import Bench hiding (testSynthesis)
+import System.Directory (listDirectory)
 
 benchProblem :: Arguments -> Named Problem -> Benchmark
 benchProblem args (Named name problem) =
@@ -59,9 +64,8 @@ testSynthesis args problem (Model model) = do
           else ("overfitted", False)
       | otherwise -> return ("inconsistent result", False)
 
-main :: IO ()
-main = do
-
+synthBench :: IO ()
+synthBench = do
   let args = def { settings = defaultSettings { removeIrrelevant = False } }
   let testBench = models
 
@@ -81,4 +85,37 @@ main = do
   let benches = map (fst <$>) successful
 
   defaultMain $ map (benchProblem args) benches
+
+main :: IO ()
+main = do
+  listBench
+
+listBench :: IO ()
+listBench = runBenchmark "data/fold_detection/lists/"
+
+load :: Name -> IO Problem
+load name = do
+  content <- Text.readFile $ "data/bench/" <> Text.unpack name.getName
+  case lexParse (parser @(Named Problem)) content of
+    Nothing -> error $ "Failed to parse " <> show (pretty name)
+    Just problem -> return problem.value
+
+foldCheck :: Named Problem -> Benchmark
+foldCheck (Named name problem) = bench (Text.unpack name.getName) $ whnf (isFold "xs") problem
+
+isFold :: Name -> Problem -> Bool
+isFold var problem = case runSingle defaultSettings datatypes problem (Tactic.fold var) of
+  Left _ -> False
+  Right _ -> True
+
+runBenchmark :: FilePath -> IO ()
+runBenchmark dir = do
+  files <- listDirectory dir
+  bs <- forM files \name -> do
+    content <- Text.readFile $ dir <> name
+    case lexParse parser content of
+      Nothing -> error $ "Failed to parse " <> show (pretty name)
+      Just problem -> return problem
+
+  defaultMain $ map foldCheck bs
 

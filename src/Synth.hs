@@ -15,6 +15,8 @@ module Synth
   , step, greedyStep
   , auto, greedy
   , extraGreedy
+
+  , runSingle
   ) where
 
 import Control.Effect.Fresh.Named
@@ -42,6 +44,7 @@ import Language.Pretty
 import Data.List qualified as List
 
 import Utils
+import Data.Functor.Identity (Identity)
 
 data Arguments = Arguments
   { tactic :: Refinement SynthC
@@ -149,6 +152,15 @@ runTac :: Synth sig m => Problem -> Refinement m -> m (Either TacticFailure Fill
 runTac problem tactic = do
   let vars = variables problem
   runError . runReader problem $ Lams vars <$> tactic
+
+
+type Tac = ReaderC Problem (ReaderC Settings (ReaderC DataContext (ErrorC TacticFailure (FreshC Identity)))) Filling
+
+runSingle :: Settings -> DataContext -> Problem -> Tac -> Either TacticFailure Filling
+runSingle settings context problem tactic = do
+  let vars = variables problem
+  run . evalFresh . runError . runReader context . runReader settings . runReader problem $ Lams vars <$> tactic
+
 
 -- TODO: use relevancy
 -- TODO: normalize problems by removing examples that are equivalent
