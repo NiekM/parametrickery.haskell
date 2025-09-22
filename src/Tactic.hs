@@ -50,7 +50,6 @@ data Settings = Settings
 
 defaultSettings :: Settings
 defaultSettings = Settings
-  -- NOTE: Turning `removeDuplicates` off seems to lead to more inconsistent results.
   { removeDuplicates = True
   , removeIrrelevant = False
   }

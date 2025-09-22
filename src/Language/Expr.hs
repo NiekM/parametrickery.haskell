@@ -127,7 +127,6 @@ norm ctx = \case
     Just x -> x
     Nothing -> Var v
   Lam v x -> case norm ctx x of
-    App f (Var w) | v == w -> f
     y -> Lam v y
   App f x -> case App (norm ctx f) (norm ctx x) of
     App (Lam v e) y ->

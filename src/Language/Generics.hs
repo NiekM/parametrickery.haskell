@@ -32,7 +32,7 @@ instance {-# OVERLAPPING #-} FromExpr a => Interpret a where
   interpret e = case eval mempty e of
     Left err -> error err
     Right v -> case fromVal v >>= toValue >>= fromExpr of
-      Nothing -> error "Not a value"
+      Nothing -> error $ "Not a value: " ++ show v
       Just x -> x
 
 instance {-# OVERLAPPING #-}
