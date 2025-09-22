@@ -53,16 +53,22 @@ testSynthesis args problem (Model model) = do
   case timed of
     Nothing -> return ("timeout", False)
     Just (Failure Depleted) -> return ("out of fuel", False)
-    Just (Failure Exhausted) -> return ("unrealizable", True)
-    Just (Success ((_, Unfinished _filling) :| _)) -> return ("realizable", True)
+    Just (Failure Exhausted) -> return (blue "unrealizable", True)
+    Just (Success ((_, Unfinished _filling) :| _)) -> return (yellow "realizable", True)
     Just (Success ((_, Finished program) :| _))
       | testProblem program problem -> do
         result <- quickCheckWithResult stdArgs { chatty = False }
           . withMaxSize 25 $ comparison model (interpret program)
         return if isSuccess result
-          then ("success", True)
-          else ("overfitted", False)
-      | otherwise -> return ("inconsistent result", False)
+          then (green "success", True)
+          else (red "overfitted", False)
+      | otherwise -> return (red_bg "inconsistent result", False)
+    where
+      red    text = "\ESC[31m" ++ text ++ "\ESC[0m"
+      green  text = "\ESC[32m" ++ text ++ "\ESC[0m"
+      yellow text = "\ESC[33m" ++ text ++ "\ESC[0m"
+      blue   text = "\ESC[34m" ++ text ++ "\ESC[0m"
+      red_bg text = "\ESC[41m" ++ text ++ "\ESC[0m"
 
 synthBench :: IO ()
 synthBench = do
