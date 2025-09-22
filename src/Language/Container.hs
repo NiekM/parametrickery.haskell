@@ -22,17 +22,17 @@ data Container = Container
 
 -- Traverse an expression along with its type, introducing holes at free
 -- variables.
-poly :: Has (Reader DataContext) sig m => Mono -> Term a -> m (Term (Name, Term a))
-poly = \cases
-  (Free v) x -> return $ Hole (v, x)
-  (Product ts) (Tuple xs) -> Tuple <$> zipWithM poly ts xs
+poly :: DataContext -> Mono -> Term a -> Term (Name, Term a)
+poly dataContext = \cases
+  (Free v) x -> Hole (v, x)
+  (Product ts) (Tuple xs) -> Tuple $ zipWith (poly dataContext) ts xs
   (Data d ts) (Ctr c x) -> do
-    cs <- asks $ getConstructors d ts
+    let cs = getConstructors d ts dataContext
     case find c cs of
       Nothing -> error . show $ "Datatype" <+> pretty d
         <+> "does not have a constructor" <+> pretty c <> "."
-      Just ct -> Ctr c <$> poly ct x
-  (Base _) (Lit x) -> return $ Lit x
+      Just ct -> Ctr c $ poly dataContext ct x
+  (Base _) (Lit x) -> Lit x
   t x -> error $
     show (void x) <> " does not have type " <> show t <> "."
 
@@ -44,8 +44,8 @@ computePositions e = run $ evalState @(Map Name Nat) mempty do
     modify $ Map.insert v (n + 1)
     return (Named v n, x)
 
-toContainer :: Has (Reader DataContext) sig m => Mono -> Value -> m Container
-toContainer t = fmap (uncurry Container . extract . computePositions) . poly t
+toContainer :: DataContext -> Mono -> Value -> Container
+toContainer dataContext t = (uncurry Container . extract . computePositions) . poly dataContext t
 
 fromContainer :: Container -> Value
 fromContainer Container { shape, elements } = case inject elements shape of

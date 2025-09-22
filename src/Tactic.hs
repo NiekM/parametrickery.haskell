@@ -103,11 +103,13 @@ binds args body = do
 checkRealizable :: Tactic sig m => m [Rule]
 checkRealizable = do
   problem <- ask @Problem
-  liftThrow Unrealizable $ check problem
+  ctx <- ask @DataContext
+  either (throwError . Unrealizable) return $ check ctx problem
 
 tryRealizable :: Tactic sig m => m Filling -> m Filling
 tryRealizable cnt = do
   rules <- checkRealizable
+  -- Reconstruction improves preformance slightly by simplifying the resulting constraint.
   local (reconstruct rules) cnt
 
 none :: Tactic sig m => m Filling
@@ -118,23 +120,23 @@ hole recalculate = do
   settings :: Settings <- ask
   foldr (.) id
     [ elimTuples
-    , applyWhen settings.removeDuplicates $ local removeIdenticalInputs
-    , applyWhen settings.removeIrrelevant removeIrrelevant
+    -- , applyWhen settings.removeDuplicates $ local removeIdenticalInputs
+    -- , applyWhen settings.removeIrrelevant removeIrrelevant
     , applyWhen recalculate tryRealizable
     ] none
 
--- NOTE: computing irrelevance is currently super slow
-removeIrrelevant :: Tactic sig m => m Filling -> m Filling
-removeIrrelevant cnt = do
-  r <- ask >>= relevance
-  let
-    irrelevantNames = Set.toList $ foldMap (\(signature, _, _) ->
-      Set.fromList $ map (.name) . filter ((== Free "_") . (.value)) $ signature.inputs) r.relevance
-  local (hide irrelevantNames) cnt
+-- -- NOTE: computing irrelevance is currently super slow
+-- removeIrrelevant :: Tactic sig m => m Filling -> m Filling
+-- removeIrrelevant cnt = do
+--   r <- ask >>= relevance
+--   let
+--     irrelevantNames = Set.toList $ foldMap (\(signature, _, _) ->
+--       Set.fromList $ map (.name) . filter ((== Free "_") . (.value)) $ signature.inputs) r.relevance
+--   local (hide irrelevantNames) cnt
 
-removeIdenticalInputs :: Problem -> Problem
-removeIdenticalInputs = onArgs \args ->
-  Args (nubOn (.value) args.inputs) args.output
+-- removeIdenticalInputs :: Problem -> Problem
+-- removeIdenticalInputs = onArgs \args ->
+--   Args (nubOn (.value) args.inputs) args.output
 
 elimTuples :: Tactic sig m => m Filling -> m Filling
 elimTuples cnt = do

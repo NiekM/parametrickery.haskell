@@ -31,7 +31,8 @@ getBaseFunctor = \case
 unroll :: Tactic sig m => Mono -> Term Void -> m (Term (Term Void))
 unroll mono term = do
   (baseFunctor, types) <- getBaseFunctor mono
-  matched <- poly (Data baseFunctor (types ++ [Free "r"])) term
+  ctx <- ask
+  let matched = poly ctx (Data baseFunctor (types ++ [Free "r"])) term
   return $ matched >>= \case
     ("r", x) -> return x
     (_, other) -> absurd <$> other
@@ -41,8 +42,9 @@ cata name = do
   Arg mono terms <- getArg name
   local (hide [name]) do
     problem <- ask @Problem
+    ctx <- ask
 
-    rules <- liftThrow Unrealizable $ check Problem
+    rules <- either (throwError . Unrealizable) return $ check ctx Problem
       { signature = problem.signature
         { inputs = Named name mono : problem.signature.inputs }
       , examples = zip terms problem.examples <&>
@@ -75,8 +77,9 @@ para name = do
   Arg mono terms <- getArg name
   local (hide [name]) do
     problem <- ask @Problem
+    ctx <- ask
 
-    rules <- liftThrow Unrealizable $ check Problem
+    rules <- either (throwError . Unrealizable) return $ check ctx Problem
       { signature = problem.signature
         { inputs = Named name mono : problem.signature.inputs }
       , examples = zip terms problem.examples <&>

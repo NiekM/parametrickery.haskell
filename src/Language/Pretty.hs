@@ -20,7 +20,7 @@ import Language.Container.Morphism
 import Language.Container.Relation
 import Language.Coverage
 import Language.Problem
-import Language.Relevance
+-- import Language.Relevance
 
 statements :: [Doc ann] -> Doc ann
 statements = concatWith \x y -> x <> flatAlt line "; " <> y
@@ -179,8 +179,8 @@ instance Pretty Args where
     , "->" <+> pretty output
     ]
 
-instance Pretty Relevance where
-  pretty (Relevance rel) = pretty rel
+-- instance Pretty Relevance where
+--   pretty (Relevance rel) = pretty rel
 
 instance Pretty (Named Nat) where
   pretty n = pretty n.name <> pretty n.value

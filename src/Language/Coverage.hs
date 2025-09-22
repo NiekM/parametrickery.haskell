@@ -96,14 +96,12 @@ data Coverage = Total | Partial | Missing (Set Pattern)
 -- have relation coverage? or subpattern coverage, e.g. if it's a list booleans,
 -- do we still want coverage checking for a pattern such as [True], letting us
 -- know that we are missing [False]?
-coverage :: Has (Reader DataContext) sig m => Signature -> [Rule] -> m Coverage
-coverage signature examples = do
-  ctx <- ask
-  return case expectedCoverage ctx signature of
-    Nothing -> Partial
-    Just expected ->
-      let
-        covered = ruleCoverage examples
-        missing = expected Set.\\ covered
-        -- shapes = Set.map (.shapes) expected Set.\\ Set.map (.shapes) covered
-      in if null missing then Total else Missing missing
+coverage :: DataContext -> Signature -> [Rule] -> Coverage
+coverage dataContext signature examples = case expectedCoverage dataContext signature of
+  Nothing -> Partial
+  Just expected ->
+    let
+      covered = ruleCoverage examples
+      missing = expected Set.\\ covered
+      -- shapes = Set.map (.shapes) expected Set.\\ Set.map (.shapes) covered
+    in if null missing then Total else Missing missing

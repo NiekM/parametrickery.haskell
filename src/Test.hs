@@ -198,7 +198,7 @@ synth problem = case synthesize def problem of
   _ -> Nothing
 
 runCheck :: Problem -> Either Conflict [Rule]
-runCheck = runReader datatypes . check
+runCheck = check datatypes
 
 testExtract :: Program Void -> Problem -> IO [Bool]
 testExtract program problem = forM problem.examples \example ->

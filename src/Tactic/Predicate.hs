@@ -18,12 +18,14 @@ predicate message p = p >>= \case
 
 -- This is only applicable if the examples are fully covering.
 covering :: Tactic sig m => m Filling
-covering = predicate "no full coverage" do
+covering = do
   problem <- ask @Problem
-  rules <- liftThrow Unrealizable (check problem)
-  coverage problem.signature rules <&> \case
-    Total -> True
-    _ -> False
+  ctx <- ask
+  case check ctx problem of
+    Left err -> throwError $ Unrealizable err
+    Right rules -> case coverage ctx problem.signature rules of
+      Total -> none
+      _ -> notApplicable "no full coverage"
 
 -- This is only applicable if there are no examples.
 someExamples :: Tactic sig m => m Filling

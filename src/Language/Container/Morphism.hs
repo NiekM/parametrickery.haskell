@@ -39,13 +39,12 @@ data Rule = Rule
 
 -- It seems that we only need to compute the relation for the inputs, since the
 -- output values are a subset (and if they are not, this is already a conflict).
-checkExample :: (Has (Reader DataContext) sig m, Has (Throw Conflict) sig m) =>
-  Signature -> Example -> m Rule
-checkExample signature example = do
+checkExample :: DataContext -> Signature -> Example -> Either Conflict Rule
+checkExample dataContext signature example = do
   let types = map (.value) signature.inputs
 
-  input  <- toContainer (Product types) (Tuple example.inputs)
-  output <- toContainer signature.output example.output
+  let input  = toContainer dataContext (Product types) (Tuple example.inputs)
+  let output = toContainer dataContext signature.output example.output
 
   let
     relations = computeRelations signature.constraints input.elements
@@ -91,10 +90,9 @@ data Conflict
 -- good to check whether the type is inhabited. Especially in the case were
 -- there are no examples, we should still be able to check automatically that
 -- e.g. `{x : a} -> b` is not realizable.
-check :: (Has (Reader DataContext) sig m, Has (Throw Conflict) sig m) =>
-  Problem -> m [Rule]
-check problem =
-  combine =<< mapM (checkExample problem.signature) problem.examples
+check :: DataContext -> Problem -> Either Conflict [Rule]
+check dataContext problem =
+  combine =<< mapM (checkExample dataContext problem.signature) problem.examples
 
 matchShape :: Shape -> Value -> Maybe (Map Position Value)
 matchShape (Tuple xs) (Tuple ys) = Map.unions <$> zipWithM matchShape xs ys
