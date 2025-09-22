@@ -9,6 +9,7 @@ module Utils
   ) where
 
 import Data.Map.Strict qualified as Map
+import Data.List (sortOn)
 import Data.List.NonEmpty qualified as NonEmpty
 import Control.Applicative
 import Data.Monoid (Alt(..))
@@ -36,7 +37,7 @@ gather xs = Map.fromList $ NonEmpty.groupAllWith fst xs <&> \ys ->
   (fst (NonEmpty.head ys), snd <$> ys)
 
 nubOn :: Ord b => (a -> b) -> [a] -> [a]
-nubOn f = map NonEmpty.head . NonEmpty.groupAllWith f
+nubOn f = map snd . sortOn fst . map NonEmpty.head . NonEmpty.groupAllWith (f . snd) . zip [0 :: Int ..]
 
 vacant :: Traversable f => f a -> Maybe (f Void)
 vacant = traverse $ const Nothing

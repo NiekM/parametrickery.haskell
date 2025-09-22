@@ -50,6 +50,7 @@ data Settings = Settings
 
 defaultSettings :: Settings
 defaultSettings = Settings
+  -- NOTE: Turning `removeDuplicates` off seems to lead to more inconsistent results.
   { removeDuplicates = True
   , removeIrrelevant = False
   }
@@ -120,7 +121,7 @@ hole recalculate = do
   settings :: Settings <- ask
   foldr (.) id
     [ elimTuples
-    -- , applyWhen settings.removeDuplicates $ local removeIdenticalInputs
+    , applyWhen settings.removeDuplicates $ local removeIdenticalInputs
     -- , applyWhen settings.removeIrrelevant removeIrrelevant
     , applyWhen recalculate tryRealizable
     ] none
@@ -134,9 +135,9 @@ hole recalculate = do
 --       Set.fromList $ map (.name) . filter ((== Free "_") . (.value)) $ signature.inputs) r.relevance
 --   local (hide irrelevantNames) cnt
 
--- removeIdenticalInputs :: Problem -> Problem
--- removeIdenticalInputs = onArgs \args ->
---   Args (nubOn (.value) args.inputs) args.output
+removeIdenticalInputs :: Problem -> Problem
+removeIdenticalInputs = onArgs \args ->
+  Args (nubOn (.value) args.inputs) args.output
 
 elimTuples :: Tactic sig m => m Filling -> m Filling
 elimTuples cnt = do
