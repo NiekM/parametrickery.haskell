@@ -176,7 +176,10 @@ pattern VTree :: Tree (Val h) (Val h) -> Val h
 pattern VTree t <- (valTree -> Just t)
   where VTree t = foldTree (\l x r -> VCtr "Node" $ VTuple [l, x, r]) (VCtr "Leaf") t
 
+pattern VNil :: Val h
 pattern VNil = VCtr "[]" (VTuple [])
+
+pattern VCons :: Val h -> Val h -> Val h
 pattern VCons x xs = VCtr ":" (VTuple [x, xs])
 
 valList :: Val h -> Maybe [Val h]
@@ -188,7 +191,10 @@ valList = \case
 mkValList :: [Val h] -> Val h
 mkValList = foldr VCons VNil
 
+pattern VZero :: Val h
 pattern VZero = VCtr "Zero" (VTuple [])
+
+pattern VSucc :: Val h -> Val h
 pattern VSucc n = VCtr "Succ" n
 
 valNat :: Val h -> Maybe Nat
@@ -197,6 +203,7 @@ valNat = \case
   VSucc n -> (1+) <$> valNat n
   _ -> Nothing
 
+pattern VTrue, VFalse :: Val h
 pattern VTrue = VCtr "True" (VTuple [])
 pattern VFalse = VCtr "False" (VTuple [])
 
