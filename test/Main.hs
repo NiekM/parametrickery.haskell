@@ -58,15 +58,12 @@ relationConsistency = testProperty "checkRelation m (computeRelation m c)" $
     checkRelation m (computeRelation m c)
   where free = ["a", "b", "c"]
 
-runCheck :: ReaderC DataContext (ThrowC Conflict Identity) a -> Either Conflict a
-runCheck = run . runThrow @Conflict . runReader datatypes
-
 ruleConsistency :: TestTree
 ruleConsistency = testProperty
   "applyRule (checkExample s (Example i o)) i == Just o" $
   forAll (Arbitrary.sig free) \signature ->
   forAll (Arbitrary.example signature) \example ->
-    case runCheck $ checkExample signature example of
+    case checkExample datatypes signature example of
       Left _err -> discard
       Right rule ->
         classify (null $ holes rule.output) "simple" $
