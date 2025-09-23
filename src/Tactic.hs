@@ -121,18 +121,24 @@ hole recalculate = do
   foldr (.) id
     [ elimTuples
     , applyWhen settings.removeDuplicates $ local removeIdenticalInputs
-    -- , applyWhen settings.removeIrrelevant removeIrrelevant
+    , applyWhen settings.removeIrrelevant removeIrrelevant
     , applyWhen recalculate tryRealizable
     ] none
 
--- -- NOTE: computing irrelevance is currently super slow
--- removeIrrelevant :: Tactic sig m => m Filling -> m Filling
--- removeIrrelevant cnt = do
---   r <- ask >>= relevance
---   let
---     irrelevantNames = Set.toList $ foldMap (\(signature, _, _) ->
---       Set.fromList $ map (.name) . filter ((== Free "_") . (.value)) $ signature.inputs) r.relevance
---   local (hide irrelevantNames) cnt
+-- BUG: this currently seems to be not working as intended, as it influences the realizability,
+-- while removing irrelevants should *not* influence the realizability.
+-- However, this may be because `unrealizable` is currently not correctly reported?
+removeIrrelevant :: Tactic sig m => m Filling -> m Filling
+removeIrrelevant cnt = do
+  context <- ask
+  problem <- ask
+  case relevance context problem of
+    Nothing -> cnt
+    Just r ->
+      let
+        irrelevantNames = Set.toList $ foldMap (\(signature, _, _) ->
+          Set.fromList $ map (.name) . filter ((== Free "_") . (.value)) $ signature.inputs) r.relevance
+      in local (hide irrelevantNames) cnt
 
 removeIdenticalInputs :: Problem -> Problem
 removeIdenticalInputs = onArgs \args ->
