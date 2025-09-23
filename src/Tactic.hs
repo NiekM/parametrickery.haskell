@@ -3,6 +3,7 @@
 -- | Tactics inspired by refinery.
 module Tactic
   ( Tactic
+  , RealizabilityLevel(..)
   , Settings(..)
   , defaultSettings
   , TacticFailure(..)
@@ -43,15 +44,23 @@ import Utils
 
 -- TODO: split into multiple files
 
+data RealizabilityLevel
+  = NoRealizability
+  | MonoRealizability
+  | PolyRealizability
+  deriving stock (Eq, Ord, Show)
+
 data Settings = Settings
-  { removeDuplicates :: Bool
-  , removeIrrelevant :: Bool
-  } deriving (Eq, Ord, Show)
+  { removeDuplicates   :: Bool
+  , removeIrrelevant   :: Bool
+  , realizabilityLevel :: RealizabilityLevel
+  } deriving stock (Eq, Ord, Show)
 
 defaultSettings :: Settings
 defaultSettings = Settings
   { removeDuplicates = True
   , removeIrrelevant = False
+  , realizabilityLevel = PolyRealizability
   }
 
 data TacticFailure
@@ -108,9 +117,20 @@ checkRealizable = do
 
 tryRealizable :: Tactic sig m => m Filling -> m Filling
 tryRealizable cnt = do
-  rules <- checkRealizable
-  -- Reconstruction improves preformance slightly by simplifying the resulting constraint.
-  local (reconstruct rules) cnt
+  Settings { realizabilityLevel } <- ask
+  -- NOTE: not performing realizability breaks the map < foldr relation, so requires a weaker tactic.
+  case realizabilityLevel of
+    NoRealizability -> cnt
+    MonoRealizability -> do
+      problem <- ask
+      case monoCheck problem of
+        Nothing -> cnt
+        Just xs -> throwError . Unrealizable $ MonoConflict xs
+    PolyRealizability -> do
+      rules <- checkRealizable
+      -- NOTE: should we make this an option?
+      -- Reconstruction seems to improve performance slightly by simplifying the resulting constraint.
+      local (reconstruct rules) cnt
 
 none :: Tactic sig m => m Filling
 none = Hole <$> ask

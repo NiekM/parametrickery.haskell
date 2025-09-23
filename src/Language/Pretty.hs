@@ -228,6 +228,7 @@ instance Pretty Conflict where
     ShapeConflict xs -> "ShapeConflict!" <+> indent 2 (pretty xs)
     MagicOutput x -> "MagicOutput!" <+> indent 2 (pretty x)
     PositionConflict xs -> "PositionConflict!" <+> indent 2 (pretty xs)
+    MonoConflict xs -> "MonoConflict!" <+> indent 2 (pretty xs)
 
 instance Pretty Coverage where
   pretty = \case

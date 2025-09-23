@@ -69,6 +69,14 @@ fromArgs constraints (Args inputs (Arg goal outputs)) = Problem
 onArgs :: (Args -> Args) -> Problem -> Problem
 onArgs f p = fromArgs p.signature.constraints . f $ toArgs p
 
+-- Check the realizability of a set of input-output examples (ignoring the types)
+-- Returns conflicting examples.
+monoCheck :: Problem -> Maybe (NonEmpty (NonEmpty Example))
+monoCheck p = NonEmpty.nonEmpty $ filter inconsistent sameInputs
+  where
+    inconsistent (x :| xs) = any (/= x) xs
+    sameInputs = NonEmpty.groupAllWith (.inputs) p.examples
+
 disable :: Set Name -> Args -> Args
 disable ss args = args { inputs = map enable args.inputs }
   where

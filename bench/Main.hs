@@ -102,6 +102,7 @@ main = do
   synthBench Settings
     { removeDuplicates = True
     , removeIrrelevant = False
+    , realizabilityLevel = PolyRealizability
     }
 
 listBench :: IO ()

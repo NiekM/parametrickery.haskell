@@ -84,6 +84,7 @@ data Conflict
   | ShapeConflict (NonEmpty Rule)
   | MagicOutput Problem
   | PositionConflict (NonEmpty Rule)
+  | MonoConflict (NonEmpty (NonEmpty Example))
   deriving stock (Eq, Ord, Show)
 
 -- TODO: before checking the realizability w.r.t. parametricity, it might be
