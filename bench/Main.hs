@@ -70,9 +70,13 @@ testSynthesis args problem (Model model) = do
       blue   text = "\ESC[34m" ++ text ++ "\ESC[0m"
       red_bg text = "\ESC[41m" ++ text ++ "\ESC[0m"
 
-synthBench :: IO ()
-synthBench = do
-  let args = def { settings = defaultSettings { removeIrrelevant = False } }
+synthBench :: Settings -> IO ()
+synthBench settings = do
+  putStrLn ""
+  print settings
+  putStrLn ""
+
+  let args = def { settings = settings }
   let testBench = models
 
   problems <- forM testBench \model -> do
@@ -94,7 +98,11 @@ synthBench = do
 
 main :: IO ()
 main = do
-  listBench
+  -- listBench
+  synthBench Settings
+    { removeDuplicates = True
+    , removeIrrelevant = False
+    }
 
 listBench :: IO ()
 listBench = runBenchmark "data/fold_detection/lists/"
