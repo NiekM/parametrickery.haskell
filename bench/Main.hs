@@ -20,6 +20,8 @@ import Synth
 import Test.Compare
 import Bench hiding (testSynthesis)
 import System.Directory (listDirectory)
+import System.Environment
+import Options.Applicative qualified as Opt
 
 benchProblem :: Arguments -> Named Problem -> Benchmark
 benchProblem args (Named name problem) =
@@ -76,7 +78,7 @@ synthBench settings = do
   print settings
   putStrLn ""
 
-  let args = def { settings = settings }
+  let synArgs = def { settings = settings }
   let testBench = models
 
   problems <- forM testBench \model -> do
@@ -87,23 +89,37 @@ synthBench settings = do
 
   successful <- problems & filterM \(Named name (problem, model)) -> do
     let len = Text.length name.getName
-    (str, res) <- testSynthesis args problem model
+    (str, res) <- testSynthesis synArgs problem model
     let padding = replicate (maxLength + 3 - len) ' '
     putStrLn $ show (pretty name) <> ":" <> padding <> str
     return res
 
   let benches = map (fst <$>) successful
 
-  defaultMain $ map (benchProblem args) benches
+  -- HACK: filter away arguments related to synthesis to not confuse Test.Tasty.Bench
+  -- Test.Tasty.Bench only has a defaultMain, no way to add extra options like Test.Tasty.benchMarkWithIngredients.
+  -- A temporary fix is to remove any options related to synthesis before calling defaultMain.
+  let synthOptions = ["removeDuplicates", "removeIrrelevant", "realizability", "-r"]
+        ++ map (show @RealizabilityLevel) [minBound .. maxBound]
+  args <- getArgs
+  withArgs (filter (`notElem` synthOptions) args) $ defaultMain $ map (benchProblem synArgs) benches
+
+options :: Opt.Parser Settings
+options = Settings
+  <$> Opt.switch (Opt.long "removeDuplicates")
+  <*> Opt.switch (Opt.long "removeIrrelevant")
+  <*> Opt.option Opt.auto
+    (  Opt.long "realizability"
+    <> Opt.short 'r'
+    <> Opt.value PolyRealizability
+    <> Opt.metavar "LEVEL"
+    <> Opt.help "Use realizability reasoning at level LEVEL")
 
 main :: IO ()
 main = do
-  -- listBench
-  synthBench Settings
-    { removeDuplicates = True
-    , removeIrrelevant = False
-    , realizabilityLevel = PolyRealizability
-    }
+  let opts = Opt.info (options <**> Opt.helper) Opt.fullDesc
+  settings <- Opt.execParser opts
+  synthBench settings
 
 listBench :: IO ()
 listBench = runBenchmark "data/fold_detection/lists/"

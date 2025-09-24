@@ -48,13 +48,13 @@ data RealizabilityLevel
   = NoRealizability
   | MonoRealizability
   | PolyRealizability
-  deriving stock (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Read, Enum, Bounded)
 
 data Settings = Settings
   { removeDuplicates   :: Bool
   , removeIrrelevant   :: Bool
   , realizabilityLevel :: RealizabilityLevel
-  } deriving stock (Eq, Ord, Show)
+  } deriving stock (Eq, Ord, Show, Read)
 
 defaultSettings :: Settings
 defaultSettings = Settings
