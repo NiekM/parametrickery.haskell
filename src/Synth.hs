@@ -198,7 +198,8 @@ greedyStep = firstOf
 -- * Synthesizers
 
 phase1 :: Ref sig m => m Filling
-phase1 = until covering step
+-- phase1 = until covering step
+phase1 = repeat step
 
 auto :: Ref sig m => m Filling
 auto = phase1 >>> greedy

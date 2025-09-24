@@ -99,7 +99,7 @@ synthBench settings = do
   -- HACK: filter away arguments related to synthesis to not confuse Test.Tasty.Bench
   -- Test.Tasty.Bench only has a defaultMain, no way to add extra options like Test.Tasty.benchMarkWithIngredients.
   -- A temporary fix is to remove any options related to synthesis before calling defaultMain.
-  let synthOptions = ["removeDuplicates", "removeIrrelevant", "realizability", "-r"]
+  let synthOptions = ["--removeDuplicates", "--removeIrrelevant", "--realizability", "--noCheckCoverage", "-r"]
         ++ map (show @RealizabilityLevel) [minBound .. maxBound]
   args <- getArgs
   withArgs (filter (`notElem` synthOptions) args) $ defaultMain $ map (benchProblem synArgs) benches
@@ -108,6 +108,7 @@ options :: Opt.Parser Settings
 options = Settings
   <$> Opt.switch (Opt.long "removeDuplicates")
   <*> Opt.switch (Opt.long "removeIrrelevant")
+  <*> Opt.flag True False (Opt.long "noCheckCoverage")
   <*> Opt.option Opt.auto
     (  Opt.long "realizability"
     <> Opt.short 'r'

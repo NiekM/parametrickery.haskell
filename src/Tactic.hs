@@ -39,6 +39,7 @@ import Language.Pretty ()
 import Language.Problem
 import Language.Relevance
 import Language.Type
+import Language.Coverage
 
 import Utils
 
@@ -53,13 +54,15 @@ data RealizabilityLevel
 data Settings = Settings
   { removeDuplicates   :: Bool
   , removeIrrelevant   :: Bool
+  , checkCoverage      :: Bool
   , realizabilityLevel :: RealizabilityLevel
   } deriving stock (Eq, Ord, Show, Read)
 
 defaultSettings :: Settings
 defaultSettings = Settings
-  { removeDuplicates = True
-  , removeIrrelevant = False
+  { removeDuplicates   = True
+  , removeIrrelevant   = False
+  , checkCoverage      = True
   , realizabilityLevel = PolyRealizability
   }
 
@@ -83,6 +86,7 @@ type Tactic sig m =
   , Has (Reader Problem) sig m
   , Has Fresh sig m
   , Has (Throw TacticFailure) sig m
+  , Has (Catch TacticFailure) sig m
   )
 
 type Filling = Program Problem
@@ -115,22 +119,94 @@ checkRealizable = do
   ctx <- ask @DataContext
   either (throwError . Unrealizable) return $ check ctx problem
 
+anywhere :: (Tactic sig m, Has (Catch TacticFailure) sig m) =>
+  (Name -> m a) -> m a
+anywhere tactic = do
+  vars <- asks variables
+  firstOf $ tactic <$> vars
+
+anywhere2 :: (Tactic sig m, Has (Catch TacticFailure) sig m) =>
+  (Name -> Name -> m a) -> m a
+anywhere2 tactic = do
+  vars <- asks variables
+  let pairs = [(x, y) | x <- vars, y <- vars, x < y]
+  firstOf $ uncurry tactic <$> pairs
+
+firstOf :: Has (Error TacticFailure) sig m => [m a] -> m a
+firstOf = foldr orElse $ notApplicable "empty list of tactics"
+
+infixl 2 <|
+
+orElse, (<|) :: Has (Catch TacticFailure) sig m => m a -> m a -> m a
+orElse t u = catchError @TacticFailure t $ const u
+(<|) = orElse
+
+constructors :: Tactic sig m => m Filling
+constructors = introCtr <| introTuple
+
+elimEq :: Tactic sig m => Name -> Name -> m Filling
+elimEq name1 name2 = do
+  x <- getArg name1
+  y <- getArg name2
+  problem <- ask @Problem
+  case (x, y) of
+    (Arg (Free a) xs, Arg (Free b) ys) -> do
+      when (a /= b) $ notApplicable "args done't have the same type"
+      when (Eq a `notElem` problem.signature.constraints) $
+        notApplicable "type has no Eq constraint"
+      let bools = Arg (Data "Bool" []) $ Bool <$> zipWith (==) xs ys
+      elimArg (Apps (Var "eq") [Var name1, Var name2]) bools
+    _ -> notApplicable "args aren't free variables"
+
+elimOrd :: Tactic sig m => Name -> Name -> m Filling
+elimOrd name1 name2 = do
+  x <- getArg name1
+  y <- getArg name2
+  problem <- ask @Problem
+  case (x, y) of
+    (Arg (Free a) xs, Arg (Free b) ys) -> do
+      when (a /= b) $ notApplicable "args done't have the same type"
+      when (Ord a `notElem` problem.signature.constraints) $
+        notApplicable "type has no Ord constraint"
+      let ords = Arg (Data "Ordering" []) $ Ordering <$> zipWith compare xs ys
+      elimArg (Apps (Var "cmp") [Var name1, Var name2]) ords
+    _ -> notApplicable "args aren't free variables"
+
+relations :: Tactic sig m => Name -> Name -> m Filling
+relations x y = elimOrd x y <| elimEq x y
+
+greedyStep :: Tactic sig m => m Filling
+greedyStep = firstOf
+  [ anywhere assume
+  , constructors
+  , anywhere elim
+  , anywhere2 relations
+  ]
+
+loop :: Tactic sig m => m Filling -> m Filling
+loop tactic = tactic >>> loop tactic
+
 tryRealizable :: Tactic sig m => m Filling -> m Filling
 tryRealizable cnt = do
-  Settings { realizabilityLevel } <- ask
+  context <- ask
+  problem <- ask
+  Settings { realizabilityLevel, checkCoverage } <- ask
   -- NOTE: not performing realizability breaks the map < foldr relation, so requires a weaker tactic.
   case realizabilityLevel of
     NoRealizability -> cnt
     MonoRealizability -> do
-      problem <- ask
       case monoCheck problem of
         Nothing -> cnt
         Just xs -> throwError . Unrealizable $ MonoConflict xs
     PolyRealizability -> do
       rules <- checkRealizable
-      -- NOTE: should we make this an option?
-      -- Reconstruction seems to improve performance slightly by simplifying the resulting constraint.
-      local (reconstruct rules) cnt
+      if checkCoverage
+        then case coverage context problem.signature rules of
+          Total -> cnt >>> loop greedyStep
+          _ -> cnt
+        -- NOTE: should we make this an option?
+        -- Reconstruction seems to improve performance slightly by simplifying the resulting constraint.
+        else local (reconstruct rules) cnt
 
 none :: Tactic sig m => m Filling
 none = Hole <$> ask
