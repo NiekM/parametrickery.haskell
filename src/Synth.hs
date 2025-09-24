@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# LANGUAGE OverloadedLists #-}
 
 module Synth
   ( synthesize
@@ -12,9 +13,8 @@ module Synth
   , Refinement
   , search
   , runTac
-  , step, greedyStep
-  , auto, greedy
-  , extraGreedy
+  , step
+  , auto
 
   , runSingle
   ) where
@@ -33,11 +33,9 @@ import Language.Problem
 
 import Tactic
 import Tactic.Combinators
-import Tactic.Predicate
 import Tactic.Map qualified as Tactic
 import Tactic.Filter qualified as Tactic
 import Tactic.Fold qualified as Tactic
-import Tactic.Relation qualified as Tactic
 
 import Language.Prelude
 import Language.Pretty
@@ -122,7 +120,7 @@ synthesize args problem = case dropFailures $ runSearch searchSpace of
     searchSpace :: Search (Sum Nat) (Maybe (Either TacticFailure Filling))
     searchSpace = search args.settings args.context
       . maybe (fmap Just) limit args.fuel
-      $ runTac problem (hole True `andThen` args.tactic)
+      $ runTac problem (rerealize hole `andThen` args.tactic)
 
 type Synth sig m =
   ( Has WeightedSearch sig m
@@ -169,14 +167,8 @@ runSingle settings context problem tactic = do
 
 -- * Larger tactic groups
 
-constructors :: Ref sig m => m Filling
-constructors = introCtr <| introTuple
-
 eliminators :: Ref sig m => Name -> m Filling
 eliminators x = Tactic.map x <| Tactic.filter x <| Tactic.fold x <| Tactic.para x <| elim x
-
-relations :: Ref sig m => Name -> Name -> m Filling
-relations x y = Tactic.elimOrd x y <| Tactic.elimEq x y
 
 -- * Single steps
 
@@ -187,28 +179,13 @@ step = anywhere assume <| anyOf
   , constructors
   ]
 
-greedyStep :: Ref sig m => m Filling
-greedyStep = firstOf
-  [ anywhere assume
-  , constructors
-  , anywhere elim
-  , anywhere2 relations
-  ]
-
 -- * Synthesizers
 
-phase1 :: Ref sig m => m Filling
--- phase1 = until covering step
-phase1 = repeat step
-
 auto :: Ref sig m => m Filling
-auto = phase1 >>> greedy
+auto = repeat step
 
-greedy :: Ref sig m => m Filling
-greedy = repeat greedyStep
-
-extraGreedy :: Ref sig m => m Filling
-extraGreedy = until noExamples greedyStep
+-- extraGreedy :: Ref sig m => m Filling
+-- extraGreedy = until noExamples greedyStep
 
 -- * Old versions with weights
 

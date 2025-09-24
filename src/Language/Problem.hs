@@ -28,6 +28,16 @@ data Problem = Problem
   , examples  :: [Example]
   } deriving stock (Eq, Ord, Show)
 
+evaluate :: Program Void -> Problem -> Maybe [Value]
+evaluate program problem = forM problem.examples \example ->
+  let
+    inputs = map Value example.inputs
+    vars = map (.name) problem.signature.inputs
+    expr = Apps (Lams vars program) inputs
+  in case normalize expr of
+    Value output -> Just output
+    _ -> Nothing
+
 testProblem :: Program Void -> Problem -> Bool
 testProblem program problem = problem.examples & all \example ->
   let

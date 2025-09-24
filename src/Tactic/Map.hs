@@ -9,7 +9,9 @@ import Language.Problem
 import Language.Type
 import Language.Generics
 
-import Tactic
+import Tactic.Check
+import Tactic.Core
+import Tactic.Hole
 
 map :: Tactic sig m => Name -> m Filling
 map name = do
@@ -28,10 +30,10 @@ map name = do
         let signature = Signature constraints (context ++ [Named x t]) u
         let subproblem = Problem signature $ concat examples
         local (const subproblem) do
-          f <- hole True
+          f <- rerealize hole
           let result = Apps (Var "map") [Lams [x] f, Var name]
           return result
-      _ -> notApplicable "map only implemented for lists"
+      _ -> throwError $ NotApplicable "map only implemented for lists"
 
 mapSome :: Tactic sig m => Name -> m Filling
 mapSome name = do
@@ -58,9 +60,9 @@ mapSome name = do
         let signature = Signature constraints (context ++ new) u
         let subproblem = Problem signature $ concat examples
         local (const subproblem) do
-          f <- hole True
+          f <- rerealize hole
           let result = Apps (Var "map") [Lams [x] f, Var name]
           return result
-      _ -> notApplicable "mapSome only implemented for lists"
+      _ -> throwError $ NotApplicable "mapSome only implemented for lists"
 
 

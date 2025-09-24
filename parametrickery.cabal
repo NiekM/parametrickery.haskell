@@ -102,13 +102,19 @@ library
     , Language.Relevance
     , Synth
     , Tactic
+    , Tactic.Check
     , Tactic.Combinators
+    , Tactic.Constructors
+    , Tactic.Core
+    , Tactic.Elim
+    , Tactic.Extract
     , Tactic.Filter
     , Tactic.Fold
+    , Tactic.Hole
     , Tactic.Map
     , Tactic.Predicate
     , Tactic.Relation
-    , Tactic.Simplified
+    , Tactic.Settings
     , Test
 
   -- Modules included in this library but not exported.

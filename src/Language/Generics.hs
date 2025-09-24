@@ -22,7 +22,6 @@ import Base
 
 import Language.Expr
 import Language.Type
-import Language.Pretty ()
 
 -- | Interpret a program as a Haskell function.
 class Interpret a where

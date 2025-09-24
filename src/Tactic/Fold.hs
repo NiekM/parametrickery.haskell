@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 module Tactic.Fold where
 
 import Base
@@ -11,7 +12,10 @@ import Language.Type
 import Language.Container
 import Language.Container.Morphism
 
-import Tactic
+import Tactic.Check
+import Tactic.Core
+import Tactic.Elim
+import Tactic.Hole
 
 fold :: Tactic sig m => Name -> m Filling
 fold name = cata name `andThen` do
@@ -23,10 +27,10 @@ getBaseFunctor = \case
     let baseFunctor = d <> "F"
     ds <- ask @DataContext
     case find baseFunctor ds.datatypes of
-      Nothing -> notApplicable "cannot unroll nonrecursive datatype"
+      Nothing -> throwError $ NotApplicable "cannot unroll nonrecursive datatype"
       _ -> return ()
     return (baseFunctor, ts)
-  _ -> notApplicable "cannot unroll nondatatype"
+  _ -> throwError $ NotApplicable "cannot unroll nondatatype"
 
 unroll :: Tactic sig m => Mono -> Term Void -> m (Term (Term Void))
 unroll mono term = do
@@ -67,7 +71,7 @@ cata name = do
     f <- local (const $ Problem problem.signature
       { inputs = problem.signature.inputs ++
         [ Named r $ Data baseFunctor (types ++ [problem.signature.output]) ]
-      } examples) $ hole True
+      } examples) $ rerealize hole
 
     let result = Apps (Var "cata") [Lams [r] f, Var name]
     return result
@@ -104,7 +108,7 @@ para name = do
         [ Named r $ Data baseFunctor (types ++
           [Product [problem.signature.output, mono]])
         ]
-      } examples) $ hole True
+      } examples) $ rerealize hole
 
     let result = Apps (Var "para") [Lams [r] f, Var name]
 

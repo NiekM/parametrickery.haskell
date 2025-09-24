@@ -1,0 +1,65 @@
+module Tactic.Hole (hole) where
+
+import Data.Set qualified as Set
+
+import Control.Carrier.Reader
+import Control.Effect.Fresh.Named
+
+import Base
+import Language.Expr
+import Language.Problem
+import Language.Relevance
+import Language.Type
+import Tactic.Core
+
+import Utils
+
+hole :: Tactic sig m => m Filling
+hole = do
+  settings :: Settings <- ask
+  foldr @[] (.) id
+    [ elimTuples
+    , applyWhen settings.removeDuplicates $ local removeIdenticalInputs
+    , applyWhen settings.removeIrrelevant removeIrrelevant
+    ] none
+
+-- BUG: this currently seems to be not working as intended, as it influences the realizability,
+-- while removing irrelevants should *not* influence the realizability.
+-- However, this may be because `unrealizable` is currently not correctly reported?
+removeIrrelevant :: Tactic sig m => m Filling -> m Filling
+removeIrrelevant cnt = do
+  context <- ask
+  problem <- ask
+  case relevance context problem of
+    Nothing -> cnt
+    Just r ->
+      let
+        irrelevantNames = Set.toList $ foldMap (\(signature, _, _) ->
+          Set.fromList $ map (.name) . filter ((== Free "_") . (.value)) $ signature.inputs) r.relevance
+      in local (hide irrelevantNames) cnt
+
+removeIdenticalInputs :: Problem -> Problem
+removeIdenticalInputs = onArgs \args ->
+  Args (nubOn (.value) args.inputs) args.output
+
+elimTuples :: Tactic sig m => m Filling -> m Filling
+elimTuples cnt = do
+  args <- asks toArgs
+  let
+    tuples = args.inputs & filter \arg -> case arg.value.mono of
+      Product _ -> True
+      _ -> False
+    components = tuples >>= \(Named name arg) -> peel (Var name) arg
+  xs <- zipWithM nominate (Base.repeat "x") components
+  let terms = map (vacuous . fst <$>) xs
+  let old = map (.name) tuples
+  let new = map (snd <$>) xs
+  local (hide old) do
+    local (addInputs new) do
+      lets terms <$> cnt
+  where
+    peel :: Program Void -> Arg -> [(Program Void, Arg)]
+    peel expr arg = case arg.mono of
+      Product _ -> concat $ zipWith (\i e -> peel (Prj i expr) e)
+        [0..] (projections arg)
+      _ -> [(expr, arg)]

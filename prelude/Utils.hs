@@ -6,12 +6,14 @@ module Utils
   , gather
   , nubOn
   , vacant
+  , enumerate
   ) where
 
 import Data.Map.Strict qualified as Map
 import Data.List (sortOn)
 import Data.List.NonEmpty qualified as NonEmpty
 import Control.Applicative
+import Control.Carrier.State.Strict
 import Data.Monoid (Alt(..))
 
 import Base
@@ -41,3 +43,10 @@ nubOn f = map snd . sortOn fst . map NonEmpty.head . NonEmpty.groupAllWith (f . 
 
 vacant :: Traversable f => f a -> Maybe (f Void)
 vacant = traverse $ const Nothing
+
+enumerate :: Traversable t => t a -> t (Nat, a)
+enumerate t = run $ evalState @Nat 0 do
+  t & traverse \x -> do
+    n <- get
+    put (n + 1)
+    return (n, x)

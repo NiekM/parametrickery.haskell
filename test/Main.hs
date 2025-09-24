@@ -6,20 +6,16 @@ import Base
 
 import Data.Text qualified as Text
 import Data.Typeable
-import Data.Functor.Identity
 
 import Test.QuickCheck (Arbitrary)
 import Test.Tasty
 import Test.Tasty.QuickCheck (testProperty, forAll, discard, classify, withMaxSize)
-import Control.Carrier.Reader
-import Control.Carrier.Throw.Either
 
 import Data.Tree.Binary
 import Language.Arbitrary qualified as Arbitrary
 import Language.Container.Relation
 import Language.Container.Morphism
 import Language.Expr
-import Language.Type
 import Language.Problem
 import Language.Prelude
 import Language.Generics

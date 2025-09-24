@@ -13,7 +13,7 @@ import Language.Generics (Interpret(..))
 import Language.Parser
 import Language.Problem
 import Language.Prelude
-import Tactic
+import Tactic.Settings
 import Tactic.Fold qualified as Tactic
 import Synth
 
@@ -51,7 +51,7 @@ paperBench = models & filter \model -> model.name `elem`
 
 testSynthesis :: Arguments -> Problem -> Model -> IO (String, Bool)
 testSynthesis args problem (Model model) = do
-  timed <- timeout 1_000_000 . evaluate $ synthesize args problem
+  timed <- timeout 1_000_000 . Control.Exception.evaluate $ synthesize args problem
   case timed of
     Nothing -> return ("timeout", False)
     Just (Failure Depleted) -> return ("out of fuel", False)
@@ -90,7 +90,7 @@ synthBench settings = do
   successful <- problems & filterM \(Named name (problem, model)) -> do
     let len = Text.length name.getName
     (str, res) <- testSynthesis synArgs problem model
-    let padding = replicate (maxLength + 3 - len) ' '
+    let padding = Base.replicate (maxLength + 3 - len) ' '
     putStrLn $ show (pretty name) <> ":" <> padding <> str
     return res
 
