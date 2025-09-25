@@ -148,9 +148,13 @@ runTactic settings context problem tactic = do
 -- * Larger tactic groups
 
 eliminators :: Synth sig m => Name -> m Filling
-eliminators x = Tactic.map x <| Tactic.filter x <| Tactic.fold x <| Tactic.para x <| elim x
+-- eliminators x = Tactic.map x <| Tactic.filter x <| Tactic.fold x <| Tactic.para x <| elim x
+-- eliminators x = weigh 1 >> (Tactic.map x <| Tactic.filter x <| (Tactic.fold x <|> (Tactic.para x <|> elim x)))
+eliminators x = weigh 1 >> (Tactic.map x <| Tactic.filter x <| (softConditional 2 (Tactic.fold x) (Tactic.para x <|> elim x)))
 
--- * Single steps
+-- | The function foo tries to apply tactic t. If it fails, u is applied. If it succeeds, t is applied, but u is still possible, just with increased weight.
+softConditional :: Synth sig m => Nat -> m Filling -> m Filling -> m Filling
+softConditional n t u = catchError @TacticFailure (t >> (t <|> (weigh n >> u))) $ const u
 
 step :: Synth sig m => m Filling
 step = anywhere assume <| anyOf
@@ -158,8 +162,6 @@ step = anywhere assume <| anyOf
   , everywhere2 relations
   , constructors
   ]
-
--- * Synthesizers
 
 auto :: Synth sig m => m Filling
 auto = repeat step
