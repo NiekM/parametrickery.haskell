@@ -21,6 +21,7 @@ import Data.List qualified as List
 import Control.Carrier.Error.Either
 import Control.Carrier.Reader
 import Control.Effect.Fresh.Named
+import Control.Effect.Weight
 
 import Base hiding (repeat, replicate)
 import Base qualified
@@ -52,6 +53,7 @@ type Tactic sig m =
   , Has (Reader Settings) sig m
   , Has (Reader Problem) sig m
   , Has Fresh sig m
+  , Has Weight sig m
   , Has (Error TacticFailure) sig m
   )
 

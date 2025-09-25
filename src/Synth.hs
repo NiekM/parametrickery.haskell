@@ -10,13 +10,9 @@ module Synth
   , def
   , Synth
   , SynthC
-  , Refinement
-  , search
-  , runTac
   , step
   , auto
-
-  , runSingle
+  , runTactic
   ) where
 
 import Control.Effect.Fresh.Named
@@ -45,7 +41,7 @@ import Utils
 import Data.Functor.Identity (Identity)
 
 data Arguments = Arguments
-  { tactic :: Refinement SynthC
+  { tactic :: SynthC Filling
   , fuel :: Maybe Nat
   , solutions :: Maybe Nat
   , settings :: Settings
@@ -118,20 +114,15 @@ synthesize args problem = case dropFailures $ runSearch searchSpace of
         Just program -> Finished program
 
     searchSpace :: Search (Sum Nat) (Maybe (Either TacticFailure Filling))
-    searchSpace = search args.settings args.context
-      . maybe (fmap Just) limit args.fuel
-      $ runTac problem (rerealize hole `andThen` args.tactic)
+    searchSpace = maybe (fmap Just) limit args.fuel
+      . evalFresh
+      . runError
+      . runReader args.context
+      . runReader args.settings
+      . runReader problem
+      $ Lams (variables problem) <$> (rerealize hole >>> args.tactic)
 
-type Synth sig m =
-  ( Has WeightedSearch sig m
-  , Has Fresh sig m
-  )
-
-type Ref sig m =
-  ( Synth sig m
-  , Tactic sig m
-  , Has (Catch TacticFailure) sig m
-  )
+type Synth sig m = (Tactic sig m, Has Choose sig m)
 
 -- TODO: can we generate some interactive search thing? Perhaps just an IO monad
 -- where you select where to proceed and backtrack?
@@ -139,26 +130,15 @@ type Ref sig m =
 -- refinement. Clicking on refinements explores them (if realizable) and perhaps
 -- outputs the current state to the console? Or perhaps a next button that
 -- explores the next node (based on its weight).
-type SynthC = ReaderC Settings (ReaderC DataContext (FreshC (Search (Sum Nat))))
 
-search :: Settings -> DataContext -> SynthC a -> Search (Sum Nat) a
-search settings ctx = evalFresh . runReader ctx . runReader settings
+type TacticC m = ReaderC Problem (ReaderC Settings (ReaderC DataContext (ErrorC TacticFailure (FreshC m))))
 
-type Refinement m = ReaderC Problem (ErrorC TacticFailure m) Filling
+type SynthC = TacticC (Search (Sum Nat))
 
-runTac :: Synth sig m => Problem -> Refinement m -> m (Either TacticFailure Filling)
-runTac problem tactic = do
+runTactic :: Settings -> DataContext -> Problem -> TacticC (IgnoreC Identity) Filling -> Either TacticFailure Filling
+runTactic settings context problem tactic = do
   let vars = variables problem
-  runError . runReader problem $ Lams vars <$> tactic
-
-
-type Tac = ReaderC Problem (ReaderC Settings (ReaderC DataContext (ErrorC TacticFailure (FreshC Identity)))) Filling
-
-runSingle :: Settings -> DataContext -> Problem -> Tac -> Either TacticFailure Filling
-runSingle settings context problem tactic = do
-  let vars = variables problem
-  run . evalFresh . runError . runReader context . runReader settings . runReader problem $ Lams vars <$> tactic
-
+  run . ignoreWeight . evalFresh . runError . runReader context . runReader settings . runReader problem $ Lams vars <$> tactic
 
 -- TODO: use relevancy
 -- TODO: normalize problems by removing examples that are equivalent
@@ -167,12 +147,12 @@ runSingle settings context problem tactic = do
 
 -- * Larger tactic groups
 
-eliminators :: Ref sig m => Name -> m Filling
+eliminators :: Synth sig m => Name -> m Filling
 eliminators x = Tactic.map x <| Tactic.filter x <| Tactic.fold x <| Tactic.para x <| elim x
 
 -- * Single steps
 
-step :: Ref sig m => m Filling
+step :: Synth sig m => m Filling
 step = anywhere assume <| anyOf
   [ everywhere eliminators
   , everywhere2 relations
@@ -181,32 +161,5 @@ step = anywhere assume <| anyOf
 
 -- * Synthesizers
 
-auto :: Ref sig m => m Filling
+auto :: Synth sig m => m Filling
 auto = repeat step
-
--- extraGreedy :: Ref sig m => m Filling
--- extraGreedy = until noExamples greedyStep
-
--- * Old versions with weights
-
--- greedyStep :: Ref sig m => m Filling
--- greedyStep = firstOf
---   [ anyOne assume
---   , introTuple
---   , introCtr
---   , weigh 1 >> anyOne elim
---   , weigh 1 >> anyTwo Tactic.elimOrd
---   , weigh 1 >> anyTwo Tactic.elimEq
---   ]
-
--- step :: Ref sig m => m Filling
--- step = anyOne assume <| asum
---   [ anywhere \x ->
---       -- Alternative tactic: use para if fold does not work, and use elim if its not a recursive datatype.
---       (weigh 2 >> Tactic.map x <| Tactic.filter x <| (weigh 2 >> Tactic.fold x <| Tactic.para x <| elim x))
---       -- (weigh 2 >> Tactic.map x <| Tactic.filter x <| (weigh 2 >> Tactic.fold x))
---       -- <|> (weigh 3 >> elim x)
---   , weigh 3 >> anywhere2 \x y -> Tactic.elimOrd x y <| Tactic.elimEq x y
---   , weigh 1 >> introCtr
---   , weigh 0 >> introTuple
---   ]

@@ -136,7 +136,7 @@ foldCheck :: Named Problem -> Benchmark
 foldCheck (Named name problem) = bench (Text.unpack name.getName) $ whnf (isFold "xs") problem
 
 isFold :: Name -> Problem -> Bool
-isFold var problem = case runSingle defaultSettings datatypes problem (Tactic.fold var) of
+isFold var problem = case runTactic defaultSettings datatypes problem (Tactic.fold var) of
   Left _ -> False
   Right _ -> True
 

@@ -26,6 +26,8 @@ rerealize cnt = do
       Left err -> throwError $ Unrealizable err
       Right rules
         -- NOTE: coverage seems to have a very small overhead, and sometimes leads to a speedup
+        -- coverage works mostly for folds, since they can remove input lists, allowing for a change in coverage.
+        -- TODO: change extract so that it has weights 0?
         | checkCoverage, Total <- coverage context problem.signature rules -> cnt >>> extract
         -- NOTE: should we make this an option?
         -- Reconstruction seems to improve performance slightly by simplifying the resulting constraint.
