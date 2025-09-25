@@ -24,10 +24,9 @@ rerealize cnt = do
       Just xs -> throwError . Unrealizable $ MonoConflict xs
     PolyRealizability -> case check context problem of
       Left err -> throwError $ Unrealizable err
-      Right rules -> if checkCoverage
-        then case coverage context problem.signature rules of
-          Total -> cnt >>> extract
-          _ -> cnt
+      Right rules
+        -- NOTE: coverage seems to have a very small overhead, and sometimes leads to a speedup
+        | checkCoverage, Total <- coverage context problem.signature rules -> cnt >>> extract
         -- NOTE: should we make this an option?
         -- Reconstruction seems to improve performance slightly by simplifying the resulting constraint.
-        else local (reconstruct rules) cnt
+        | otherwise -> local (reconstruct rules) cnt

@@ -12,6 +12,9 @@ import Language.Container
 import Language.Container.Morphism
 import Language.Container.Relation
 
+-- TODO: we might be able to speed up coverage generation using cashing.
+-- However, currently the overhead is not very significant.
+
 coveringShapes :: DataContext -> Mono -> Maybe [Term Name]
 coveringShapes ctx = go []
   where

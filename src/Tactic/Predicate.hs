@@ -4,6 +4,8 @@ import Control.Carrier.Reader
 
 import Base
 import Language.Problem
+import Language.Container.Morphism
+import Language.Coverage
 
 import Tactic
 
@@ -13,16 +15,16 @@ predicate message p = p >>= \case
   False -> throwError $ NotApplicable message
 
 -- NOTE: this is inefficient, since realizability has to be recomputed
--- -- This is only applicable if the examples are fully covering.
--- covering :: Tactic sig m => m Filling
--- covering = do
---   context <- ask
---   problem <- ask
---   case check context problem of
---     Left err -> throwError $ Unrealizable err
---     Right rules -> case coverage context problem.signature rules of
---       Total -> none
---       _ -> throwError $ NotApplicable "no full coverage"
+-- This is only applicable if the examples are fully covering.
+covering :: Tactic sig m => m Filling
+covering = do
+  context <- ask
+  problem <- ask
+  case check context problem of
+    Left err -> throwError $ Unrealizable err
+    Right rules -> case coverage context problem.signature rules of
+      Total -> none
+      _ -> throwError $ NotApplicable "no full coverage"
 
 -- This is only applicable if there are no examples.
 someExamples :: Tactic sig m => m Filling
