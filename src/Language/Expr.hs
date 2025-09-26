@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeAbstractions #-}
 module Language.Expr
   ( Expr
     ( ..
@@ -114,12 +115,16 @@ tuple xs = Tuple xs
 normalize :: Expr l h -> Expr l h
 normalize = norm mempty
 
+paraNat :: ((Nat, b) -> b) -> b -> Nat -> b
+paraNat _ e 0 = e
+paraNat g e n = g (n - 1, paraNat g e (n - 1))
+
 paraList :: (a -> ([a], b) -> b) -> b -> [a] -> b
 paraList _ e [] = e
 paraList g e (y:ys) = g y (ys, paraList g e ys)
 
 norm :: Map Name (Expr l h) -> Expr l h -> Expr l h
-norm ctx = \case
+norm @_ @h ctx = \case
   Tuple xs -> Tuple $ map (norm ctx) xs
   Ctr c x -> Ctr c $ norm ctx x
   Lit i -> Lit i
@@ -129,21 +134,12 @@ norm ctx = \case
   Lam v x -> case norm ctx x of
     y -> Lam v y
   App f x -> case App (norm ctx f) (norm ctx x) of
-    App (Lam v e) y ->
-      norm (Map.insert v y ctx) e
-    Case (Ctr c e) xs -> norm ctx $
-      App (Maybe.fromJust $ List.lookup c xs) (norm ctx e)
-    Apps (Var "cata") [alg, List xs] -> norm ctx $
-      foldr (\y r -> App alg $ Cons y r) (App alg Nil) xs
-    Apps (Var "cata") [alg, Tree xs] -> norm ctx $
-      foldTree (\l y r -> App alg $ Ctr "Node" $ Tuple [l, y, r])
-        (\y -> App alg $ Ctr "Leaf" y) xs
-    Apps (Var "cata") [alg, Nat n] -> norm ctx $
-      foldNat n (App alg . Ctr "Succ") (App alg $ Ctr "Zero" Unit)
-    Apps (Var "para") [alg, List xs] -> norm ctx $
-      paraList (\y (ys, r) -> App alg $ Cons y (Tuple [r, List ys])) (App alg Nil) xs
-    Apps (Var "para") [alg, Tree xs] -> norm ctx $
-      paraTree (\l t y r u -> App alg $ Ctr "Node" (Tuple [Tuple [l, Tree t], y, Tuple [r, Tree u]])) (App alg . Ctr "Leaf") xs
+    App (Lam v e) y -> norm (Map.insert v y ctx) e
+    Case (Ctr c e) xs -> case List.lookup c xs of
+      Nothing -> error $ "Unknown constructor " <> show c
+      Just r -> norm ctx $ App r (norm ctx e)
+    Apps (Var "cata") [alg, arg@Ctr{}] -> norm ctx $ appCata alg arg
+    Apps (Var "para") [alg, arg@Ctr{}] -> norm ctx $ appPara alg arg
     Apps (Var "map") [g, List xs] -> List $ map (norm ctx . App g) xs
     Apps (Var "filter") [p, List xs] -> List $
       filter (fromMaybe False . unBool . norm ctx . App p) xs
@@ -155,6 +151,20 @@ norm ctx = \case
     y -> Prj i y
   Elim xs -> Elim $ map (norm ctx <$>) xs
   Hole h -> Hole h
+
+  where
+    appCata :: Program h -> Program h -> Program h
+    appCata alg = \case
+      List xs -> foldr (\y r -> App alg $ Cons y r) (App alg Nil) xs
+      Tree  t -> foldTree (\l y r -> App alg $ Ctr "Node" $ Tuple [l, y, r]) (App alg . Ctr "Leaf") t
+      Nat   n -> foldNat n (App alg . Ctr "Succ") (App alg $ Nat 0)
+      e -> error $ "cata is not defined for expressions of the form " ++ show (() <$ e)
+    appPara :: Program h -> Program h -> Program h
+    appPara alg = \case
+      List xs -> paraList (\y (ys, r) -> App alg $ Cons y $ Tuple [r, List ys]) (App alg Nil) xs
+      Tree xs -> paraTree (\l t y r u -> App alg $ Ctr "Node" $ Tuple [Tuple [l, Tree t], y, Tuple [r, Tree u]]) (App alg . Ctr "Leaf") xs
+      Nat   n -> paraNat (\(i, r) -> App alg $ Ctr "Succ" $ Tuple [r, Nat i]) (App alg (Nat 0)) n
+      e -> error $ "para is not defined for expressions of the form " ++ show (() <$ e)
 
 type Env h = Map Name (Val h)
 data Val h
