@@ -60,7 +60,7 @@ models =
   , Named "clamp"             . Model $ Model.clamp @Int
   , Named "compress"          . Model $ Model.compress @Int
   , Named "concat"            . Model $ Model.concat @Int
-  , Named "cons"              . Model $ Model.cons @Int
+  -- , Named "cons"              . Model $ Model.cons @Int
   , Named "copyFirst"         . Model $ Model.copyFirst @Int
   , Named "copyLast"          . Model $ Model.copyLast @Int
   -- NOTE: it is all about phrasing! If we say that our tool cannot synthesize
@@ -69,10 +69,10 @@ models =
   -- Same for `ordNub`, `splitAt`, etc.
   , Named "deleteMax"         . Model $ Model.deleteMax @Int
   , Named "depth"             . Model $ Model.depth @Int @Int
-  , Named "drop"              . Model $ Model.drop @Int
+  -- , Named "drop"              . Model $ Model.drop @Int
   , Named "dupli"             . Model $ Model.dupli @Int
   , Named "head"              . Model $ Model.head @Int
-  , Named "index"             . Model $ Model.index @Int
+  -- , Named "index"             . Model $ Model.index @Int
   , Named "init"              . Model $ Model.init @Int
   , Named "inorder"           . Model $ Model.inorder @Int @Int
   , Named "insert"            . Model $ Model.insert @Int
@@ -96,10 +96,10 @@ models =
   , Named "snoc"              . Model $ Model.snoc @Int
   , Named "sort"              . Model $ Model.sort @Int
   , Named "sorted"            . Model $ Model.sorted @Int
-  , Named "splitAt"           . Model $ Model.splitAt @Int
+  -- , Named "splitAt"           . Model $ Model.splitAt @Int
   , Named "swap"              . Model $ Model.swap @Int @Int
   , Named "tail"              . Model $ Model.tail @Int
-  , Named "take"              . Model $ Model.take @Int
+  -- , Named "take"              . Model $ Model.take @Int
   , Named "unzip"             . Model $ Model.unzip @Int @Int
   , Named "zip"               . Model $ Model.zip @Int @Int
   ]
