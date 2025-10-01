@@ -18,6 +18,7 @@ module Language.Expr
   , Value
   , holes
   , accept
+  , freeVars
   , normalize
   , asProgram
   , toValue
@@ -32,7 +33,7 @@ import Prelude hiding (Enum(..), error)
 
 import Data.List qualified as List
 import Data.Map qualified as Map
-import Data.Maybe qualified as Maybe
+import Data.Set qualified as Set
 import Data.Foldable
 
 import Data.Tree.Binary
@@ -108,6 +109,18 @@ instance Project (Expr l h) where
 holes :: Expr l h -> [h]
 holes = toList
 
+freeVars :: Program h -> Set Name
+freeVars = \case
+  Tuple xs -> foldMap freeVars xs
+  Ctr _ x -> freeVars x
+  Lit _ -> Set.empty
+  Var v -> Set.singleton v
+  Lam v x -> Set.filter (/= v) $ freeVars x
+  App f x -> freeVars f <> freeVars x
+  Prj _ x -> freeVars x
+  Elim xs -> foldMap (freeVars . snd) xs
+  Hole _ -> Set.empty
+
 tuple :: [Expr l h] -> Expr l h
 tuple [x] = x
 tuple xs = Tuple xs
@@ -132,6 +145,7 @@ norm @_ @h ctx = \case
     Just x -> x
     Nothing -> Var v
   Lam v x -> case norm ctx x of
+    App f (Var z) | v == z, Set.notMember z (freeVars f) -> f
     y -> Lam v y
   App f x -> case App (norm ctx f) (norm ctx x) of
     App (Lam v e) y -> norm (Map.insert v y ctx) e
