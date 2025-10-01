@@ -15,7 +15,7 @@ rerealize :: Tactic sig m => m Filling -> m Filling
 rerealize cnt = do
   context <- ask
   problem <- ask
-  Settings { realizabilityLevel, checkCoverage } <- ask
+  Settings { realizabilityLevel, checkCoverage, reconstructProblem } <- ask
   -- NOTE: not performing realizability breaks the map < foldr relation, so requires a weaker tactic.
   case realizabilityLevel of
     NoRealizability -> cnt
@@ -27,8 +27,7 @@ rerealize cnt = do
       Right rules
         -- NOTE: coverage seems to have a very small overhead, and sometimes leads to a speedup
         -- coverage works mostly for folds, since they can remove input lists, allowing for a change in coverage.
-        -- TODO: change extract so that it has weights 0?
         | checkCoverage, Total <- coverage context problem.signature rules -> cnt >>> extract
-        -- NOTE: should we make this an option?
-        -- Reconstruction seems to improve performance slightly by simplifying the resulting constraint.
-        | otherwise -> local (reconstruct rules) cnt
+        -- NOTE: Reconstruction seems to improve performance slightly by simplifying the resulting constraint.
+        | reconstructProblem -> local (reconstruct rules) cnt
+        | otherwise -> cnt

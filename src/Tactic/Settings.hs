@@ -12,6 +12,7 @@ data Settings = Settings
   { removeDuplicates   :: Bool
   , removeIrrelevant   :: Bool
   , checkCoverage      :: Bool
+  , reconstructProblem :: Bool
   , realizabilityLevel :: RealizabilityLevel
   } deriving stock (Eq, Ord, Show, Read)
 
@@ -20,5 +21,6 @@ defaultSettings = Settings
   { removeDuplicates   = True
   , removeIrrelevant   = False
   , checkCoverage      = True
+  , reconstructProblem = True
   , realizabilityLevel = PolyRealizability
   }
