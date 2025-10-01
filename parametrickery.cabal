@@ -111,6 +111,7 @@ library
     , Tactic.Filter
     , Tactic.Fold
     , Tactic.Hole
+    , Tactic.Ignore
     , Tactic.Map
     , Tactic.Predicate
     , Tactic.Relation

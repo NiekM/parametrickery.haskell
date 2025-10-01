@@ -43,6 +43,7 @@ import Utils
 import Tactic
 import Tactic.Combinators
 import Tactic.Predicate
+import Tactic.Ignore qualified as Tactic
 import Tactic.Filter qualified as Tactic
 import Tactic.Fold qualified as Tactic
 import Tactic.Map qualified as Tactic
