@@ -5,6 +5,7 @@ module Tactic.Core
   , Filling
   , none
   , assume
+  , exact
   , andThen, (>>>)
   , focus, (>>*)
   , inOrder
@@ -69,14 +70,15 @@ assume name = do
   when (arg /= out) $ throwError $ NotApplicable "argument doesn't match spec"
   return $ Var name
 
--- NOTE: this is unsafe, as it does not make sure the type matches.
--- assume :: Tactic sig m => Program Void -> m Filling
--- assume expr = do
---   problem <- ask
---   case evaluate expr problem of
---     Nothing -> throwError $ NotApplicable "Assumed expression does not evaluate to a Value"
---     Just result | result == (outputArg problem).terms -> return $ vacuous expr
---     _ -> throwError $ NotApplicable "Assumed expression does not match output"
+exact :: Tactic sig m => Program Void -> Mono -> m Filling
+exact expr t = do
+  problem <- ask
+  out <- asks outputArg
+  when (t /= out.mono) $ throwError $ NotApplicable "expression has incorrect typ"
+  case evaluate expr problem of
+    Nothing -> throwError $ NotApplicable "expression does not evaluate to a Value"
+    Just result | result == (outputArg problem).terms -> return $ vacuous expr
+    _ -> throwError $ NotApplicable "expression does not match output"
 
 infixl 3 >>>
 andThen, (>>>) :: Tactic sig m => m Filling -> m Filling -> m Filling
