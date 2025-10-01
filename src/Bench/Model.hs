@@ -61,6 +61,9 @@ drop = List.genericDrop
 dupli :: [a] -> [a]
 dupli = concatMap \x -> [x, x]
 
+group :: Eq a => [a] -> [[a]]
+group = List.group
+
 head :: [a] -> Maybe a
 head [] = Nothing
 head (x:_) = Just x

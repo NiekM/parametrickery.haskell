@@ -71,6 +71,7 @@ models =
   , Named "depth"             . Model $ Model.depth @Int @Int
   -- , Named "drop"              . Model $ Model.drop @Int
   , Named "dupli"             . Model $ Model.dupli @Int
+  , Named "group"             . Model $ Model.group @Int
   , Named "head"              . Model $ Model.head @Int
   -- , Named "index"             . Model $ Model.index @Int
   , Named "init"              . Model $ Model.init @Int

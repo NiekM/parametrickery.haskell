@@ -14,3 +14,5 @@ import Tactic.Core
 import Tactic.Elim
 import Tactic.Hole
 import Tactic.Relation
+
+-- NOTE: some functions do not work well as combinators, such as all and any, since there is no good way to figure out how each input contributed to the result.
