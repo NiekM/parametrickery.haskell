@@ -97,8 +97,8 @@ maximum :: Ord a => [a] -> Maybe a
 maximum [] = Nothing
 maximum xs = Just $ List.maximum xs
 
-member :: Eq a => a -> [a] -> Bool
-member = List.elem
+elem :: Eq a => a -> [a] -> Bool
+elem = List.elem
 
 mostCommon :: Eq a => [a] -> Maybe a
 mostCommon = pickMax . foldr add []

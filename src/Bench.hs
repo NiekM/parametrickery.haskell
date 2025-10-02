@@ -81,7 +81,7 @@ models =
   , Named "length"            . Model $ Model.length @Int
   , Named "levels"            . Model $ Model.levels @Int @Int
   , Named "maximum"           . Model $ Model.maximum @Int
-  , Named "member"            . Model $ Model.member @Int
+  , Named "elem"              . Model $ Model.elem @Int
   , Named "mostCommon"        . Model $ Model.mostCommon @Int
   , Named "nub"               . Model $ Model.nub @Int
   , Named "null"              . Model $ Model.null @Int
