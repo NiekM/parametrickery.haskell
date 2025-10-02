@@ -2,6 +2,7 @@ module Main where
 
 import Base
 
+import Data.List (sort)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import System.Timeout (timeout)
@@ -123,8 +124,10 @@ main = do
   settings <- Opt.execParser opts
   synthBench settings
 
-listBench :: IO ()
+listBench, treeBench, adhocBench :: IO ()
 listBench = runBenchmark "data/fold_detection/lists/"
+treeBench = runBenchmark "data/fold_detection/trees/"
+adhocBench = runBenchmark "data/fold_detection/adhoc/"
 
 load :: Name -> IO Problem
 load name = do
@@ -143,12 +146,20 @@ isFold var problem = case runTactic defaultSettings datatypes problem (Tactic.fo
 
 runBenchmark :: FilePath -> IO ()
 runBenchmark dir = do
-  files <- listDirectory dir
-  bs <- forM files \name -> do
+  files <- sort <$> listDirectory dir
+  problems <- forM files \name -> do
     content <- Text.readFile $ dir <> name
     case lexParse parser content of
       Nothing -> error $ "Failed to parse " <> show (pretty name)
       Just problem -> return problem
 
-  defaultMain $ map foldCheck bs
+  let maxLength = maximum $ problems <&> Text.length . (.name.getName)
+
+  forM_ problems \(Named name problem) -> do
+    let len = Text.length name.getName
+    let str = if isFold "xs" problem then "\ESC[32mTrue\ESC[0m" else "\ESC[31mFalse\ESC[0m"
+    let padding = Base.replicate (maxLength + 3 - len) ' '
+    putStrLn $ show (pretty name) <> ":" <> padding <> str
+
+  defaultMain $ map foldCheck problems
 
