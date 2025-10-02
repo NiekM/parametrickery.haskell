@@ -55,6 +55,8 @@ import Language.Arbitrary qualified as Arbitrary
 
 import Bench
 
+import Tango qualified
+
 ------ Utilities ------
 
 parse :: Parse a => Text -> a

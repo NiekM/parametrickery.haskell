@@ -116,6 +116,7 @@ library
     , Tactic.Predicate
     , Tactic.Relation
     , Tactic.Settings
+    , Tango
     , Test
 
   -- Modules included in this library but not exported.
