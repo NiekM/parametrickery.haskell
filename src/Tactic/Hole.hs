@@ -42,6 +42,7 @@ removeIdenticalInputs :: Problem -> Problem
 removeIdenticalInputs = onArgs \args ->
   Args (nubOn (.value) args.inputs) args.output
 
+-- TODO: ideally this should also peel of constructors of types that only have a single constructor.
 elimTuples :: Tactic sig m => m Filling -> m Filling
 elimTuples cnt = do
   args <- asks toArgs
