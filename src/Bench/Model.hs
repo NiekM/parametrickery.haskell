@@ -7,6 +7,7 @@ import Data.Ord qualified as Ord
 import Data.Tree.Binary
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
+import Test.QuickCheck (SortedList(..))
 
 allSame :: Eq a => [a] -> Bool
 allSame [] = True
@@ -79,8 +80,8 @@ inorder :: Tree a b -> [a]
 inorder (Leaf _) = []
 inorder (Node l x r) = inorder l ++ x : inorder r
 
-insert :: Ord a => a -> [a] -> [a]
-insert = List.insert
+insert :: Ord a => a -> SortedList a -> [a]
+insert x (Sorted xs) = List.insert x xs
 
 last :: [a] -> Maybe a
 last [] = Nothing

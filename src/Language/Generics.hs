@@ -23,6 +23,8 @@ import Base
 import Language.Expr
 import Language.Type
 
+import Test.QuickCheck (SortedList(..))
+
 -- | Interpret a program as a Haskell function.
 class Interpret a where
   interpret :: Program Void -> a
@@ -73,6 +75,9 @@ instance ToExpr a l => ToExpr [a] l
 instance ToExpr a l => ToExpr (Some a) l
 instance (ToExpr a l, ToExpr b l) => ToExpr (Either a b) l
 instance (ToExpr a l, ToExpr b l) => ToExpr (Tree a b) l
+
+instance ToExpr a l => ToExpr (SortedList a) l where
+  toExpr (Sorted xs) = toExpr xs
 
 class GToExpr f l where
   gtoExpr :: f a -> Expr l h
