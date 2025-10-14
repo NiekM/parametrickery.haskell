@@ -1,0 +1,8 @@
+partition : {xs : List (Either a b)} -> (List a, List b)
+partition [] = ([], [])
+partition [Left 1] = ([1], [])
+partition [Right 2] = ([], [2])
+partition [Left 2, Left 3] = ([2,3], [])
+partition [Right 4, Right 5] = ([], [4,5])
+partition [Left 3, Right 4] = ([3], [4])
+partition [Right 2, Left 1] = ([1], [2])

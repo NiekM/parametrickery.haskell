@@ -1,0 +1,8 @@
+mirror : {t : Tree a b} -> Tree a b
+mirror Leaf = Leaf
+mirror (Node (Leaf, 2, Leaf)) = Node (Leaf, 2, Leaf)
+mirror (Node (Node (Leaf, 1, Leaf), 2, Leaf)) = Node (Leaf, 2, Node (Leaf, 1, Leaf))
+mirror (Node (Leaf, 2, Node (Leaf, 3, Leaf))) = Node (Node (Leaf, 3, Leaf), 2, Leaf)
+mirror (Node (Node (Leaf, 1, Leaf), 2, Node (Leaf, 3, Leaf))) = Node (Node (Leaf, 3, Leaf), 2, Node (Leaf, 1, Leaf))
+mirror (Node (Leaf, 2, Node (Leaf, 3, Node (Leaf, 4, Leaf)))) = Node (Node (Node (Leaf, 4, Leaf), 3, Leaf), 2, Leaf)
+mirror (Node (Leaf, 2, Node (Node (Leaf, 0, Leaf), 3, Leaf))) = Node (Node (Leaf, 3, Node (Leaf, 0, Leaf)), 2, Leaf)

@@ -7,6 +7,7 @@ import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import System.Timeout (timeout)
 import Control.Exception (evaluate)
+import Test.Tasty (testGroup)
 import Test.Tasty.Bench
 import Test.QuickCheck hiding (Success, Failure)
 
@@ -15,47 +16,27 @@ import Language.Parser
 import Language.Problem
 import Language.Prelude
 import Tactic.Settings
+import Tactic.Core
 import Tactic.Fold qualified as Tactic
 import Synth
 
 import Test.Compare
 import Bench hiding (testSynthesis)
 import System.Directory (listDirectory)
-import System.Environment
-import Options.Applicative qualified as Opt
 
-benchProblem :: Arguments -> Named Problem -> Benchmark
-benchProblem args (Named name problem) =
-  bench (show $ pretty name) $ whnf (synthesize args) problem
+type Problems = [Named [Named (Problem, Model)]]
 
-paperBench :: [Named Model]
-paperBench = models & filter \model -> model.name `elem`
-  [ "null"
-  , "length"
-  , "head"
-  , "last"
-  , "tail"
-  , "init"
-  , "reverse"
+getBenchmark :: IO Problems
+getBenchmark = forM models . mapM $ mapM \(Named name model) -> do
+  problem <- loadProblem name
+  return $ Named name (problem, model)
 
-  , "index"
-  , "drop"
-  , "take"
-  , "splitAt"
-
-  , "append"
-  , "zip"
-
-  , "unzip"
-  , "concat"
-  ]
-
-testSynthesis :: Arguments -> Problem -> Model -> IO (String, Bool)
-testSynthesis args problem (Model model) = do
+synthCheck :: Arguments -> Problem -> Model -> IO (String, Bool)
+synthCheck args problem (Model model) = do
   timed <- timeout 1_000_000 . Control.Exception.evaluate $ synthesize args problem
   case timed of
-    Nothing -> return ("timeout", False)
-    Just (Failure Depleted) -> return ("out of fuel", False)
+    Nothing -> return (yellow "timeout", False)
+    Just (Failure Depleted) -> return ("out of fuel", True)
     Just (Failure Exhausted) -> return (blue "unrealizable", True)
     Just (Success ((_, Unfinished _filling) :| _)) -> return (yellow "realizable", True)
     Just (Success ((_, Finished program) :| _))
@@ -64,8 +45,8 @@ testSynthesis args problem (Model model) = do
           . withMaxSize 25 $ comparison model (interpret program)
         return if isSuccess result
           then (green "success", True)
-          else (red "overfitted", False)
-      | otherwise -> return (red_bg "inconsistent result", False)
+          else (red "overfit", True)
+      | otherwise -> return (red_bg "inconsistent result", True)
     where
       red    text = "\ESC[31m" ++ text ++ "\ESC[0m"
       green  text = "\ESC[32m" ++ text ++ "\ESC[0m"
@@ -73,61 +54,81 @@ testSynthesis args problem (Model model) = do
       blue   text = "\ESC[34m" ++ text ++ "\ESC[0m"
       red_bg text = "\ESC[41m" ++ text ++ "\ESC[0m"
 
-synthBench :: Settings -> IO ()
-synthBench settings = do
-  putStrLn ""
-  print settings
-  putStrLn ""
+data BenchOptions
+  = NoFeasibility
+  | Feasibility { coverage :: Bool, branching :: Bool }
 
-  let synArgs = def { settings = settings }
-  let testBench = models
+allOptions :: [BenchOptions]
+allOptions = 
+  [ NoFeasibility
+  , Feasibility { coverage = False, branching = False }
+  , Feasibility { coverage = True , branching = False }
+  , Feasibility { coverage = False, branching = True  }
+  , Feasibility { coverage = True , branching = True  }
+  ]
 
-  problems <- forM testBench \model -> do
-    problem <- loadProblem model.name
-    return $ fmap (problem,) model
+instance Pretty BenchOptions where
+  pretty = \case
+    NoFeasibility -> "no feasibility"
+    Feasibility { coverage, branching }
+      | coverage && branching -> "all settings"
+      | coverage -> "coverage"
+      | branching -> "branching"
+      | otherwise -> "feasibility"
 
-  let maxLength = maximum $ problems <&> Text.length . (.name.getName)
+skip :: Benchmarkable
+skip = whnf (const ()) ()
 
-  successful <- problems & filterM \(Named name (problem, model)) -> do
-    let len = Text.length name.getName
-    (str, res) <- testSynthesis synArgs problem model
-    let padding = Base.replicate (maxLength + 3 - len) ' '
-    putStrLn $ show (pretty name) <> ":" <> padding <> str
-    return res
+-- TODO: ideally this would already filter out the problems that don't fit the pattern given by `--pattern PATTERN`
+synthBench :: BenchOptions -> Problems -> IO Benchmark
+synthBench options problems = testGroup (show $ pretty options) <$>
+  forM problems \group -> do
+    groupBenches <- forM group.value \(Named name (problem, model)) -> do
+      (message, withinTime) <- synthCheck synArgs problem model
+      return $ bench (showName name message) $
+        if withinTime then whnf (synthesize synArgs) problem else skip
+    return $ testGroup (show $ pretty group.name) groupBenches
+  where
+    maxLength = maximum $ problems >>= \x -> map (Text.length . (.name.getName)) x.value
+    settings = case options of
+      NoFeasibility ->
+        defaultSettings { realizabilityLevel = NoRealizability, checkCoverage = False, conditionalBranch = False }
+      Feasibility { coverage, branching } ->
+        defaultSettings { realizabilityLevel = PolyRealizability, checkCoverage = coverage, conditionalBranch = branching }
+    synArgs = def { settings }
+    showName :: Name -> String -> String
+    showName name message = Text.unpack name.getName <> padding <> "(" <> message <> ")"
+      where padding = Base.replicate (maxLength + 3 - Text.length name.getName) ' '
 
-  let benches = map (fst <$>) successful
-
-  -- HACK: filter away arguments related to synthesis to not confuse Test.Tasty.Bench
-  -- Test.Tasty.Bench only has a defaultMain, no way to add extra options like Test.Tasty.benchMarkWithIngredients.
-  -- A temporary fix is to remove any options related to synthesis before calling defaultMain.
-  let synthOptions = ["--removeDuplicates", "--removeIrrelevant", "--realizability", "--noCheckCoverage", "--noReconstructProblem", "-r"]
-        ++ map (show @RealizabilityLevel) [minBound .. maxBound]
-  args <- getArgs
-  withArgs (filter (`notElem` synthOptions) args) $ defaultMain $ map (benchProblem synArgs) benches
-
-options :: Opt.Parser Settings
-options = Settings
-  <$> Opt.switch (Opt.long "removeDuplicates")
-  <*> Opt.switch (Opt.long "removeIrrelevant")
-  <*> Opt.flag True False (Opt.long "noCheckCoverage")
-  <*> Opt.flag True False (Opt.long "noReconstructProblem")
-  <*> Opt.option Opt.auto
-    (  Opt.long "realizability"
-    <> Opt.short 'r'
-    <> Opt.value PolyRealizability
-    <> Opt.metavar "LEVEL"
-    <> Opt.help "Use realizability reasoning at level LEVEL")
+foldBench :: Problems -> IO Benchmark
+foldBench problems = testGroup "fold detection" <$>
+  forM problems \group -> do
+    groupBenches <- forM group.value \(Named name (problem, _)) -> do
+      let message = case synthesize synArgs problem of
+            Success _ -> green "success"
+            Failure _ -> red   "failure"
+      return $ bench (showName name message) $ whnf (synthesize synArgs) problem
+    return $ testGroup (Text.unpack group.name.getName) groupBenches
+  where
+    maxLength = maximum $ problems >>= \x -> map (Text.length . (.name.getName)) x.value
+    synArgs = def { tactic = Tactic.fold "xs" <| Tactic.fold "t", solutions = Nothing }
+    showName :: Name -> String -> String
+    showName name message = Text.unpack name.getName <> padding <> "(" <> message <> ")"
+      where padding = Base.replicate (maxLength + 3 - Text.length name.getName) ' '
+    red   text = "\ESC[31m" ++ text ++ "\ESC[0m"
+    green text = "\ESC[32m" ++ text ++ "\ESC[0m"
 
 main :: IO ()
 main = do
-  let opts = Opt.info (options <**> Opt.helper) Opt.fullDesc
-  settings <- Opt.execParser opts
-  synthBench settings
+  problems <- getBenchmark
 
-listBench, treeBench, adhocBench :: IO ()
-listBench = runBenchmark "data/fold_detection/lists/"
-treeBench = runBenchmark "data/fold_detection/trees/"
-adhocBench = runBenchmark "data/fold_detection/adhoc/"
+  foldBenches <- foldBench problems
+  synthBenches <- forM allOptions \options -> synthBench options problems
+
+  defaultMain
+    [ foldBenches
+    , testGroup "synthesis" synthBenches
+    ]
 
 load :: Name -> IO Problem
 load name = do

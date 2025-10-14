@@ -97,8 +97,14 @@ maximum :: Ord a => [a] -> Maybe a
 maximum [] = Nothing
 maximum xs = Just $ List.maximum xs
 
+prepend :: [a] -> [a] -> [a]
+prepend = flip (++)
+
 elem :: Eq a => a -> [a] -> Bool
 elem = List.elem
+
+elemIndex :: Eq a => a -> [a] -> Maybe Nat
+elemIndex x = fmap fromIntegral . List.elemIndex x
 
 mostCommon :: Eq a => [a] -> Maybe a
 mostCommon = pickMax . foldr add []
@@ -122,8 +128,8 @@ null = List.null
 ordNub :: Ord a => [a] -> [a]
 ordNub = List.nub . List.sort
 
-partitionEithers :: [Either a b] -> ([a], [b])
-partitionEithers = Either.partitionEithers
+partition :: [Either a b] -> ([a], [b])
+partition = Either.partitionEithers
 
 pivot :: Ord a => a -> [a] -> ([a], [a])
 pivot x xs = (filter (< x) xs, filter (>= x) xs)
@@ -138,6 +144,9 @@ replicate = List.replicate . fromIntegral
 reverse :: [a] -> [a]
 reverse = List.reverse
 
+setInsert :: Ord a => a -> [a] -> [a]
+setInsert x = List.nub . List.insert x
+
 shiftl :: [a] -> [a]
 shiftl [] = []
 shiftl (x:xs) = xs ++ [x]
@@ -149,6 +158,10 @@ shiftr xs = List.last xs : List.init xs
 size :: Tree a b -> Nat
 size (Leaf _) = 0
 size (Node l _ r) = 1 + size l + size r
+
+mirror :: Tree a b -> Tree a b
+mirror (Leaf x) = Leaf x
+mirror (Node l x r) = Node (mirror r) x (mirror l)
 
 snoc :: a -> [a] -> [a]
 snoc x xs = xs ++ [x]
@@ -172,6 +185,9 @@ tail (_:xs) = xs
 
 take :: Nat -> [a] -> [a]
 take = List.genericTake
+
+union :: Eq a => [a] -> [a] -> [a]
+union = List.union
 
 unzip :: [(a, b)] -> ([a], [b])
 unzip = List.unzip

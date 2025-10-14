@@ -148,17 +148,22 @@ runTactic settings context problem tactic = do
 -- * Larger tactic groups
 
 eliminators :: Synth sig m => Name -> m Filling
--- eliminators x = Tactic.map x <| Tactic.filter x <| Tactic.fold x <| Tactic.para x <| elim x
--- eliminators x = weigh 1 >> (Tactic.map x <| Tactic.filter x <| (Tactic.fold x <|> (Tactic.para x <|> elim x)))
-eliminators x = weigh 1 >> (Tactic.map x <| Tactic.filter x <| (softConditional 2 (Tactic.fold x) (Tactic.para x <|> elim x)))
+eliminators x = do
+  Settings { conditionalBranch } <- ask
+  if conditionalBranch
+    then Tactic.map x <|  Tactic.filter x <|  (softConditional 100 (Tactic.fold x) (weigh 3 >> elim x))
+    else Tactic.map x <|> Tactic.filter x <|> (Tactic.fold x <|> (weigh 3 >> elim x))
 
 -- | The function foo tries to apply tactic t. If it fails, u is applied. If it succeeds, t is applied, but u is still possible, just with increased weight.
 softConditional :: Synth sig m => Nat -> m Filling -> m Filling -> m Filling
-softConditional n t u = catchError @TacticFailure (t >> (t <|> (weigh n >> u))) $ const u
+softConditional n t u = catchError @TacticFailure (do
+  x <- t
+  pure x <|> (weigh n >> u)) $ const u
 
 step :: Synth sig m => m Filling
 step = anywhere assume <| anyOf
-  [ everywhere eliminators
+  [ weigh 3 >> everywhere eliminators
+  -- BUG: currently we can keep applying the same elimEq/elimOrd on the same variables...
   , everywhere2 relations
   , constructors
   ]

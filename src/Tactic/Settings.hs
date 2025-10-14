@@ -13,6 +13,7 @@ data Settings = Settings
   , removeIrrelevant   :: Bool
   , checkCoverage      :: Bool
   , reconstructProblem :: Bool
+  , conditionalBranch  :: Bool
   , realizabilityLevel :: RealizabilityLevel
   } deriving stock (Eq, Ord, Show, Read)
 
@@ -22,5 +23,6 @@ defaultSettings = Settings
   , removeIrrelevant   = False
   , checkCoverage      = True
   , reconstructProblem = True
+  , conditionalBranch  = True
   , realizabilityLevel = PolyRealizability
   }
