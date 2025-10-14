@@ -93,4 +93,86 @@ splitAt = tangoN \case
   CZ x xs -> ([], Fix (C x xs))
   CS x (xs, ys) -> (Fix (C x xs), ys)
   _ -> ([], [])
+
+data TreeF a r = B r a r | L
+
+data TangoTreeNat a r = LZ | BZ (Fix (TreeF a)) a (Fix (TreeF a)) | LS (Fix NatF) | BS r a r
+
+tangoT :: (TangoTreeNat a c -> c) -> Fix (TreeF a) -> Fix NatF -> c
+tangoT alg (Fix L) (Fix Z) = alg LZ
+tangoT alg (Fix (B l x r)) (Fix Z) = alg $ BZ l x r
+tangoT alg (Fix L) (Fix (S n)) = alg $ LS n
+tangoT alg (Fix (B l x r)) (Fix (S n)) = alg $ BS (tangoT alg l n) x (tangoT alg r n)
+
+level :: Fix (TreeF a) -> Fix (NatF) -> [a]
+level = tangoT \case
+  BZ _ x _ -> [x]
+  BS l _ r -> l ++ r
+  _ -> []
+
+data TangoNatNat r = ZZ | SZ (Fix NatF) | ZS (Fix NatF) | SS r
+
+tangoNN :: (TangoNatNat c -> c) -> Fix NatF -> Fix NatF -> c
+tangoNN alg (Fix Z) (Fix Z) = alg ZZ
+tangoNN alg (Fix (S n)) (Fix Z) = alg $ SZ n
+tangoNN alg (Fix Z) (Fix (S n)) = alg $ ZS n
+tangoNN alg (Fix (S n)) (Fix (S m)) = alg $ SS (tangoNN alg n m)
+
+max :: Fix NatF -> Fix NatF -> Fix NatF
+max = tangoNN \case
+  ZZ -> Fix Z
+  SZ n -> Fix (S n)
+  ZS n -> Fix (S n)
+  SS n -> Fix (S n)
+
+min :: Fix NatF -> Fix NatF -> Fix NatF
+min = tangoNN \case
+  SS n -> Fix (S n)
+  _ -> Fix Z
+
+compare :: Fix NatF -> Fix NatF -> Ordering
+compare = tangoNN \case
+  ZZ -> EQ
+  SZ _ -> GT
+  ZS _ -> LT
+  SS r -> r
+
+data SomeF a r = C' a (Maybe r)
+
+makeSome :: a -> [a] -> Fix (SomeF a)
+makeSome x xs = Fix $ C' x case xs of
+  [] -> Nothing
+  y:ys -> Just (makeSome y ys)
+
+data TangoListSome a b r = NC' b (Maybe (Fix (SomeF b))) | CC' a b (Maybe r)
+
+-- TODO: figure out if this works as intended
+tangoLS :: (TangoListSome a b c -> c) -> Fix (ListF a) -> Fix (SomeF b) -> c
+tangoLS alg (Fix N) (Fix (C' x xs)) = alg $ NC' x xs
+tangoLS alg (Fix (C x xs)) (Fix (C' y Nothing)) = alg $ CC' x y Nothing
+tangoLS alg (Fix (C x xs)) (Fix (C' y (Just zs))) = alg $ CC' x y (Just $ tangoLS alg xs zs)
+-- tangoLS alg (Fix (C x xs)) (Fix (C' y ys)) = alg $ CC' x y do
+--   ys' <- ys
+--   return $ tangoLS alg xs ys'
+
+data TangoNatSome a r = ZC' a (Maybe (Fix (SomeF a))) | SC' a (Maybe r)
+
+tangoNS :: (TangoNatSome a c -> c) -> Fix NatF -> Fix (SomeF a) -> c
+tangoNS alg (Fix Z) (Fix (C' x xs)) = alg $ ZC' x xs
+tangoNS alg (Fix (S n)) (Fix (C' x xs)) = alg $ SC' x do
+  xs' <- xs
+  return $ tangoNS alg n xs'
+
+indexSome :: Fix NatF -> Fix (SomeF a) -> Maybe a
+indexSome = tangoNS \case
+  ZC' x _ -> Just x
+  SC' _ (Just r) -> r
+  _ -> Nothing
+
   
+--
+-- index :: Fix (ListF a) -> Fix NatF -> Maybe a
+-- index = tangoN \case
+--   CZ x _ -> Just x
+--   CS _ r -> r
+--   _ -> Nothing
