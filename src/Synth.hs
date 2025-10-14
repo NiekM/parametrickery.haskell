@@ -13,6 +13,10 @@ module Synth
   , step
   , auto
   , runTactic
+  , softConditional
+  , eliminators
+  , staged
+  , withPara
   ) where
 
 import Control.Effect.Fresh.Named
@@ -22,7 +26,7 @@ import Control.Carrier.Reader
 
 import Control.Monad.Search
 
-import Base hiding (repeat)
+import Base hiding (repeat, replicate)
 import Language.Type
 import Language.Expr
 import Language.Problem
@@ -169,4 +173,31 @@ step = anywhere assume <| anyOf
   ]
 
 auto :: Synth sig m => m Filling
-auto = repeat step
+auto = repeat (weigh 1 >> step)
+
+simple :: Synth sig m => m Filling
+simple = (anywhere assume <| constructors) <|> (weigh 2 >> everywhere2 relations)
+
+complex :: Synth sig m => Name -> m Filling
+complex x = ((Tactic.map x <| Tactic.filter x <| Tactic.fold x) <|> elim x) <| none
+
+-- I thought this might synthesize group, but it still overfits.
+-- This is because none of the examples have more than 2 times the same value after another.
+staged :: Synth sig m => m Filling
+staged = replicate 3 (everywhere complex) >>> repeat simple
+
+-- For synthesizing e.g. insert
+--
+-- > Success ((_, Finished p) :| _) = synthesize def { tactic = withPara } "insert"
+-- > myInsert :: Int -> [Int] -> [Int]; myInsert x xs = interpret $ Apps p [toExpr x, toExpr xs] 
+-- > quickCheck \x (Sorted xs) -> myInsert x xs == List.insert x xs
+--   +++ OK, passed 100 tests.
+--
+withPara :: Synth sig m => m Filling
+withPara = repeat (weigh 1 >> paraStep)
+  where
+    paraStep = anywhere assume <| anyOf
+      [ weigh 3 >> everywhere \x -> eliminators x <|> Tactic.para x
+      , everywhere2 relations
+      , constructors
+      ]
