@@ -37,71 +37,71 @@ instance {-# OVERLAPPING #-} FromExpr a => Interpret a where
       Just x -> x
 
 instance {-# OVERLAPPING #-}
-  (ToExpr a False, Interpret b) => Interpret (a -> b) where
+  (ToExpr a, Interpret b) => Interpret (a -> b) where
   interpret p = interpret . App p . Value . toExpr
 
 symbolName :: forall s -> KnownSymbol s => Name
 symbolName s = fromString . symbolVal $ Proxy @s
 
 -- | Turn a Haskell value of type `a` into a `Value` (embedding).
-class ToExpr a l where
-  toExpr :: a -> Expr l h
+class ToExpr a where
+  toExpr :: a -> Value
 
-  default toExpr :: (Generic a, GToExpr (Rep a) l) => a -> Expr l h
+  default toExpr :: (Generic a, GToExpr (Rep a)) => a -> Value
   toExpr = gtoExpr . from
 
-instance ToExpr (Expr l Void) l where
-  toExpr = fmap absurd
+instance ToExpr Value where
+  toExpr = id
 
-instance ToExpr Int l where
+instance ToExpr Int  where
   toExpr = Lit . MkInt
 
-instance ToExpr Nat l where
+instance ToExpr Nat where
   toExpr = Nat
 
-instance ToExpr () l where
+instance ToExpr () where
   toExpr () = Tuple []
 
-instance (ToExpr a l, ToExpr b l) => ToExpr (a, b) l where
+instance (ToExpr a, ToExpr b) => ToExpr (a, b) where
   toExpr (x, y) = Tuple [toExpr x, toExpr y]
 
-instance (ToExpr a l, ToExpr b l, ToExpr c l) => ToExpr (a, b, c) l where
+instance (ToExpr a, ToExpr b, ToExpr c) => ToExpr (a, b, c) where
   toExpr (x, y, z) = Tuple [toExpr x, toExpr y, toExpr z]
 
-instance ToExpr Bool l
-instance ToExpr Ordering l
-instance ToExpr a l => ToExpr (Maybe a) l
-instance ToExpr a l => ToExpr [a] l
-instance ToExpr a l => ToExpr (Some a) l
-instance (ToExpr a l, ToExpr b l) => ToExpr (Either a b) l
-instance (ToExpr a l, ToExpr b l) => ToExpr (Tree a b) l
+instance ToExpr Bool
+instance ToExpr Ordering
+instance ToExpr a => ToExpr (Maybe a)
+instance ToExpr a => ToExpr [a]
+instance ToExpr a => ToExpr (Some a)
+instance (ToExpr a, ToExpr b) => ToExpr (Either a b)
+instance (ToExpr a, ToExpr b) => ToExpr (Tree a b)
 
-instance ToExpr a l => ToExpr (SortedList a) l where
+instance ToExpr a => ToExpr (SortedList a) where
   toExpr (Sorted xs) = toExpr xs
 
-class GToExpr f l where
-  gtoExpr :: f a -> Expr l h
+class GToExpr f where
+  gtoExpr :: f a -> Value
  
-instance GToExpr U1 l where
+instance GToExpr U1 where
   gtoExpr _ = Unit
 
-instance ToExpr c l => GToExpr (K1 i c) l where
+instance ToExpr c => GToExpr (K1 i c) where
   gtoExpr (K1 c) = toExpr c
 
-instance GToExpr f l => GToExpr (D1 c f) l where
+instance GToExpr f => GToExpr (D1 c f) where
   gtoExpr (M1 p) = gtoExpr p
 
-instance GToExpr f l => GToExpr (S1 c f) l where
+instance GToExpr f => GToExpr (S1 c f) where
   gtoExpr (M1 p) = gtoExpr p
 
-instance (KnownSymbol c, GToExpr f l) => GToExpr (C1 (MetaCons c g s) f) l where
+instance (KnownSymbol c, GToExpr f) => GToExpr (C1 (MetaCons c g s) f) where
   gtoExpr (M1 p) = Ctr (symbolName c) $ gtoExpr p
 
-instance (GToExpr a l, GToExpr b l) => GToExpr (a :+: b) l where
+instance (GToExpr a, GToExpr b) => GToExpr (a :+: b) where
   gtoExpr (L1 p) = gtoExpr p
   gtoExpr (R1 p) = gtoExpr p
 
-instance (GToExpr a l, GToExpr b l) => GToExpr (a :*: b) l where
+instance (GToExpr a, GToExpr b) => GToExpr (a :*: b) where
   gtoExpr (a :*: b) = tuple $ gtoExpr a : projections (gtoExpr b)
 
 -- | Turn a `Value` into a Haskell value of type `a` (extraction).

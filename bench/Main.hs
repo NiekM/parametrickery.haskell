@@ -20,7 +20,6 @@ import Tactic.Core
 import Tactic.Fold qualified as Tactic
 import Synth
 
-import Test.Compare
 import Bench hiding (testSynthesis)
 import System.Directory (listDirectory)
 

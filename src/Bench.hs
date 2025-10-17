@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 module Bench where
 
 import Base
@@ -5,15 +6,14 @@ import Base
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import System.Directory
-import Test.QuickCheck (Property, discard)
+import Test.QuickCheck (Property, discard, Arbitrary, property, witness)
 
-import Language.Generics (Interpret(..))
+import Language.Generics (Interpret(..), ToExpr(..))
 import Language.Problem
 import Language.Parser
 import Language.Expr
 import Synth
 
-import Test.Compare
 import Bench.Model qualified as Model
 
 trySynthesize :: Arguments -> Problem -> Maybe (Program Void)
@@ -46,6 +46,15 @@ loadAll = do
       Nothing -> error $ "Failed to parse " <> show (pretty name)
       Just problem -> return problem
 
+class Compare a where
+  comparison :: a -> a -> Property
+
+instance {-# OVERLAPPABLE #-} (ToExpr a, Eq a) => Compare a where
+  comparison x y = witness (toExpr x) . witness (toExpr y) $ property $ x == y
+
+instance {-# OVERLAPPABLE #-} (ToExpr a, Arbitrary a, Show a, Compare b) =>
+  Compare (a -> b) where
+  comparison f g = property \x -> witness (toExpr x) $ comparison (f x) (g x)
 
 data Model = forall a. (Compare a, Interpret a) => Model a
 

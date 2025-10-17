@@ -149,7 +149,6 @@ library parametrickery-prelude
     , Data.Nat
     , Data.Some
     , Data.Tree.Binary
-    , Test.Compare
     , Utils
 
   -- Modules included in this library but not exported.

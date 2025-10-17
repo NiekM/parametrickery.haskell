@@ -27,7 +27,7 @@ showType :: forall a -> Typeable a => String
 showType t = show . typeRep $ Proxy @t
 
 roundTrip :: forall a ->
-  (Arbitrary a, FromExpr a, ToExpr a False, Eq a, Show a, Typeable a)
+  (Arbitrary a, FromExpr a, ToExpr a, Eq a, Show a, Typeable a)
   => TestTree
 roundTrip t = testProperty ("@(" <> showType t <> ")")
   \(e :: t) -> fromExpr (toExpr e) == Just e
