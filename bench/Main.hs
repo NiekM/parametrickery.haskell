@@ -59,7 +59,7 @@ data BenchOptions
   | Feasibility { coverage :: Bool, branching :: Bool }
 
 allOptions :: [BenchOptions]
-allOptions = 
+allOptions =
   [ NoFeasibility
   , Feasibility { coverage = False, branching = False }
   , Feasibility { coverage = True , branching = False }

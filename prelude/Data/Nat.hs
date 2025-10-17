@@ -16,7 +16,8 @@ fairNat n
   | otherwise = fromInteger (- (2 * n) - 1)
 
 instance Arbitrary Nat where
-  arbitrary = fairNat <$> arbitrary
+  arbitrary = arbitrarySizedNatural
+  shrink = shrinkIntegral
 
 instance Random Nat where
   random g = fairNat `first` random g

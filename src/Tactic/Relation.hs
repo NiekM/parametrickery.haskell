@@ -39,6 +39,10 @@ elimOrd name1 name2 = do
       when (a /= b) $ throwError $ NotApplicable "args done't have the same type"
       when (Ord a `notElem` problem.signature.constraints) $
         throwError $ NotApplicable "type has no Ord constraint"
-      let ords = Arg (Data "Ordering" []) $ Ordering <$> zipWith compare xs ys
-      elimArg (Apps (Var "cmp") [Var name1, Var name2]) ords
+      case (traverse toValue xs, traverse toValue ys) of
+        (Just xs', Just ys') -> do
+          let ords = Arg (Data "Ordering" []) $ Ordering <$> zipWith compareVal xs' ys'
+          elimArg (Apps (Var "cmp") [Var name1, Var name2]) ords
+        _ -> error "variables not literals"
+
     _ -> throwError $ NotApplicable "args aren't free variables"

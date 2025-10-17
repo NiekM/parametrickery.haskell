@@ -24,6 +24,7 @@ module Language.Expr
   , toValue
   , tuple
   , lets
+  , compareVal
 
   , eval
   , fromVal
@@ -48,6 +49,7 @@ newtype Lit = MkInt Int
 data Expr (l :: Bool) h where
   -- Constructions
   Tuple :: [Expr l h] -> Expr l h
+  -- TODO: use natural numbers for constructors to describe the ordering non-lexicographically
   Ctr :: Name -> Expr l h -> Expr l h
   Lit :: Lit -> Expr l h
   -- Lambda expressions
@@ -136,6 +138,12 @@ paraList :: (a -> ([a], b) -> b) -> b -> [a] -> b
 paraList _ e [] = e
 paraList g e (y:ys) = g y (ys, paraList g e ys)
 
+-- TODO: define comparison for other values (not using lexicographical ordering of constructors)
+compareVal :: Value -> Value -> Ordering
+compareVal (Lit i) (Lit j) = compare i j
+compareVal (Nat n) (Nat m) = compare n m
+compareVal _ _ = error "comparison between non-literals undefined"
+
 norm :: Map Name (Expr l h) -> Expr l h -> Expr l h
 norm @_ @h ctx = \case
   Tuple xs -> Tuple $ map (norm ctx) xs
@@ -158,7 +166,7 @@ norm @_ @h ctx = \case
     Apps (Var "filter") [p, List xs] -> List $
       filter (fromMaybe False . unBool . norm ctx . App p) xs
     Apps (Var "eq" ) [Value a, Value b] -> Bool (a == b)
-    Apps (Var "cmp") [Value a, Value b] -> Ordering (compare a b)
+    Apps (Var "cmp") [Value a, Value b] -> Ordering (compareVal a b)
     e -> e
   Prj i x -> case norm ctx x of
     Tuple xs -> norm ctx $ xs !! fromIntegral i
@@ -257,12 +265,12 @@ evalApp env f e = case f of
     _ -> Left "Elimination on non-constructor"
   VBuiltin "eq" [] -> Right $ VBuiltin "eq" [e]
   VBuiltin "eq" [x]
-    | Just a <- fromVal e >>= toValue, Just b <- fromVal x >>= toValue
+    | Just a <- fromVal x >>= toValue, Just b <- fromVal e >>= toValue
     -> Right $ fromBool (a == b)
   VBuiltin "cmp" [] -> Right $ VBuiltin "cmp" [e]
   VBuiltin "cmp" [x]
-    | Just a <- fromVal e >>= toValue, Just b <- fromVal x >>= toValue
-    -> Right $ fromOrdering (compare a b)
+    | Just a <- fromVal x >>= toValue, Just b <- fromVal e >>= toValue
+    -> Right $ fromOrdering (compareVal a b)
   VBuiltin "map" [] -> Right $ VBuiltin "map" [e]
   VBuiltin "map" [predicate]
     | Just xs <- valList e -> mkValList <$> mapM (evalApp env predicate) xs
