@@ -68,34 +68,17 @@ ruleConsistency = testProperty
 
 main :: IO ()
 main = do
-  problems <- forM testBench \model -> do
-    problem <- loadProblem model.name
-    return $ fmap (problem,) model
-
   defaultMain $ testGroup "all"
     [ roundTrips
     , normValue
     , relationConsistency
     , ruleConsistency
-    , synthesisSucceeds problems
     ]
 
 synthesisSucceeds :: [Named (Problem, Model)] -> TestTree
 synthesisSucceeds problems = testGroup "synthesis" $ problems <&> \(Named name (problem, model)) ->
   testProperty (Text.unpack name.getName) . withMaxSize 25 $ testSynthesis args problem model
   where args = def { settings = defaultSettings { removeIrrelevant = False } }
-
-testBench :: [Named Model]
-testBench = models & filter \model -> model.name `elem`
-  [ "null"
-  , "head"
-  , "last"
-  , "tail"
-  , "reverse"
-  , "append"
-  , "unzip"
-  , "concat"
-  ]
 
   -- TODO:
   -- [x] checkRelation (computeRelation ...) == True
