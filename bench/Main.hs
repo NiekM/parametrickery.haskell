@@ -11,7 +11,7 @@ import Test.Tasty (testGroup)
 import Test.Tasty.Bench
 import Test.QuickCheck hiding (Success, Failure)
 
-import Language.Generics (Interpret(..))
+import Language.Generics (Interpret(..), Execute(..))
 import Language.Parser
 import Language.Problem
 import Language.Prelude
@@ -26,8 +26,17 @@ import System.Directory (listDirectory)
 type Problems = [Named [Named (Problem, Model)]]
 
 getBenchmark :: IO Problems
-getBenchmark = forM models . mapM $ mapM \(Named name model) -> do
+getBenchmark = forM models . mapM $ mapM \(Named name model@(Model fun)) -> do
   problem <- loadProblem name
+
+  -- Check if model execution agrees with the input-output examples.
+  forM_ problem.examples \(Example inputs output) -> if execute fun inputs == output
+    then pure () else do
+      let ins = inputs <&> \input -> "(" <> show (pretty input) <> ")"
+      putStrLn $ "error when calling: " <> Text.unpack name.getName <> concatMap (' ':) ins
+      putStrLn $ "problem says: " <> show (pretty output)
+      putStrLn $ "model returns: " <> show (pretty (execute fun inputs))
+
   return $ Named name (problem, model)
 
 synthCheck :: Arguments -> Problem -> Model -> IO (String, Bool)

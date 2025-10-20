@@ -8,7 +8,7 @@ import Data.Text.IO qualified as Text
 import System.Directory
 import Test.QuickCheck (Property, discard, Arbitrary, property, witness)
 
-import Language.Generics (Interpret(..), ToExpr(..))
+import Language.Generics (Interpret(..), ToExpr(..), Execute(..))
 import Language.Problem
 import Language.Parser
 import Language.Expr
@@ -56,62 +56,62 @@ instance {-# OVERLAPPABLE #-} (ToExpr a, Arbitrary a, Show a, Compare b) =>
   Compare (a -> b) where
   comparison f g = property \x -> witness (toExpr x) $ comparison (f x) (g x)
 
-data Model = forall a. (Compare a, Interpret a) => Model a
+data Model = forall a. (Compare a, Interpret a, Execute a) => Model a
 
 models :: [Named [Named Model]]
 models =
   [ Named "simple"
-    [ Named "append"            . Model $ Model.append @Int
-    , Named "concat"            . Model $ Model.concat @Int
-    , Named "drop"              . Model $ Model.drop @Int
-    , Named "head"              . Model $ Model.head @Int
-    , Named "index"             . Model $ Model.index @Int
-    , Named "init"              . Model $ Model.init @Int
-    , Named "last"              . Model $ Model.last @Int
-    , Named "length"            . Model $ Model.length @Int
-    , Named "null"              . Model $ Model.null @Int
-    , Named "prepend"           . Model $ Model.prepend @Int
-    , Named "reverse"           . Model $ Model.reverse @Int
-    , Named "splitAt"           . Model $ Model.splitAt @Int
-    , Named "tail"              . Model $ Model.tail @Int
-    , Named "take"              . Model $ Model.take @Int
-    , Named "unzip"             . Model $ Model.unzip @Int @Int
-    , Named "zip"               . Model $ Model.zip @Int @Int
+    [ Named "append"            . Model $ Model.append @Nat
+    , Named "concat"            . Model $ Model.concat @Nat
+    , Named "drop"              . Model $ Model.drop @Nat
+    , Named "head"              . Model $ Model.head @Nat
+    , Named "index"             . Model $ Model.index @Nat
+    , Named "init"              . Model $ Model.init @Nat
+    , Named "last"              . Model $ Model.last @Nat
+    , Named "length"            . Model $ Model.length @Nat
+    , Named "null"              . Model $ Model.null @Nat
+    , Named "prepend"           . Model $ Model.prepend @Nat
+    , Named "reverse"           . Model $ Model.reverse @Nat
+    , Named "splitAt"           . Model $ Model.splitAt @Nat
+    , Named "tail"              . Model $ Model.tail @Nat
+    , Named "take"              . Model $ Model.take @Nat
+    , Named "unzip"             . Model $ Model.unzip @Nat @Nat
+    , Named "zip"               . Model $ Model.zip @Nat @Nat
     ]
 
   , Named "extra"
-    [ Named "cartesian"         . Model $ Model.cartesian @Int
-    , Named "copyFirst"         . Model $ Model.copyFirst @Int
-    , Named "copyLast"          . Model $ Model.copyLast @Int
-    , Named "shiftl"            . Model $ Model.shiftl @Int
-    , Named "shiftr"            . Model $ Model.shiftr @Int
-    , Named "partition"         . Model $ Model.partition @Int @Int
+    [ Named "cartesian"         . Model $ Model.cartesian @Nat
+    , Named "copyFirst"         . Model $ Model.copyFirst @Nat
+    , Named "copyLast"          . Model $ Model.copyLast @Nat
+    , Named "shiftl"            . Model $ Model.shiftl @Nat
+    , Named "shiftr"            . Model $ Model.shiftr @Nat
+    , Named "partition"         . Model $ Model.partition @Nat @Nat
     ]
 
   , Named "trees"
-    [ Named "breadthFirst"      . Model $ Model.breadthFirst @Int @()
-    , Named "depth"             . Model $ Model.depth @Int @()
-    , Named "inorder"           . Model $ Model.inorder @Int @()
-    , Named "levels"            . Model $ Model.levels @Int @()
-    , Named "mirror"            . Model $ Model.mirror @Int @()
-    , Named "size"              . Model $ Model.size @Int @()
+    [ Named "breadthFirst"      . Model $ Model.breadthFirst @Nat @()
+    , Named "depth"             . Model $ Model.depth @Nat @()
+    , Named "inorder"           . Model $ Model.inorder @Nat @()
+    , Named "levels"            . Model $ Model.levels @Nat @()
+    , Named "mirror"            . Model $ Model.mirror @Nat @()
+    , Named "size"              . Model $ Model.size @Nat @()
     ]
 
   , Named "eq"
-    [ Named "compress"          . Model $ Model.compress @Int
-    , Named "group"             . Model $ Model.group @Int
-    , Named "elem"              . Model $ Model.elem @Int
-    , Named "elemIndex"         . Model $ Model.elemIndex @Int
-    , Named "nub"               . Model $ Model.nub @Int
-    , Named "union"             . Model $ Model.union @Int
+    [ Named "compress"          . Model $ Model.compress @Nat
+    , Named "group"             . Model $ Model.group @Nat
+    , Named "elem"              . Model $ Model.elem @Nat
+    , Named "elemIndex"         . Model $ Model.elemIndex @Nat
+    , Named "nub"               . Model $ Model.nub @Nat
+    , Named "union"             . Model $ Model.union @Nat
     ]
 
   , Named "ord"
-    [ Named "insert"            . Model $ Model.insert @Int
-    , Named "maximum"           . Model $ Model.maximum @Int
-    , Named "ordNub"            . Model $ Model.ordNub @Int
-    , Named "pivot"             . Model $ Model.pivot @Int
-    , Named "sort"              . Model $ Model.sort @Int
-    , Named "sorted"            . Model $ Model.sorted @Int
+    [ Named "insert"            . Model $ Model.insert @Nat
+    , Named "maximum"           . Model $ Model.maximum @Nat
+    , Named "ordNub"            . Model $ Model.ordNub @Nat
+    , Named "pivot"             . Model $ Model.pivot @Nat
+    , Named "sort"              . Model $ Model.sort @Nat
+    , Named "sorted"            . Model $ Model.sorted @Nat
     ]
   ]

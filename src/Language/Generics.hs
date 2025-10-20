@@ -6,6 +6,7 @@ module Language.Generics
   , FromExpr(..)
   , ToExpr(..)
   , Interpret(..)
+  , Execute(..)
   ) where
 
 import GHC.Generics hiding (Constructor)
@@ -39,6 +40,20 @@ instance {-# OVERLAPPING #-} FromExpr a => Interpret a where
 instance {-# OVERLAPPING #-}
   (ToExpr a, Interpret b) => Interpret (a -> b) where
   interpret p = interpret . App p . Value . toExpr
+
+class Execute a where
+  execute :: a -> [Value] -> Value
+
+instance {-# OVERLAPPING #-} ToExpr a => Execute a where
+  execute (toExpr -> Value v) [] = v
+  execute _ _ = error "Either not a value, or too many arguments"
+
+instance {-# OVERLAPPING #-}
+  (FromExpr a, Execute b) => Execute (a -> b) where
+  execute _ [] = error "Not enough arguments"
+  execute f (x:xs) = case fromExpr @a x of
+    Nothing -> error $ show x <> " not a valid expression"
+    Just e -> execute (f e) xs
 
 symbolName :: forall s -> KnownSymbol s => Name
 symbolName s = fromString . symbolVal $ Proxy @s
@@ -81,7 +96,7 @@ instance ToExpr a => ToExpr (SortedList a) where
 
 class GToExpr f where
   gtoExpr :: f a -> Value
- 
+
 instance GToExpr U1 where
   gtoExpr _ = Unit
 
@@ -142,6 +157,9 @@ instance FromExpr a => FromExpr (Maybe a)
 instance FromExpr a => FromExpr [a]
 instance (FromExpr a, FromExpr b) => FromExpr (Either a b)
 instance (FromExpr a, FromExpr b) => FromExpr (Tree a b)
+
+instance FromExpr a => FromExpr (SortedList a) where
+  fromExpr xs = Sorted <$> fromExpr xs
 
 class GFromExpr f where
   gfromExpr :: Value -> Maybe (f a)
