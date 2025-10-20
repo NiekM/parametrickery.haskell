@@ -54,7 +54,7 @@ deleteMax xs = List.filter (/= List.maximum xs) xs
 
 depth :: Tree a b -> Nat
 depth (Leaf _) = 0
-depth (Node l _ r) = 1 + max (size l) (size r)
+depth (Node l _ r) = 1 + max (depth l) (depth r)
 
 drop :: Nat -> [a] -> [a]
 drop = List.genericDrop
@@ -90,9 +90,14 @@ last xs = Just $ List.last xs
 length :: [a] -> Nat
 length = List.genericLength
 
+longZip :: Monoid m => [m] -> [m] -> [m]
+longZip xs [] = xs
+longZip [] ys = ys
+longZip (x:xs) (y:ys) = x <> y : longZip xs ys
+
 levels :: Tree a b -> [[a]]
 levels (Leaf _) = []
-levels (Node l x r) = [x] : zipWith (++) (levels l) (levels r)
+levels (Node l x r) = [x] : longZip (levels l) (levels r)
 
 maximum :: Ord a => [a] -> Maybe a
 maximum [] = Nothing
