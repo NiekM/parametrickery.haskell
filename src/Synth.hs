@@ -210,7 +210,7 @@ staged = replicate 3 (everywhere complex) >>> repeat simple
 -- For synthesizing e.g. insert
 --
 -- > Success ((_, Finished p) :| _) = synthesize def { tactic = withPara } "insert"
--- > myInsert :: Int -> [Int] -> [Int]; myInsert x xs = interpret $ Apps p [toExpr x, toExpr xs] 
+-- > myInsert :: Int -> [Int] -> [Int]; myInsert x xs = interpret $ Apps p [Value (toExpr x), Value (toExpr xs)]
 -- > quickCheck \x (Sorted xs) -> myInsert x xs == List.insert x xs
 --   +++ OK, passed 100 tests.
 --
@@ -222,3 +222,29 @@ withPara = repeat (weigh 1 >> paraStep)
       , everywhere2 relations
       , constructors
       ]
+
+-- TODO: simulating interactive synthesis with quickCheck:
+-- 1. start with no examples
+-- 2. synthesize, quickCheck, shrink the incorrect inputs
+-- 3. add correct input-output to examples, repeat (from 2)
+
+
+-- ordNub can be defined in terms of para
+-- > Success ((_, Finished p) :|_) = synthesize def { tactic = Tactic.fold "xs" >>> Tactic.para "x2" >>> Tactic.anywhere2 elimOrd >>> auto } "ordNub"
+-- > quickCheck \xs -> List.nub (List.sort xs) == interpret @([Nat] -> [Nat]) p xs
+-- +++ OK, passed 100 tests.
+--
+-- same for sort!
+-- > Success ((_, Finished p) :|_) = synthesize def { tactic = Tactic.fold "xs" >>> Tactic.para "x2" >>> Tactic.anywhere2 elimOrd >>> auto } "sort"
+-- > quickCheck \xs -> List.sort xs == interpret @([Nat] -> [Nat]) p xs
+-- +++ OK, passed 100 tests.
+--
+
+-- Very slow, but succeeds
+-- > Success ((_,Finished p):|_) = synthesize def { tactic = Tactic.fold "xs" >>> Tactic.elim "x2" >>* [none, rerealize hole] >>> Tactic.elim "x5" >>* [anywhere2 elimEq] >>> auto } "group"
+-- > quickCheck \xs -> interpret @([Nat] -> [[Nat]]) p xs == List.group xs
+-- +++ OK, passed 100 tests
+
+-- encode (i.o. group)
+-- $ synthesize def { tactic = Tactic.fold "xs" >>> Tactic.elim "x2" >>* [none, rerealize hole] >>> anywhere2 elimEq >>> introCtr >>> auto} "encode"
+
