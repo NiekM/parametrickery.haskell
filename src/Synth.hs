@@ -3,6 +3,7 @@
 
 module Synth
   ( synthesize
+  , synthesizeAll
   , Solution(..)
   , SynthFailure(..)
   , Extract(..)
@@ -94,6 +95,26 @@ instance Pretty Solution where
 
 takeWhileJust :: [Maybe a] -> [a]
 takeWhileJust = foldr (maybe (const []) (:)) []
+
+synthesizeAll :: Arguments -> Problem -> [(Nat, Either TacticFailure Extract)]
+synthesizeAll args problem = runSearch searchSpace & mapMaybe
+  \(Sum weight, filling) -> (weight,) . fmap toExtract <$> filling
+  where
+    toExtract :: Filling -> Extract
+    toExtract filling =
+      let normalized = normalize filling
+      in case vacant normalized of
+        Nothing -> Unfinished normalized
+        Just program -> Finished program
+
+    searchSpace :: Search (Sum Nat) (Maybe (Either TacticFailure Filling))
+    searchSpace = maybe (fmap Just) limit args.fuel
+      . evalFresh
+      . runError
+      . runReader args.context
+      . runReader args.settings
+      . runReader problem
+      $ Lams (variables problem) <$> (rerealize hole >>> args.tactic)
 
 synthesize :: Arguments -> Problem -> Solution
 synthesize args problem = case dropFailures $ runSearch searchSpace of

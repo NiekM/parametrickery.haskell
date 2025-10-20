@@ -2,7 +2,7 @@ module Main where
 
 import Base
 
-import Data.List (sort)
+import Data.List (sort, intercalate)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import System.Timeout (timeout)
@@ -103,19 +103,24 @@ foldBench :: Problems -> IO Benchmark
 foldBench problems = testGroup "fold detection" <$>
   forM problems \group -> do
     groupBenches <- forM group.value \(Named name (problem, _)) -> do
-      let message = case synthesize synArgs problem of
-            Success _ -> green "success"
-            Failure _ -> red   "failure"
+      let message = intercalate ", " $ synthesizeAll synArgs problem & mapMaybe \case
+            (_, Left NotApplicable{}) -> Nothing
+            (_, Left Unrealizable{}) -> Just $ red "failure"
+            (_, Left TraceIncomplete{}) -> Just $ red_bg "missing trace"
+            (_, Left PropagationError{}) -> Just $ red_bg "propagation error"
+            (_, Right{}) -> Just $ green "success"
       return $ bench (showName name message) $ whnf (synthesize synArgs) problem
     return $ testGroup (Text.unpack group.name.getName) groupBenches
   where
     maxLength = maximum $ problems >>= \x -> map (Text.length . (.name.getName)) x.value
-    synArgs = def { tactic = Tactic.fold "xs" <| Tactic.fold "t", solutions = Nothing }
+    -- NOTE: these are reported in opposite order. Hence "ys" before "xs".
+    synArgs = def { tactic = Tactic.fold "ys" <|> Tactic.fold "xs" <|> Tactic.fold "t" }
     showName :: Name -> String -> String
     showName name message = Text.unpack name.getName <> padding <> "(" <> message <> ")"
       where padding = Base.replicate (maxLength + 3 - Text.length name.getName) ' '
-    red   text = "\ESC[31m" ++ text ++ "\ESC[0m"
-    green text = "\ESC[32m" ++ text ++ "\ESC[0m"
+    red    text = "\ESC[31m" ++ text ++ "\ESC[0m"
+    green  text = "\ESC[32m" ++ text ++ "\ESC[0m"
+    red_bg text = "\ESC[41m" ++ text ++ "\ESC[0m"
 
 main :: IO ()
 main = do
