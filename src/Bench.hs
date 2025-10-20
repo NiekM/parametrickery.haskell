@@ -58,6 +58,9 @@ instance {-# OVERLAPPABLE #-} (ToExpr a, Arbitrary a, Show a, Compare b) =>
 
 data Model = forall a. (Compare a, Interpret a, Execute a) => Model a
 
+-- NOTE: to check whether the models agree with the bench examples, they have to have the same type instantiation.
+-- we decided to instantiate all models at Nat (except for tree leaves, which we instantiate at ())
+-- this means that all benchmarks examples should also be defined in terms of natural numbers.
 models :: [Named [Named Model]]
 models =
   [ Named "simple"

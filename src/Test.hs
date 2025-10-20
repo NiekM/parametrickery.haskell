@@ -173,4 +173,6 @@ testExtract program problem = forM problem.examples \example ->
 --
 
 tryOut :: Interpret a => Problem -> a
-tryOut = interpret . fromJust . synth
+tryOut problem = case synthesize def problem of
+  Success ((_, Finished program) :| _) -> interpret program
+  _ -> error "Synthesis failed"
