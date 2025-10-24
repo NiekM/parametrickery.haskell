@@ -164,6 +164,9 @@ testExtract program problem = forM problem.examples \example ->
 -- - Is progress purely based on relevance?
 --
 
+pattern PROGRAM :: Program Void -> Solution
+pattern PROGRAM p <- Success ((_, Finished p) :| _)
+
 -- DONE:
 -- - Can we do anamorphisms? It seems not.
 --   Because the input of a coalgebra is unconstrained.

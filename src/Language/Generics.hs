@@ -41,6 +41,7 @@ instance {-# OVERLAPPING #-}
   (ToExpr a, Interpret b) => Interpret (a -> b) where
   interpret p = interpret . App p . Value . toExpr
 
+-- | Execute a Haskell function on a list of values.
 class Execute a where
   execute :: a -> [Value] -> Value
 

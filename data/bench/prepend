@@ -1,4 +1,4 @@
-prepend : {xs : List a, ys : List a} -> List a
+prepend : {xs : List a, _ys : List a} -> List a
 prepend [] [] = []
 prepend [1] [] = [1]
 prepend [] [1] = [1]

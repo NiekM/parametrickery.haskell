@@ -118,7 +118,7 @@ foldBench problems = testGroup "fold detection" <$>
             (_, Left TraceIncomplete{}) -> Just $ red_bg "missing trace"
             (_, Left PropagationError{}) -> Just $ red_bg "propagation error"
             (_, Right{}) -> Just $ green "success"
-      return $ bench (showName name message) $ whnf (synthesize synArgs) problem
+      return $ bench (showName name message) $ nf (map (fmap isRight) <$> synthesizeAll synArgs) problem
     return $ testGroup (Text.unpack group.name.getName) groupBenches
   where
     maxLength = maximum $ problems >>= \x -> map (Text.length . (.name.getName)) x.value

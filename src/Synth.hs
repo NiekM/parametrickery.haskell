@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Synth
   ( synthesize
@@ -176,7 +177,8 @@ eliminators :: Synth sig m => Name -> m Filling
 eliminators x = do
   Settings { conditionalBranch } <- ask
   if conditionalBranch
-    then Tactic.map x <|  Tactic.filter x <|  (softConditional 100 (Tactic.fold x) (weigh 3 >> elim x))
+    -- then Tactic.map x <|  Tactic.filter x <|  (softConditional 100 (Tactic.fold x) (weigh 3 >> elim x))
+    then Tactic.map x <|  Tactic.filter x <|  (Tactic.fold x <|  (weigh 3 >> elim x))
     else Tactic.map x <|> Tactic.filter x <|> (Tactic.fold x <|> (weigh 3 >> elim x))
 
 -- | The function foo tries to apply tactic t. If it fails, u is applied. If it succeeds, t is applied, but u is still possible, just with increased weight.
@@ -228,7 +230,6 @@ withPara = repeat (weigh 1 >> paraStep)
 -- 2. synthesize, quickCheck, shrink the incorrect inputs
 -- 3. add correct input-output to examples, repeat (from 2)
 
-
 -- ordNub can be defined in terms of para
 -- > Success ((_, Finished p) :|_) = synthesize def { tactic = Tactic.fold "xs" >>> Tactic.para "x2" >>> Tactic.anywhere2 elimOrd >>> auto } "ordNub"
 -- > quickCheck \xs -> List.nub (List.sort xs) == interpret @([Nat] -> [Nat]) p xs
@@ -248,3 +249,20 @@ withPara = repeat (weigh 1 >> paraStep)
 -- encode (i.o. group)
 -- $ synthesize def { tactic = Tactic.fold "xs" >>> Tactic.elim "x2" >>* [none, rerealize hole] >>> anywhere2 elimEq >>> introCtr >>> auto} "encode"
 
+-- Paramorphisms:
+--
+-- > PROGRAM p = synthesize def { tactic = anywhere Tactic.para >>> auto } "insert"
+-- > quickCheck \x (Sorted xs) -> interpret @(Nat -> [Nat] -> [Nat]) p x xs == List.insert x xs
+-- +++ OK, passed 100 tests.
+--
+-- > PROGRAM p = synthesize def { tactic = anywhere Tactic.para >>> auto } "sorted"
+-- > quickCheck \xs -> interpret @([Nat] -> Bool) p xs == (xs == List.sort xs)
+-- +++ OK, passed 100 tests.
+--
+-- > PROGRAM p = synthesize def { tactic = anywhere Tactic.fold >>> anywhere Tactic.para >>> auto } "sort"
+-- > quickCheck \xs -> interpret @([Nat] -> [Nat]) p xs == List.sort xs
+-- +++ OK, passed 100 tests.
+--
+-- > PROGRAM p = synthesize def { tactic = anywhere Tactic.fold >>> anywhere Tactic.para >>> auto } "ordNub"
+-- > quickCheck \xs -> interpret @([Nat] -> [Nat]) p xs == List.nub (List.sort xs)
+-- +++ OK, passed 100 tests.
