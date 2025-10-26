@@ -37,6 +37,8 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Foldable
 
+import Data.Tango.List.List as LL
+import Data.Tango.List.Nat  as LN
 import Data.Tree.Binary
 
 import Unsafe.Coerce qualified as Unsafe
@@ -165,6 +167,8 @@ norm @_ @h ctx = \case
     Apps (Var "map") [g, List xs] -> List $ map (norm ctx . App g) xs
     Apps (Var "filter") [p, List xs] -> List $
       filter (fromMaybe False . unBool . norm ctx . App p) xs
+    Apps (Var "tango") [List xs, List ys] -> mkTangoLL $ LL.tango xs ys
+    Apps (Var "tango") [List xs, Nat n] -> mkTangoLN $ LN.tango xs n
     Apps (Var "eq" ) [Value a, Value b] -> Bool (a == b)
     Apps (Var "cmp") [Value a, Value b] -> Ordering (compareVal a b)
     e -> e
@@ -180,6 +184,16 @@ norm @_ @h ctx = \case
       List xs -> foldr (\y r -> App alg $ Cons y r) (App alg Nil) xs
       Tree  t -> foldTree (\l y r -> App alg $ Ctr "Node" $ Tuple [l, y, r]) (App alg . Ctr "Leaf") t
       Nat   n -> foldNat n (App alg . Ctr "Succ") (App alg $ Nat 0)
+      TangoLL t -> t & LL.foldTango \case
+        NNF -> App alg $ Ctr "NN" Unit
+        CNF x xs -> App alg $ Ctr "CN" $ Tuple [x, List xs]
+        NCF y ys -> App alg $ Ctr "NC" $ Tuple [y, List ys]
+        CCF x y xys -> App alg $ Ctr "CC" $ Tuple [x, y, xys]
+      TangoLN t -> t & LN.foldTango \case
+        NZF -> App alg $ Ctr "NZ" Unit
+        CZF x xs -> App alg $ Ctr "CZ" $ Tuple [x, List xs]
+        NSF n -> App alg $ Ctr "NS" $ Nat n
+        CSF x xns -> App alg $ Ctr "CS" $ Tuple [x, xns]
       e -> error $ "cata is not defined for expressions of the form " ++ show (() <$ e)
     appPara :: Program h -> Program h -> Program h
     appPara alg = \case
@@ -222,6 +236,20 @@ valList = \case
 
 mkValList :: [Val h] -> Val h
 mkValList = foldr VCons VNil
+
+mkTangoLL :: TangoListList (Expr l h) (Expr l h) -> Expr l h
+mkTangoLL = \case
+  NN -> Ctr "NN" $ Tuple []
+  CN x xs -> Ctr "CN" $ Tuple [x, List xs]
+  NC y ys -> Ctr "NC" $ Tuple [y, List ys]
+  CC x y xys -> Ctr "CC" $ Tuple [x, y, mkTangoLL xys]
+
+mkTangoLN :: TangoListNat (Expr l h) -> Expr l h
+mkTangoLN = \case
+  NZ -> Ctr "NZ" $ Tuple []
+  CZ x xs -> Ctr "CZ" $ Tuple [x, List xs]
+  NS n -> Ctr "NS" $ Nat n
+  CS x xns -> Ctr "CS" $ Tuple [x, mkTangoLN xns]
 
 pattern VZero :: Val h
 pattern VZero = VCtr "Zero" (VTuple [])
@@ -303,7 +331,7 @@ eval env expr = case expr of
     case Map.lookup x env of
       Just v -> Right v
       Nothing
-        | x `elem` ["para", "cata", "map", "filter", "cmp", "eq"] -> Right $ VBuiltin x []
+        | x `elem` ["tango", "para", "cata", "map", "filter", "cmp", "eq"] -> Right $ VBuiltin x []
         | otherwise -> Left $ "Unbound variable: " ++ show x.getName
 
   Lam x body ->
@@ -492,3 +520,27 @@ unOrdering = \case
 pattern Ordering :: Ordering -> Expr l h
 pattern Ordering o <- (unOrdering -> Just o)
   where Ordering o = Ctr (fromString $ show o) Unit
+
+unTangoLL :: Expr l h -> Maybe (TangoListList (Expr l h) (Expr l h))
+unTangoLL = \case
+  Ctr "NN" Unit -> Just NN
+  Ctr "CN" (Tuple [x, List xs]) -> Just $ CN x xs
+  Ctr "NC" (Tuple [y, List ys]) -> Just $ NC y ys
+  Ctr "CC" (Tuple [x, y, unTangoLL -> Just xys]) -> Just $ CC x y xys
+  _ -> Nothing
+
+pattern TangoLL :: TangoListList (Expr l h) (Expr l h) -> Expr l h
+pattern TangoLL xys <- (unTangoLL -> Just xys)
+  where TangoLL xys = mkTangoLL xys
+
+unTangoLN :: Expr l h -> Maybe (TangoListNat (Expr l h))
+unTangoLN = \case
+  Ctr "NZ" Unit -> Just NZ
+  Ctr "CZ" (Tuple [x, List xs]) -> Just $ CZ x xs
+  Ctr "NS" (Nat n) -> Just $ NS n
+  Ctr "CS" (Tuple [x, unTangoLN -> Just xns]) -> Just $ CS x xns
+  _ -> Nothing
+
+pattern TangoLN :: TangoListNat (Expr l h) -> Expr l h
+pattern TangoLN xys <- (unTangoLN -> Just xys)
+  where TangoLN xys = mkTangoLN xys

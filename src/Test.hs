@@ -48,6 +48,7 @@ import Tactic.Filter qualified as Tactic
 import Tactic.Fold qualified as Tactic
 import Tactic.Map qualified as Tactic
 import Tactic.Relation qualified as Tactic
+import Tactic.Tango qualified as Tactic
 import Synth
 
 import Test.QuickCheck hiding (Success, Failure, total)
@@ -55,7 +56,7 @@ import Language.Arbitrary qualified as Arbitrary
 
 import Bench
 
-import Tango qualified
+import Data.Tango.List.List qualified as Tango
 
 ------ Utilities ------
 

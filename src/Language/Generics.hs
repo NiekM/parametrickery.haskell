@@ -18,6 +18,8 @@ import Data.Proxy
 
 import Data.Some
 import Data.Tree.Binary
+import Data.Tango.List.List
+import Data.Tango.List.Nat
 
 import Base
 
@@ -31,11 +33,11 @@ class Interpret a where
   interpret :: Program Void -> a
 
 instance {-# OVERLAPPING #-} FromExpr a => Interpret a where
-  interpret e = case eval mempty e of
-    Left err -> error err
-    Right v -> case fromVal v >>= toValue >>= fromExpr of
+  interpret e = case normalize e of
+    Value v -> case fromExpr v of
       Nothing -> error $ "Not a value: " ++ show v
       Just x -> x
+    _ -> error "normalized expression is not a value"
 
 instance {-# OVERLAPPING #-}
   (ToExpr a, Interpret b) => Interpret (a -> b) where
@@ -91,6 +93,8 @@ instance ToExpr a => ToExpr [a]
 instance ToExpr a => ToExpr (Some a)
 instance (ToExpr a, ToExpr b) => ToExpr (Either a b)
 instance (ToExpr a, ToExpr b) => ToExpr (Tree a b)
+instance (ToExpr a, ToExpr b) => ToExpr (TangoListList a b)
+instance ToExpr a => ToExpr (TangoListNat a)
 
 instance ToExpr a => ToExpr (SortedList a) where
   toExpr (Sorted xs) = toExpr xs
@@ -127,6 +131,9 @@ class FromExpr a where
   default fromExpr :: (Generic a, GFromExpr (Rep a)) => Value -> Maybe a
   fromExpr = fmap to . gfromExpr
 
+instance FromExpr Value where
+  fromExpr = Just
+
 instance FromExpr Int where
   fromExpr = \case
     Lit (MkInt i) -> Just i
@@ -158,6 +165,8 @@ instance FromExpr a => FromExpr (Maybe a)
 instance FromExpr a => FromExpr [a]
 instance (FromExpr a, FromExpr b) => FromExpr (Either a b)
 instance (FromExpr a, FromExpr b) => FromExpr (Tree a b)
+instance (FromExpr a, FromExpr b) => FromExpr (TangoListList a b)
+instance FromExpr a => FromExpr (TangoListNat a)
 
 instance FromExpr a => FromExpr (SortedList a) where
   fromExpr xs = Sorted <$> fromExpr xs
@@ -221,6 +230,9 @@ class DataName f where
 
 instance KnownSymbol n => DataName (D1 (MetaData n m p nt) f) where
   dname _ = symbolName n
+
+instance ToType Nat where
+  toType _ = Data "Nat" []
 
 instance {-# OVERLAPPABLE #-} DataName (Rep a) => ToType a where
   toType t = Data (dataName t) []

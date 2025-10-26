@@ -116,7 +116,7 @@ library
     , Tactic.Predicate
     , Tactic.Relation
     , Tactic.Settings
-    , Tango
+    , Tactic.Tango
     , Test
 
   -- Modules included in this library but not exported.
@@ -148,6 +148,8 @@ library parametrickery-prelude
     , Data.Name
     , Data.Nat
     , Data.Some
+    , Data.Tango.List.List
+    , Data.Tango.List.Nat
     , Data.Tree.Binary
     , Utils
 

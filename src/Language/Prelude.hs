@@ -5,6 +5,8 @@ import GHC.Generics
 
 import Data.Some
 import Data.Tree.Binary
+import Data.Tango.List.List
+import Data.Tango.List.Nat
 
 import Language.Generics
 import Language.Type
@@ -24,4 +26,6 @@ datatypes = DataContext $
   , toData Either
   , toData Tree
   , toData Some
+  , toData TangoListList
+  , toData TangoListNat
   ] >>= \d -> d : maybeToList (base d)
