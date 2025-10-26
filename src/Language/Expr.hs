@@ -25,9 +25,6 @@ module Language.Expr
   , tuple
   , lets
   , compareVal
-
-  , eval
-  , fromVal
   ) where
 
 import Prelude hiding (Enum(..), error)
@@ -202,176 +199,6 @@ norm @_ @h ctx = \case
       Nat   n -> paraNat (\(i, r) -> App alg $ Ctr "Succ" $ Tuple [r, Nat i]) (App alg (Nat 0)) n
       e -> error $ "para is not defined for expressions of the form " ++ show (() <$ e)
 
-type Env h = Map Name (Val h)
-data Val h
-  = VLit Lit
-  | VTuple [Val h]
-  | VCtr Name (Val h)
-  | VClosure (Env h) Name (Program h)
-  | VElim [(Name, Val h)]
-  | VBuiltin Name [Val h]
-  deriving (Eq, Ord, Show)
-
-valTree :: Val h -> Maybe (Tree (Val h) (Val h))
-valTree = \case
-  VCtr "Leaf" x -> Just $ Leaf x
-  VCtr "Node" (VTuple [l, x, r]) -> Node <$> valTree l <*> pure x <*> valTree r
-  _ -> Nothing
-
-pattern VTree :: Tree (Val h) (Val h) -> Val h
-pattern VTree t <- (valTree -> Just t)
-  where VTree t = foldTree (\l x r -> VCtr "Node" $ VTuple [l, x, r]) (VCtr "Leaf") t
-
-pattern VNil :: Val h
-pattern VNil = VCtr "[]" (VTuple [])
-
-pattern VCons :: Val h -> Val h -> Val h
-pattern VCons x xs = VCtr ":" (VTuple [x, xs])
-
-valList :: Val h -> Maybe [Val h]
-valList = \case
-  VNil -> Just []
-  VCons x xs -> (x:) <$> valList xs
-  _ -> Nothing
-
-mkValList :: [Val h] -> Val h
-mkValList = foldr VCons VNil
-
-mkTangoLL :: TangoListList (Expr l h) (Expr l h) -> Expr l h
-mkTangoLL = \case
-  NN -> Ctr "NN" $ Tuple []
-  CN x xs -> Ctr "CN" $ Tuple [x, List xs]
-  NC y ys -> Ctr "NC" $ Tuple [y, List ys]
-  CC x y xys -> Ctr "CC" $ Tuple [x, y, mkTangoLL xys]
-
-mkTangoLN :: TangoListNat (Expr l h) -> Expr l h
-mkTangoLN = \case
-  NZ -> Ctr "NZ" $ Tuple []
-  CZ x xs -> Ctr "CZ" $ Tuple [x, List xs]
-  NS n -> Ctr "NS" $ Nat n
-  CS x xns -> Ctr "CS" $ Tuple [x, mkTangoLN xns]
-
-pattern VZero :: Val h
-pattern VZero = VCtr "Zero" (VTuple [])
-
-pattern VSucc :: Val h -> Val h
-pattern VSucc n = VCtr "Succ" n
-
-valNat :: Val h -> Maybe Nat
-valNat = \case
-  VZero -> Just 0
-  VSucc n -> (1+) <$> valNat n
-  _ -> Nothing
-
-pattern VTrue, VFalse :: Val h
-pattern VTrue = VCtr "True" (VTuple [])
-pattern VFalse = VCtr "False" (VTuple [])
-
-fromBool :: Bool -> Val h
-fromBool False = VFalse
-fromBool True = VTrue
-
-toBool :: Val h -> Either String Bool
-toBool VFalse = Right False
-toBool VTrue = Right True
-toBool _ = Left "Not a boolean"
-
-fromOrdering :: Ordering -> Val h
-fromOrdering LT = VCtr "LT" (VTuple [])
-fromOrdering EQ = VCtr "EQ" (VTuple [])
-fromOrdering GT = VCtr "GT" (VTuple [])
-
-evalApp :: Env h -> Val h -> Val h -> Either String (Val h)
-evalApp env f e = case f of
-  VClosure cloEnv x body ->
-    eval (Map.insert x e cloEnv) body
-  VElim branches -> case e of
-    VCtr cname v -> do
-      case lookup cname branches of
-        Just arm -> evalApp env arm v
-        Nothing -> Left $ "No branch for constructor: " ++ show cname
-    _ -> Left "Elimination on non-constructor"
-  VBuiltin "eq" [] -> Right $ VBuiltin "eq" [e]
-  VBuiltin "eq" [x]
-    | Just a <- fromVal x >>= toValue, Just b <- fromVal e >>= toValue
-    -> Right $ fromBool (a == b)
-  VBuiltin "cmp" [] -> Right $ VBuiltin "cmp" [e]
-  VBuiltin "cmp" [x]
-    | Just a <- fromVal x >>= toValue, Just b <- fromVal e >>= toValue
-    -> Right $ fromOrdering (compareVal a b)
-  VBuiltin "map" [] -> Right $ VBuiltin "map" [e]
-  VBuiltin "map" [predicate]
-    | Just xs <- valList e -> mkValList <$> mapM (evalApp env predicate) xs
-    | otherwise -> Left "Map only works on lists"
-  VBuiltin "filter" [] -> Right $ VBuiltin "filter" [e]
-  VBuiltin "filter" [predicate]
-    | Just xs <- valList e -> mkValList <$> filterM (evalApp env predicate >=> toBool) xs
-    | otherwise -> Left "Filter only works on lists"
-  VBuiltin "cata" [] -> Right $ VBuiltin "cata" [e]
-  VBuiltin "cata" [alg]
-    | Just xs <- valList e ->
-      foldr (\x r -> r >>= evalApp env alg . VCons x) (evalApp env alg VNil) xs
-    | Just n <- valNat e ->
-      foldNat n (>>= evalApp env alg . VSucc) (evalApp env alg VZero)
-    | Just t <- valTree e ->
-      foldTree (\l x r -> do a <- l; b <- r; evalApp env alg (VCtr "Node" (VTuple [a, x, b]))) (evalApp env alg . VCtr "Leaf") t
-    | otherwise -> Left $ "Cata only works on some types"
-  VBuiltin "para" [] -> Right $ VBuiltin "para" [e]
-  VBuiltin "para" [alg]
-    | Just xs <- valList e ->
-      paraList (\x (ys, r) -> do a <- r; evalApp env alg (VCons x (VTuple [a, mkValList ys]))) (evalApp env alg VNil) xs
-    | Just t <- valTree e ->
-      paraTree (\l u x r s -> do a <- l; b <- r; evalApp env alg (VCtr "Node" (VTuple [VTuple [a, VTree u], x, VTuple [b, VTree s]]))) (evalApp env alg . VCtr "Leaf") t
-    | otherwise -> Left $ "Para only works on some types"
-  _ -> Left $ "Trying to apply a non-function"
-
-eval :: Env h -> Program h -> Either String (Val h)
-eval env expr = case expr of
-  Var x ->
-    case Map.lookup x env of
-      Just v -> Right v
-      Nothing
-        | x `elem` ["tango", "para", "cata", "map", "filter", "cmp", "eq"] -> Right $ VBuiltin x []
-        | otherwise -> Left $ "Unbound variable: " ++ show x.getName
-
-  Lam x body ->
-    Right $ VClosure env x body
-
-  Elim branches ->
-    VElim <$> mapM (mapM $ eval env) branches
-
-  App f e -> do
-    vf <- eval env f
-    ve <- eval env e
-    evalApp env vf ve
-
-  Tuple es -> VTuple <$> mapM (eval env) es
-
-  Prj i e -> do
-    v <- eval env e
-    case v of
-      VTuple vs ->
-        if i < List.genericLength vs then Right (List.genericIndex vs i)
-        else Left "Tuple index out of bounds"
-      _ -> Left "Projection on non-tuple"
-
-  Lit l -> Right $ VLit l
-
-  Ctr name arg -> do
-    arg' <- eval env arg
-    Right $ VCtr name arg'
-
-  Hole _ -> Left "Cannot evaluate holes"
-
-fromVal :: Val h -> Maybe (Program h)
-fromVal = \case
-  VLit i -> Just $ Lit i
-  VTuple vs -> Tuple <$> mapM fromVal vs
-  VCtr c v -> Ctr c <$> fromVal v
-  VClosure{} -> trace "closure" Nothing
-  VElim{} -> trace "elim" Nothing
-  VBuiltin{} -> trace "builtin" Nothing
-
 -- Smart constructors
 
 asProgram :: Expr l h -> Program h
@@ -520,6 +347,22 @@ unOrdering = \case
 pattern Ordering :: Ordering -> Expr l h
 pattern Ordering o <- (unOrdering -> Just o)
   where Ordering o = Ctr (fromString $ show o) Unit
+
+-- * Tango
+
+mkTangoLL :: TangoListList (Expr l h) (Expr l h) -> Expr l h
+mkTangoLL = \case
+  NN -> Ctr "NN" $ Tuple []
+  CN x xs -> Ctr "CN" $ Tuple [x, List xs]
+  NC y ys -> Ctr "NC" $ Tuple [y, List ys]
+  CC x y xys -> Ctr "CC" $ Tuple [x, y, mkTangoLL xys]
+
+mkTangoLN :: TangoListNat (Expr l h) -> Expr l h
+mkTangoLN = \case
+  NZ -> Ctr "NZ" $ Tuple []
+  CZ x xs -> Ctr "CZ" $ Tuple [x, List xs]
+  NS n -> Ctr "NS" $ Nat n
+  CS x xns -> Ctr "CS" $ Tuple [x, mkTangoLN xns]
 
 unTangoLL :: Expr l h -> Maybe (TangoListList (Expr l h) (Expr l h))
 unTangoLL = \case
