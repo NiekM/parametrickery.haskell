@@ -4,11 +4,11 @@ This package accompanies the ICFP '24 paper "Example-Based Reasoning About the R
 
 ## Instructions
 
-Make sure that the following are installed:
+Make sure that the following are installed (other versions may also work):
 
 - `ghc` with version `9.10.3`
-- `cabal-install` with version `3.10.3.0`
-- `z3` (tested on versions `4.8.10` and `4.12.2`)
+- `cabal-install` with version `3.12.1.0`
+- `z3` (tested on versions `4.8.10`, `4.12.2`, and `4.16.0`)
 
 We suggest using `ghcup` to specify specific versions of `ghc` and `cabal-install`.
 
