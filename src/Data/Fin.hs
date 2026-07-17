@@ -22,4 +22,4 @@ newtype Fin = Fin Natural
 
 instance Dep Fin where
   type Arg Fin = Natural
-  depend n x = x .>= 0 .&& x .< n
+  depend _ n x = x .>= 0 .&& x .< n

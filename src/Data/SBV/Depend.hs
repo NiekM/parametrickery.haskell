@@ -1,5 +1,3 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-
 {- |
 Module      : Data.SBV.Depend
 Copyright   : (c) Niek Mulleners 2024
@@ -24,11 +22,10 @@ import Base
 -- | The class 'Dep' defines a dependent type, by describing how the symbolic
 -- encoding is constrained using 'depend' based on its 'Arg'ument.
 
--- TODO: rewrite using RequiredTypeArguments i.o. AllowAmbiguousTypes
 class (Encode a, Ref (Arg a)) => Dep a where
   type Arg a :: Type
-  depend :: SBV (Sym (Arg a)) -> SBV (Sym a) -> SBool
+  depend :: forall b -> (a ~ b) => SBV (Sym (Arg a)) -> SBV (Sym a) -> SBool
 
 instance (Ref a, Ref b) => Dep (Const a b) where
   type Arg (Const a b) = b
-  depend _ = refine @a
+  depend _ _ = refine a

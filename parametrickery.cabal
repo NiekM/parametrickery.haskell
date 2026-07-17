@@ -53,12 +53,31 @@ build-type:         Simple
 -- Extra doc files to be distributed with the package, such as a CHANGELOG or a README.
 extra-doc-files:    CHANGELOG.md
 
-common warnings
+common shared-properties
   ghc-options: -Wall
+
+  default-language: GHC2024
+
+  default-extensions:
+      BlockArguments
+    , DefaultSignatures
+    , DuplicateRecordFields
+    , PatternSynonyms
+    , RequiredTypeArguments
+    , TypeFamilies
+
+  build-depends:
+      base
+    , containers
+    , directory
+    , lens
+    , prettyprinter
+    , sbv
+    , text
 
 library
   -- Import common warning flags.
-  import:           warnings
+  import:           shared-properties
 
   -- Modules exported by the library.
   exposed-modules:
@@ -82,32 +101,16 @@ library
   other-modules:
       Base
 
-  -- LANGUAGE extensions used by modules in this package.
-  default-extensions:
-      BlockArguments
-    , DefaultSignatures
-    , DerivingStrategies
-    , DuplicateRecordFields
-    , LambdaCase
-    , PatternSynonyms
-    , TypeFamilies
-
   -- Other library packages from which modules are imported.
   build-depends:
-      base ^>=4.19.0.0
-    , containers
-    , mtl
-    , sbv
+      mtl
 
   -- Directories containing source files.
   hs-source-dirs:   src
 
-  -- Base language which the package is written in.
-  default-language: GHC2021
-
 executable parametrickery
   -- Import common warning flags.
-  import:           warnings
+  import:           shared-properties
 
   -- .hs or .lhs file containing the Main module.
   main-is:          Main.hs
@@ -117,23 +120,15 @@ executable parametrickery
 
   -- Other library packages from which modules are imported.
   build-depends:
-      base ^>=4.19.0.0
-    , sbv
-    , parametrickery
+      parametrickery
     , time
 
   -- Directories containing source files.
   hs-source-dirs:   app
 
-  -- Base language which the package is written in.
-  default-language: GHC2021
-
 test-suite parametrickery-test
   -- Import common warning flags.
-  import:           warnings
-
-  -- Base language which the package is written in.
-  default-language: GHC2021
+  import:           shared-properties
 
   -- The interface type and version of the test suite.
   type:             exitcode-stdio-1.0
@@ -146,9 +141,6 @@ test-suite parametrickery-test
 
   -- Test dependencies.
   build-depends:
-      base ^>=4.19.0.0
-    , sbv
-    , hspec
-    , containers
+      hspec
     , QuickCheck
     , parametrickery

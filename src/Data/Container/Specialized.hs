@@ -38,7 +38,7 @@ newtype DecFin = DecFin Natural
 
 instance Dep DecFin where
   type Arg DecFin = Natural
-  depend n = depend @Fin (n - 1)
+  depend _ n = depend (type Fin) (n - 1)
 
 -- | A type synonym for @'Data.Maybe.Maybe' [a]@ with a container instance
 -- \[
@@ -65,7 +65,7 @@ newtype SumFin = FinPair Natural
 
 instance Dep SumFin where
   type Arg SumFin = (Natural, Natural)
-  depend n = depend @Fin (a + b)
+  depend _ n = depend (type Fin) (a + b)
     where (a, b) = SBV.untuple n
 
 -- | A type synonym for @([a], [a])@ with a container instance
@@ -93,7 +93,7 @@ newtype DoubleFin = DoubleFin Natural
 
 instance Dep DoubleFin where
   type Arg DoubleFin = Natural
-  depend n = depend @Fin (2 * n)
+  depend _ n = depend (type Fin) (2 * n)
 
 -- | A type synonym for @[(a, a)]@ with a container instance
 -- \[

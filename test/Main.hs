@@ -1,4 +1,3 @@
-{-# LANGUAGE BlockArguments #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Main (main) where
@@ -19,12 +18,6 @@ import Data.Functor.Sum
 import Data.SBV
 import Data.SBV.Depend
 import Data.Container
-
-instance Arbitrary Natural where
-  arbitrary = natural
-
-natural :: Gen Natural
-natural = fromInteger . getNonNegative <$> arbitrary
 
 instance (Arbitrary1 f, Arbitrary1 g) => Arbitrary1 (Sum f g) where
   liftArbitrary arb = oneof
@@ -51,13 +44,13 @@ main = hspec do
     describe "@(Either Int Int)" . injective $ encode @(Either Int Int)
 
   describe "refine holds on encoded values" do
-    prop "@()"               $ refineHolds @()
-    prop "@Bool"             $ refineHolds @Bool
-    prop "@Int"              $ refineHolds @Int
-    prop "@Char"             $ refineHolds @Char
-    prop "@Natural"          $ refineHolds @Natural
-    prop "@(Int, Int)"       $ refineHolds @(Int, Int)
-    prop "@(Either Int Int)" $ refineHolds @(Either Int Int)
+    prop "@()"               $ refineHolds (type ())
+    prop "@Bool"             $ refineHolds (type Bool)
+    prop "@Int"              $ refineHolds (type Int)
+    prop "@Char"             $ refineHolds (type Char)
+    prop "@Natural"          $ refineHolds (type Natural)
+    prop "@(Int, Int)"       $ refineHolds (type (Int, Int))
+    prop "@(Either Int Int)" $ refineHolds (type (Either Int Int))
 
   describe "container laws" do
     describe "roundtrip" do
@@ -78,15 +71,15 @@ main = hspec do
 
 -- | Check if encoding a refinement types results in a value for which
 -- 'Data.SBV.Refine.refine' holds.
-refineHolds :: forall a. Ref a => a -> Bool
-refineHolds x = case unliteral (refine @a $ literal $ encode x) of
+refineHolds :: forall a -> Ref a => a -> Bool
+refineHolds t x = case unliteral (refine t $ literal $ encode x) of
   Nothing -> error "Something went wrong: somehow not a literal"
   Just b -> b
 
 -- | Check if encoding a dependent type and its argument results in values for
 -- which 'Data.SBV.Depend.depend' holds.
-dependHolds :: forall a. Dep a => Arg a -> a -> Bool
-dependHolds x y = case unliteral (depend @a x' y') of
+dependHolds :: forall a -> Dep a => Arg a -> a -> Bool
+dependHolds t x y = case unliteral (depend t x' y') of
   Nothing -> error "Something went wrong: somehow not a literal"
   Just b -> b
   where
@@ -102,7 +95,7 @@ containerRoundTrip x = x == fromContainer (toContainer x)
 -- | Check whether the shapes and positions of a 'Data.Container.Core.Container'
 -- are properly constrained.
 containerDependencies :: (Container f, Eq (f a)) => f a -> Bool
-containerDependencies x = refineHolds s && all (dependHolds s) (Map.keys p)
+containerDependencies x = refineHolds _ s && all (dependHolds _ s) (Map.keys p)
   where Extension s p = toContainer x
 
 --- Injectivity ---

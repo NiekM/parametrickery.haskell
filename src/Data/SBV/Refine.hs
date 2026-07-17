@@ -1,5 +1,3 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-
 {- |
 Module      : Data.SBV.Refine
 Copyright   : (c) Niek Mulleners 2024
@@ -25,31 +23,30 @@ import Base
 -- | The class 'Ref' defines a refinement type, by describing how the symbolic
 -- encoding is constrained using 'refine'.
 
--- TODO: rewrite using RequiredTypeArguments i.o. AllowAmbiguousTypes
 class Encode a => Ref a where
-  refine :: SBV (Sym a) -> SBool
+  refine :: forall b -> (a ~ b) => SBV (Sym b) -> SBool
 
-  default refine :: (a ~ Sym a) => SBV (Sym a) -> SBool
-  refine _ = sTrue
+  default refine :: forall b -> (a ~ b) => SBV (Sym b) -> SBool
+  refine _ _ = sTrue
 
 instance Ref ()
 instance Ref Char
 instance Ref Bool
 instance Ref Int where
-  refine _ = sTrue
+  refine _ _ = sTrue
 
 instance Ref Void where
-  refine _ = sFalse
+  refine _ _ = sFalse
 
 instance Ref Natural where
-  refine n = n .>= 0
+  refine _ n = n .>= 0
 
 instance (Ref a, Ref b) => Ref (a, b) where
-  refine s = let (x, y) = SBV.untuple s in
-    refine @a x .&& refine @b y
+  refine _ s = let (x, y) = SBV.untuple s in
+    refine a x .&& refine b y
 
 instance (Ref a, Ref b) => Ref (Either a b) where
-  refine = SBV.either (refine @a) (refine @b)
+  refine _ = SBV.either (refine a) (refine b)
 
 instance Ref a => Ref (Maybe a) where
-  refine = SBV.maybe sTrue (refine @a)
+  refine _ = SBV.maybe sTrue (refine a)

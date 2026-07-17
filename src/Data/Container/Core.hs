@@ -81,7 +81,7 @@ newtype OR a b = OR (Either a b)
 
 instance (Dep a, Dep b) => (Dep (OR a b)) where
   type Arg (OR a b) = (Arg a, Arg b)
-  depend t = SBV.either (depend @a x) (depend @b y)
+  depend _ t = SBV.either (depend a x) (depend b y)
     where (x, y) = SBV.untuple t
 
 instance (Container f, Container g) => Container (Product f g) where
@@ -106,10 +106,10 @@ newtype XOR a b = XOR { unXOR :: Either a b }
 
 instance (Dep a, Dep b) => (Dep (XOR a b)) where
   type Arg (XOR a b) = Either (Arg a) (Arg b)
-  depend e d =
+  depend _ e d =
     SBV.either
-    (\l -> SBV.isLeft  d .&& depend @a l (SBV.fromLeft  d))
-    (\r -> SBV.isRight d .&& depend @b r (SBV.fromRight d))
+    (\l -> SBV.isLeft  d .&& depend a l (SBV.fromLeft  d))
+    (\r -> SBV.isRight d .&& depend b r (SBV.fromRight d))
     e
 
 instance (Container f, Container g) => Container (Sum f g) where
@@ -145,7 +145,7 @@ newtype May = May ()
 
 instance Dep May where
   type Arg May = Bool
-  depend m _ = m .== sTrue
+  depend _ m _ = m .== sTrue
 
 instance Container Maybe where
   type Shape    Maybe = Bool

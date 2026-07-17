@@ -77,13 +77,13 @@ data SMorphism f g where
 -- introducing variables with such names.
 --
 symContainer :: forall m f a.
-  (MonadFresh m, SolverContext m, Container f, HasKind a)
+  (MonadFresh m, SolverContext m, Container f, HasKind a, SymVal a)
   => m (SExtension f a)
 symContainer = do
   n <- fresh
   let s = sym $ "s_" <> show n
   let p = sym $ "p_" <> show n
-  constrain $ refine @(Shape f) s
+  constrain $ refine (type (Shape f)) s
   return $ SExtension s p
 
 -- | Create a symbolic variable for the extension of a container morphism.
@@ -101,11 +101,11 @@ symMorphism = do
   let g = sym $ "g_" <> show n
   -- Foreach correct input s to u, the output should also be correct.
   constrain \(Forall s) ->
-    refine @(Shape f) s .=> refine @(Shape g) (u s)
+    refine (type (Shape f)) s .=> refine (type (Shape g)) (u s)
   -- Foreach correct input s and x, the output should also be correct.
   constrain \(Forall s) (Forall x) ->
-    (refine @(Shape f) s .&& depend @(Position g) (u s) x)
-    .=> depend @(Position f) s (g s x)
+    (refine (type (Shape f)) s .&& depend (type (Position g)) (u s) x)
+    .=> depend (type (Position f)) s (g s x)
   return $ SMorphism u g
 
 -- | Apply a symbolic morphism to a symbolic container.
@@ -129,13 +129,13 @@ constrainExtension (SExtension s p) c = do
     constrain $ p (literal (encode k)) .== literal v
 
 -- | Constrain two symbolic container extensions to be equal to each other.
-unifyExtension :: forall m f a. (Monad m, SolverContext m) =>
+unifyExtension :: forall m f a. (Monad m, SolverContext m, SymVal a) =>
   SExtension f a -> SExtension f a -> m ()
 unifyExtension (SExtension s p) (SExtension t q) = do
   constrain $ s .== t
-  constrain \(Forall x) -> depend @(Position f) s x .=> p x .== q x
+  constrain \(Forall x) -> depend (type (Position f)) s x .=> p x .== q x
 
 -- | Constrain a symbolic morphism using an input-output example.
-constrainMorphism :: (Monad m, SolverContext m) =>
+constrainMorphism :: (Monad m, SolverContext m, SymVal a) =>
   SMorphism f g -> SExtension f a -> SExtension g a -> m ()
 constrainMorphism f i = unifyExtension (apply f i)
