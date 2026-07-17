@@ -6,7 +6,7 @@ This package accompanies the ICFP '24 paper "Example-Based Reasoning About the R
 
 Make sure that the following are installed:
 
-- `ghc` with version `9.8.2`
+- `ghc` with version `9.10.3`
 - `cabal-install` with version `3.10.3.0`
 - `z3` (tested on versions `4.8.10` and `4.12.2`)
 
